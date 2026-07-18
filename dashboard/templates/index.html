@@ -1,13 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
 
-    <meta charset="UTF-8">
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>{{ company }}</title>
+    <title>
+        Bethel Trading Technologies
+    </title>
 
 
     <link rel="stylesheet" href="/static/css/style.css">
@@ -21,18 +19,20 @@
 <div class="container">
 
 
-
-<!-- HEADER -->
-
 <header>
 
-    <h1>{{ company }}</h1>
+    <h1>
+        Bethel Trading Technologies
+    </h1>
 
-    <p>Algorithmic Trading Dashboard</p>
+
+    <p>
+        Algorithmic Trading Dashboard
+    </p>
 
 
     <div id="status">
-        MT5 Status: Checking...
+        CONNECTING...
     </div>
 
 
@@ -40,176 +40,75 @@
 
 
 
+<div class="grid">
 
 
-<!-- ACCOUNT INFORMATION -->
+    <div class="card">
 
-<section class="info-panel">
+        <h3>
+            Balance
+        </h3>
 
+        <p id="balance">
+            $0.00
+        </p>
 
-<div class="panel">
-
-<h3>Account Information</h3>
-
-
-<p>
-Login:
-<strong id="login">-</strong>
-</p>
-
-
-<p>
-Server:
-<strong id="server">-</strong>
-</p>
-
-
-<p>
-Currency:
-<strong id="currency">-</strong>
-</p>
-
-
-<p>
-Leverage:
-<strong id="leverage">-</strong>
-</p>
-
-
-</div>
+    </div>
 
 
 
+    <div class="card">
 
+        <h3>
+            Equity
+        </h3>
 
-<!-- RISK MONITOR -->
+        <p id="equity">
+            $0.00
+        </p>
 
-
-<div class="panel">
-
-
-<h3>Risk Monitor</h3>
-
-
-
-<p>
-Open Positions:
-<strong id="risk-positions">0</strong>
-</p>
+    </div>
 
 
 
-<p>
-Margin:
-<strong id="margin">0</strong>
-</p>
+    <div class="card">
+
+        <h3>
+            Profit / Loss
+        </h3>
+
+        <p id="profit">
+            $0.00
+        </p>
+
+    </div>
 
 
 
-<p>
-Free Margin:
-<strong id="free-margin">0</strong>
-</p>
+    <div class="card">
 
+        <h3>
+            Open Positions
+        </h3>
 
+        <p id="positions">
+            0
+        </p>
 
-<p>
-Margin Level:
-<strong id="margin-level">0</strong>
-</p>
-
+    </div>
 
 
 </div>
 
 
-</section>
 
 
-
-
-
-
-
-<!-- ACCOUNT SUMMARY CARDS -->
-
-
-<section class="cards">
-
-
-
-<div class="card">
-
-<h3>Balance</h3>
-
-<p id="balance">
-$0.00
-</p>
-
-</div>
-
-
-
-
-
-<div class="card">
-
-<h3>Equity</h3>
-
-<p id="equity">
-$0.00
-</p>
-
-</div>
-
-
-
-
-
-<div class="card">
-
-<h3>Profit / Loss</h3>
-
-<p id="profit">
-$0.00
-</p>
-
-</div>
-
-
-
-
-
-<div class="card">
-
-<h3>Open Positions</h3>
-
-<p id="positions-count">
-0
-</p>
-
-</div>
-
-
-
-</section>
-
-
-
-
-
-
-
-<!-- OPEN POSITIONS TABLE -->
-
-
-<section class="positions-section">
+<div class="positions-section">
 
 
 <h2>
-Open Positions
+    Live Trading Status
 </h2>
-
 
 
 <table>
@@ -219,16 +118,27 @@ Open Positions
 
 <tr>
 
-<th>Symbol</th>
+<th>
+Symbol
+</th>
 
-<th>Type</th>
 
-<th>Volume</th>
+<th>
+Type
+</th>
 
-<th>Profit</th>
+
+<th>
+Volume
+</th>
+
+
+<th>
+Profit
+</th>
+
 
 </tr>
-
 
 </thead>
 
@@ -244,10 +154,7 @@ Open Positions
 </table>
 
 
-
-</section>
-
-
+</div>
 
 
 
@@ -257,12 +164,9 @@ Open Positions
 
 
 
-
-<script src="/static/js/app.js"></script>
-
+<script src="/static/js/dashboard.js"></script>
 
 
 </body>
-
 
 </html>
