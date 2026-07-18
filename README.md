@@ -1,2 +1,2 @@
-# Bethel
+# BethelTradingTech
 bethel-trading-api
