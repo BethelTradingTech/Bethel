@@ -13,40 +13,39 @@ logger = get_logger("BETHEL_SYSTEM")
 
 def start_platform():
 
-    print("=" * 40)
-    print("BETHEL TRADING TECHNOLOGIES")
-    print("QUANT PLATFORM")
-    print("=" * 40)
+    print("=" * 40)
+    print("BETHEL TRADING TECHNOLOGIES")
+    print("QUANT PLATFORM")
+    print("=" * 40)
 
-    print()
+    print()
 
-    print(f"Version: {settings.VERSION}")
-    print(f"Environment: {settings.ENVIRONMENT}")
+    print(f"Version: {settings.VERSION}")
+    print(f"Environment: {settings.ENVIRONMENT}")
 
-    print()
+    print()
 
-    print("Modules:")
+    print("Modules:")
 
-    print("✓ Configuration Loaded")
+    print("✓ Configuration Loaded")
 
-    logger.info(
-        "Bethel Trading Technologies Started"
-    )
+    logger.info(
+        "Bethel Trading Technologies Started"
+    )
 
-    print("✓ Logging Online")
+    print("✓ Logging Online")
 
-    print(
-        f"✓ {database_status()}"
-    )
+    print(
+        f"✓ {database_status()}"
+    )
 
-    print()
+    print()
 
-    print("System Status: READY")
+    print("System Status: READY")
 
-    print("=" * 40)
-
+    print("=" * 40)
 
 
 if __name__ == "__main__":
 
-    start_platform()
+    start_platform()
