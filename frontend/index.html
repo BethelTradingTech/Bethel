@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Bethel Trading Technologies</title>
+
+<link rel="stylesheet" href="css/style.css">
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+<header>
+
+<h1>Bethel Trading Technologies</h1>
+
+<p>Algorithmic Trading Dashboard</p>
+
+
+<div id="status">
+MT5 Status: Checking...
+</div>
+
+
+</header>
+
+
+
+<section class="cards">
+
+
+<div class="card">
+
+<h3>Balance</h3>
+
+<p id="balance">$0.00</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>Equity</h3>
+
+<p id="equity">$0.00</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>Profit / Loss</h3>
+
+<p id="profit">$0.00</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>Positions</h3>
+
+<p id="positions">0</p>
+
+</div>
+
+
+</section>
+
+
+
+
+
+<section class="panel">
+
+
+<h2>MT5 Account</h2>
+
+
+<p>
+Login:
+<strong id="login">-</strong>
+</p>
+
+
+<p>
+Server:
+<strong id="server">-</strong>
+</p>
+
+
+<p>
+Currency:
+<strong id="currency">-</strong>
+</p>
+
+
+</section>
+
+
+
+
+
+
+<section class="panel">
+
+
+<h2>Open Positions</h2>
+
+
+<table>
+
+
+<thead>
+
+<tr>
+
+<th>Symbol</th>
+
+<th>Type</th>
+
+<th>Volume</th>
+
+<th>Profit</th>
+
+</tr>
+
+</thead>
+
+
+
+<tbody id="positions-table">
+
+</tbody>
+
+
+</table>
+
+
+</section>
+
+
+
+</div>
+
+
+
+<script src="js/app.js"></script>
+
+
+</body>
+
+</html>
