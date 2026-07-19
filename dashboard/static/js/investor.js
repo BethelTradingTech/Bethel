@@ -1,3 +1,5 @@
+const INVESTOR_ID = 1;
+
 /*
 Bethel Trading Technologies
 Investor Dashboard Engine v6
