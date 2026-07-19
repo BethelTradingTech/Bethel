@@ -26,7 +26,7 @@ class MonthlyPerformanceEngine:
     def monthly_returns(self):
 
 
-        curve = self.daily_engine.daily_equity_curve()
+        curve = self.daily_engine.equity_history()
 
 
         if not curve:

@@ -9,65 +9,20 @@ from datetime import datetime
 
 from api.database import Base
 
+from api.auth.models.user import User
+
+from api.investors.models import Investor
+
+from api.investors.models import Investor, Portfolio
+
+from api.investors.mt5_account import MT5Account
+
+from api.auth.models.investor_user import InvestorUser
+
 
 
 # ==========================
 # MT5 ACCOUNT
-# ==========================
-
-class MT5Account(Base):
-
-    __tablename__ = "mt5_accounts"
-
-
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
-
-
-    account_number = Column(
-        String,
-        unique=True,
-        index=True
-    )
-
-
-    server = Column(
-        String
-    )
-
-
-    investor_password = Column(
-        String,
-        nullable=True
-    )
-
-
-    broker = Column(
-        String,
-        nullable=True
-    )
-
-
-    status = Column(
-        String,
-        default="DISCONNECTED"
-    )
-
-
-    created_at = Column(
-        DateTime,
-        default=datetime.utcnow
-    )
-
-
-
-
-
-# ==========================
-# ACCOUNT STATISTICS
 # ==========================
 
 class AccountStatistics(Base):

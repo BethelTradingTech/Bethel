@@ -1,8 +1,14 @@
 """
 Bethel Trading Technologies
 FastAPI Main Application
+
+Institutional Quant Trading Platform
 """
 
+
+# ==========================
+# FASTAPI CORE
+# ==========================
 
 from fastapi import FastAPI, Request
 
@@ -11,6 +17,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from fastapi.middleware.cors import CORSMiddleware
+
+
 
 
 
@@ -24,6 +32,8 @@ from api.models import Base
 
 
 
+
+
 # ==========================
 # SERVICES
 # ==========================
@@ -32,8 +42,10 @@ from api.services.scheduler import start_scheduler
 
 
 
+
+
 # ==========================
-# ROUTES
+# CORE ROUTES
 # ==========================
 
 from api.routes import accounts
@@ -45,17 +57,53 @@ from api.routes import analytics
 from api.routes import risk
 
 
+
+
+
+# ==========================
+# MT5 + PERFORMANCE ROUTES
+# ==========================
+
 from api.routes.mt5.router import router as mt5_router
 
 from api.routes.performance.router import router as performance_router
 
 
-from api.auth.routes import router as auth_router
 
+
+
+# ==========================
+# AUTHENTICATION ROUTES
+# ==========================
+
+from api.auth.routes.auth import router as auth_router
+
+from api.auth.routes.investor_login import router as investor_auth_router
+
+
+
+
+
+# ==========================
+# INVESTOR SYSTEM ROUTES
+# ==========================
 
 from dashboard.investor_router import router as investor_router
 
 
+from api.investors.routes.portfolio import router as portfolio_router
+
+
+from api.investors.routes.mt5_accounts import router as mt5_accounts_router
+from api.investors.routes.dashboard import router as investor_dashboard_router
+
+
+
+
+
+# ==========================
+# AUTH DEPENDENCY
+# ==========================
 
 from api.auth.dependency import check_auth
 
@@ -64,13 +112,16 @@ from api.auth.dependency import check_auth
 
 
 # ==========================
-# CREATE APP
+# CREATE APPLICATION
 # ==========================
 
 
 app = FastAPI(
 
     title="Bethel Trading Technologies API",
+
+    description=
+    "Institutional Algorithmic Trading & Investor Portal",
 
     version="1.0"
 
@@ -81,7 +132,7 @@ app = FastAPI(
 
 
 # ==========================
-# DATABASE INIT
+# DATABASE INITIALIZATION
 # ==========================
 
 
@@ -107,7 +158,7 @@ start_scheduler()
 
 
 # ==========================
-# CORS
+# CORS CONFIGURATION
 # ==========================
 
 
@@ -115,21 +166,30 @@ app.add_middleware(
 
     CORSMiddleware,
 
+
     allow_origins=[
+
 
         "https://betheltradingtechnologies.com",
 
+
         "https://86207a4a.bethel-1vz.pages.dev",
+
 
         "http://localhost",
 
+
         "http://127.0.0.1:8000"
+
 
     ],
 
+
     allow_credentials=True,
 
+
     allow_methods=["*"],
+
 
     allow_headers=["*"]
 
@@ -140,7 +200,7 @@ app.add_middleware(
 
 
 # ==========================
-# STATIC
+# STATIC FILES
 # ==========================
 
 
@@ -163,7 +223,7 @@ app.mount(
 
 
 # ==========================
-# TEMPLATES
+# TEMPLATE ENGINE
 # ==========================
 
 
@@ -178,9 +238,11 @@ templates = Jinja2Templates(
 
 
 # ==========================
-# ROUTERS
+# API ROUTERS
 # ==========================
 
+
+# Trading Accounts
 
 app.include_router(
 
@@ -189,12 +251,18 @@ app.include_router(
 )
 
 
+
+# Dashboard
+
 app.include_router(
 
     dashboard.router
 
 )
 
+
+
+# Analytics
 
 app.include_router(
 
@@ -203,12 +271,18 @@ app.include_router(
 )
 
 
+
+# Risk Management
+
 app.include_router(
 
     risk.router
 
 )
 
+
+
+# MT5 Connection
 
 app.include_router(
 
@@ -217,12 +291,18 @@ app.include_router(
 )
 
 
+
+# Performance Analytics
+
 app.include_router(
 
     performance_router
 
 )
 
+
+
+# Authentication
 
 app.include_router(
 
@@ -233,7 +313,46 @@ app.include_router(
 
 app.include_router(
 
+    investor_auth_router
+
+)
+
+
+
+# Investor Portfolio Management
+
+app.include_router(
+
+    portfolio_router
+
+)
+
+
+
+# Investor MT5 Account Assignment
+
+app.include_router(
+
+    mt5_accounts_router
+
+)
+
+
+
+# Investor Dashboard
+
+app.include_router(
+
     investor_router
+
+)
+
+
+# Investor Dashboard API
+
+app.include_router(
+
+    investor_dashboard_router
 
 )
 
@@ -242,13 +361,17 @@ app.include_router(
 
 
 # ==========================
-# LOGIN
+# LOGIN PAGE
 # ==========================
 
 
 @app.get("/login")
 
-def login_page(request: Request):
+def login_page(
+
+    request: Request
+
+):
 
 
     return templates.TemplateResponse(
@@ -270,10 +393,15 @@ def login_page(request: Request):
 
 @app.get("/")
 
-def dashboard_home(request: Request):
+def dashboard_home(
+
+    request: Request
+
+):
 
 
     auth = check_auth(request)
+
 
 
     if auth:
@@ -290,9 +418,11 @@ def dashboard_home(request: Request):
 
         context={
 
+
             "company":
 
             "Bethel Trading Technologies"
+
 
         }
 
@@ -303,13 +433,14 @@ def dashboard_home(request: Request):
 
 
 # ==========================
-# HEALTH
+# HEALTH CHECK
 # ==========================
 
 
 @app.get("/health")
 
 def health():
+
 
     return {
 
@@ -321,7 +452,12 @@ def health():
 
         "service":
 
-        "Bethel Trading Technologies API"
+        "Bethel Trading Technologies API",
+
+
+        "version":
+
+        "1.0"
 
 
     }

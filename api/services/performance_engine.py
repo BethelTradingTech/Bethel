@@ -1,47 +1,196 @@
 """
 Bethel Trading Technologies
-Performance Analytics Engine
+Unified Investor Performance Analytics Engine
 
-Calculates investor performance statistics from
-EquitySnapshot history.
+Combines:
+- EquitySnapshot analytics
+- Trade performance analytics
+- Risk metrics
 """
 
 from __future__ import annotations
 
+
 from typing import Dict, List
 
+
 import math
+
 import numpy as np
 
+
 from api.database import SessionLocal
+
 from api.models import EquitySnapshot
-from api.config.investor import INITIAL_INVESTMENT
+
+from api.services.trade_performance import (
+    get_trade_performance
+)
+
+from api.config.investor import (
+    INITIAL_INVESTMENT
+)
+
 
 
 # =====================================================
 # CONFIGURATION
 # =====================================================
 
+
 STARTING_CAPITAL = INITIAL_INVESTMENT
+
 
 TRADING_DAYS_PER_YEAR = 252
 
-RISK_FREE_RATE = 0.0
+
+
 
 
 # =====================================================
 # PERFORMANCE ENGINE
 # =====================================================
 
+
 class PerformanceEngine:
+
 
     def __init__(self):
 
         self.db = SessionLocal()
 
-    # -----------------------------------------------
+
+
+    # =================================================
+    # TRADE METRICS
+    # =================================================
+
+
+    def trade_metrics(self) -> Dict:
+
+
+        try:
+
+            data = get_trade_performance()
+
+
+            performance = data.get(
+
+                "performance",
+
+                {}
+
+            )
+
+
+            risk = data.get(
+
+                "risk",
+
+                {}
+
+            )
+
+
+            return {
+
+
+                "total_trades":
+
+                    performance.get(
+
+                        "total_trades",
+
+                        0
+
+                    ),
+
+
+                "win_rate":
+
+                    performance.get(
+
+                        "win_rate",
+
+                        0
+
+                    ),
+
+
+                "profit_factor":
+
+                    performance.get(
+
+                        "profit_factor",
+
+                        0
+
+                    ),
+
+
+                "sharpe_ratio":
+
+                    risk.get(
+
+                        "sharpe_ratio",
+
+                        0
+
+                    ),
+
+
+                "sortino_ratio":
+
+                    risk.get(
+
+                        "sortino_ratio",
+
+                        0
+
+                    ),
+
+
+                "max_drawdown":
+
+                    risk.get(
+
+                        "max_drawdown",
+
+                        0
+
+                    )
+
+            }
+
+
+        except Exception:
+
+
+            return {
+
+
+                "total_trades":0,
+
+                "win_rate":0,
+
+                "profit_factor":0,
+
+                "sharpe_ratio":0,
+
+                "sortino_ratio":0,
+
+                "max_drawdown":0
+
+            }
+
+
+    # =================================================
+    # LOAD EQUITY HISTORY
+    # =================================================
+
 
     def load_history(self) -> List[EquitySnapshot]:
+
 
         return (
 
@@ -61,7 +210,14 @@ class PerformanceEngine:
 
         )
 
-    # -----------------------------------------------
+
+
+
+
+    # =================================================
+    # EQUITY ARRAY
+    # =================================================
+
 
     def equity_values(
 
@@ -71,15 +227,16 @@ class PerformanceEngine:
 
     ) -> np.ndarray:
 
-        if not history:
-
-            return np.array([])
 
         return np.array(
 
             [
 
-                float(item.equity)
+                float(
+
+                    item.equity
+
+                )
 
                 for item in history
 
@@ -89,35 +246,14 @@ class PerformanceEngine:
 
         )
 
-    # -----------------------------------------------
 
-    def balance_values(
 
-        self,
 
-        history: List[EquitySnapshot]
 
-    ) -> np.ndarray:
+    # =================================================
+    # RETURN SERIES
+    # =================================================
 
-        if not history:
-
-            return np.array([])
-
-        return np.array(
-
-            [
-
-                float(item.balance)
-
-                for item in history
-
-            ],
-
-            dtype=float
-
-        )
-
-    # -----------------------------------------------
 
     def returns(
 
@@ -127,20 +263,31 @@ class PerformanceEngine:
 
     ) -> np.ndarray:
 
+
         if len(equity) < 2:
 
             return np.array([])
 
-        return np.diff(
-
-            equity
-
-        ) / equity[:-1]
 
 
-    # -----------------------------------------------
+        return (
+
+            np.diff(equity)
+
+            /
+
+            equity[:-1]
+
+        )
+
+
+
+
+
+    # =================================================
     # TOTAL RETURN
-    # -----------------------------------------------
+    # =================================================
+
 
     def total_return(
 
@@ -150,91 +297,142 @@ class PerformanceEngine:
 
     ) -> float:
 
+
         return (
 
             (
+
                 current_equity
+
                 -
+
                 STARTING_CAPITAL
+
             )
+
             /
+
             STARTING_CAPITAL
 
         ) * 100
 
 
 
-    # -----------------------------------------------
+
+
+    # =================================================
     # DAILY RETURN
-    # -----------------------------------------------
+    # =================================================
+
 
     def daily_return(
 
         self,
 
-        returns: np.ndarray
+        returns
 
     ) -> float:
+
 
         if len(returns) == 0:
 
             return 0.0
 
-        return float(
-
-            np.mean(returns)
-
-        ) * 100
 
 
+        return round(
 
-    # -----------------------------------------------
+            float(
+
+                np.mean(returns)
+
+            )
+
+            *
+
+            100,
+
+            4
+
+        )
+
+
+
+
+
+    # =================================================
     # MONTHLY RETURN
-    # -----------------------------------------------
+    # =================================================
+
 
     def monthly_return(
 
         self,
 
-        returns: np.ndarray
+        returns
 
     ) -> float:
+
 
         if len(returns) == 0:
 
             return 0.0
 
-        monthly = (
-
-            1 + np.mean(returns)
-
-        ) ** 21 - 1
-
-        return float(
-
-            monthly
-
-        ) * 100
 
 
+        return round(
 
-    # -----------------------------------------------
+            (
+
+                (
+
+                    1 +
+
+                    np.mean(returns)
+
+                )
+
+                ** 21
+
+                -
+
+                1
+
+            )
+
+            *
+
+            100,
+
+            2
+
+        )
+
+
+
+
+
+    # =================================================
     # VOLATILITY
-    # -----------------------------------------------
+    # =================================================
+
 
     def volatility(
 
         self,
 
-        returns: np.ndarray
+        returns
 
     ) -> float:
+
 
         if len(returns) < 2:
 
             return 0.0
 
-        volatility = (
+
+
+        return float(
 
             np.std(
 
@@ -254,29 +452,26 @@ class PerformanceEngine:
 
         )
 
-        return float(
 
-            volatility
-
-        )
-
+    # =================================================
+    # EQUITY MAX DRAW DOWN
+    # =================================================
 
 
-    # -----------------------------------------------
-    # MAXIMUM DRAWDOWN
-    # -----------------------------------------------
-
-    def max_drawdown(
+    def equity_drawdown(
 
         self,
 
-        equity: np.ndarray
+        equity
 
     ) -> float:
+
 
         if len(equity) == 0:
 
             return 0.0
+
+
 
         peak = np.maximum.accumulate(
 
@@ -284,11 +479,18 @@ class PerformanceEngine:
 
         )
 
+
         drawdown = (
 
-            equity - peak
+            equity
+
+            -
+
+            peak
 
         ) / peak
+
+
 
         return abs(
 
@@ -301,23 +503,54 @@ class PerformanceEngine:
         ) * 100
 
 
-    # -----------------------------------------------
+
+
+
+    # =================================================
     # SHARPE RATIO
-    # -----------------------------------------------
+    # Uses trade engine first
+    # =================================================
+
 
     def sharpe_ratio(
 
         self,
 
-        returns: np.ndarray
+        returns,
+
+        trade_data
 
     ) -> float:
+
+
+        value = trade_data.get(
+
+            "sharpe_ratio",
+
+            0
+
+        )
+
+
+        if value:
+
+            return round(
+
+                float(value),
+
+                2
+
+            )
+
+
 
         if len(returns) < 2:
 
             return 0.0
 
-        std = np.std(
+
+
+        deviation = np.std(
 
             returns,
 
@@ -325,23 +558,20 @@ class PerformanceEngine:
 
         )
 
-        if std == 0:
+
+        if deviation == 0:
 
             return 0.0
 
-        excess_return = np.mean(
 
-            returns
 
-        ) - (
+        result = (
 
-            RISK_FREE_RATE / TRADING_DAYS_PER_YEAR
+            np.mean(returns)
 
-        )
+            /
 
-        sharpe = (
-
-            excess_return / std
+            deviation
 
         ) * math.sqrt(
 
@@ -349,38 +579,77 @@ class PerformanceEngine:
 
         )
 
+
         return round(
 
-            float(sharpe),
+            float(result),
 
             2
 
         )
 
 
-    # -----------------------------------------------
+
+
+
+    # =================================================
     # SORTINO RATIO
-    # -----------------------------------------------
+    # =================================================
+
 
     def sortino_ratio(
 
         self,
 
-        returns: np.ndarray
+        returns,
+
+        trade_data
 
     ) -> float:
+
+
+        value = trade_data.get(
+
+            "sortino_ratio",
+
+            0
+
+        )
+
+
+        if value:
+
+            return round(
+
+                float(value),
+
+                2
+
+            )
+
+
 
         if len(returns) < 2:
 
             return 0.0
 
-        downside = returns[returns < 0]
+
+
+        downside = returns[
+
+            returns < 0
+
+        ]
+
+
 
         if len(downside) == 0:
 
             return 0.0
 
-        downside_std = np.std(
+
+
+        deviation = np.std(
 
             downside,
 
@@ -388,23 +657,20 @@ class PerformanceEngine:
 
         )
 
-        if downside_std == 0:
+
+        if deviation == 0:
 
             return 0.0
 
-        excess_return = np.mean(
 
-            returns
 
-        ) - (
+        result = (
 
-            RISK_FREE_RATE / TRADING_DAYS_PER_YEAR
+            np.mean(returns)
 
-        )
+            /
 
-        sortino = (
-
-            excess_return / downside_std
+            deviation
 
         ) * math.sqrt(
 
@@ -412,30 +678,73 @@ class PerformanceEngine:
 
         )
 
+
         return round(
 
-            float(sortino),
+            float(result),
 
             2
 
         )
 
 
-    # -----------------------------------------------
+
+
+
+    # =================================================
+    # MAX DRAWDOWN AMOUNT
+    # From trade engine
+    # =================================================
+
+
+    def maximum_drawdown_amount(
+
+        self,
+
+        trade_data
+
+    ) -> float:
+
+
+        return round(
+
+            float(
+
+                trade_data.get(
+
+                    "max_drawdown",
+
+                    0
+
+                )
+
+            ),
+
+            2
+
+        )
+
+
+
+
+
+    # =================================================
     # RECOVERY FACTOR
-    # -----------------------------------------------
+    # =================================================
+
 
     def recovery_factor(
 
         self,
 
-        current_equity: float,
+        current_equity,
 
-        max_drawdown: float
+        drawdown_amount
 
     ):
 
-        net_profit = (
+
+        profit = (
 
             current_equity
 
@@ -445,69 +754,57 @@ class PerformanceEngine:
 
         )
 
-        if max_drawdown <= 0:
+
+        if drawdown_amount <= 0:
 
             return None
 
-        drawdown_amount = (
 
-            STARTING_CAPITAL
-
-            *
-
-            max_drawdown
-
-            / 100
-
-        )
-
-        if drawdown_amount == 0:
-
-            return None
-
-        recovery = (
-
-            net_profit
-
-            /
-
-            drawdown_amount
-
-        )
 
         return round(
 
-            float(recovery),
+            profit
+
+            /
+
+            drawdown_amount,
 
             2
 
         )
 
 
-    # -----------------------------------------------
+    # =================================================
     # CONSISTENCY SCORE
-    # -----------------------------------------------
+    # =================================================
+
 
     def consistency_score(
 
         self,
 
-        returns: np.ndarray,
+        returns,
 
-        max_drawdown: float,
+        max_drawdown_percent,
 
-        volatility: float
+        volatility
 
     ) -> float:
+
 
         if len(returns) == 0:
 
             return 0.0
 
-        # Percentage of positive periods
-        positive_periods = (
 
-            np.sum(returns > 0)
+
+        positive = (
+
+            np.sum(
+
+                returns > 0
+
+            )
 
             /
 
@@ -516,36 +813,53 @@ class PerformanceEngine:
         ) * 100
 
 
-        # Drawdown component (0–100)
+
         drawdown_score = max(
 
             0,
 
-            100 - (max_drawdown * 10)
+            100 -
+
+            (
+
+                max_drawdown_percent * 10
+
+            )
 
         )
 
 
-        # Volatility component (0–100)
+
         volatility_score = max(
 
             0,
 
-            100 - (volatility * 100)
+            100 -
+
+            (
+
+                volatility * 100
+
+            )
 
         )
 
 
-        # Weighted score
+
         score = (
 
-            positive_periods * 0.40 +
+            positive * 0.4
 
-            drawdown_score * 0.30 +
+            +
 
-            volatility_score * 0.30
+            drawdown_score * 0.3
+
+            +
+
+            volatility_score * 0.3
 
         )
+
 
 
         return round(
@@ -569,134 +883,161 @@ class PerformanceEngine:
         )
 
 
-    # -----------------------------------------------
+
+
+
+    # =================================================
     # RISK LEVEL
-    # -----------------------------------------------
+    # =================================================
+
 
     def risk_level(
 
         self,
 
-        max_drawdown: float,
+        drawdown_percent,
 
-        volatility: float
+        volatility
 
     ) -> str:
 
-        if max_drawdown < 5 and volatility < 0.10:
+
+
+        if (
+
+            drawdown_percent < 5
+
+            and
+
+            volatility < 0.10
+
+        ):
 
             return "LOW"
 
-        if max_drawdown < 10 and volatility < 0.20:
+
+
+
+
+        if (
+
+            drawdown_percent < 10
+
+            and
+
+            volatility < 0.20
+
+        ):
 
             return "MEDIUM"
+
+
+
+
 
         return "HIGH"
 
 
-    # -----------------------------------------------
+
+
+
+    # =================================================
     # PERFORMANCE GRADE
-    # -----------------------------------------------
+    # =================================================
+
 
     def performance_grade(
 
         self,
 
-        consistency: float
+        total_return,
+
+        profit_factor,
+
+        drawdown_percent
 
     ) -> str:
 
-        if consistency >= 90:
+
+
+        if (
+
+            total_return >= 20
+
+            and
+
+            profit_factor >= 3
+
+            and
+
+            drawdown_percent < 5
+
+        ):
 
             return "A+"
 
-        if consistency >= 80:
+
+
+
+
+        if (
+
+            total_return >= 10
+
+            and
+
+            profit_factor >= 2
+
+            and
+
+            drawdown_percent < 10
+
+        ):
 
             return "A"
 
-        if consistency >= 70:
+
+
+
+
+        if (
+
+            total_return > 0
+
+            and
+
+            profit_factor >= 1.5
+
+        ):
 
             return "B"
 
-        if consistency >= 60:
-
-            return "C"
-
-        return "D"
-
-    # -----------------------------------------------
-    # COMPLETE ANALYTICS REPORT
-    # -----------------------------------------------
-
-    def generate_report(self) -> Dict:
-
-
-        try:
-
-            history = self.load_history()
-
-
-            if not history:
-
-                return {
-
-                    "status": "error",
-
-                    "message": "No equity history available"
-
-                }
 
 
 
-            equity = self.equity_values(
 
-                history
-
-            )
-
-
-            returns = self.returns(
-
-                equity
-
-            )
+        return "C"
 
 
 
-            current_equity = float(
-
-                equity[-1]
-
-            )
+    # =================================================
+    # GENERATE INVESTOR ANALYTICS REPORT
+    # =================================================
 
 
+    def generate_report(
 
-            max_dd = self.max_drawdown(
+        self
 
-                equity
-
-            )
+    ) -> Dict:
 
 
 
-            vol = self.volatility(
-
-                returns
-
-            )
+        history = self.load_history()
 
 
 
-            consistency = self.consistency_score(
-
-                returns,
-
-                max_dd,
-
-                vol
-
-            )
-
+        if not history:
 
 
             return {
@@ -704,179 +1045,352 @@ class PerformanceEngine:
 
                 "status":
 
-                "success",
+                "error",
 
 
+                "message":
 
-                "starting_capital":
-
-                STARTING_CAPITAL,
-
-
-
-                "current_equity":
-
-                round(
-
-                    current_equity,
-
-                    2
-
-                ),
-
-
-
-                "total_return_percent":
-
-                round(
-
-                    self.total_return(
-
-                        current_equity
-
-                    ),
-
-                    2
-
-                ),
-
-
-
-                "daily_return_percent":
-
-                round(
-
-                    self.daily_return(
-
-                        returns
-
-                    ),
-
-                    4
-
-                ),
-
-
-
-                "monthly_return_percent":
-
-                round(
-
-                    self.monthly_return(
-
-                        returns
-
-                    ),
-
-                    2
-
-                ),
-
-
-
-                "volatility":
-
-                round(
-
-                    vol * 100,
-
-                    2
-
-                ),
-
-
-
-                "maximum_drawdown_percent":
-
-                round(
-
-                    max_dd,
-
-                    2
-
-                ),
-
-
-
-                "sharpe_ratio":
-
-                self.sharpe_ratio(
-
-                    returns
-
-                ),
-
-
-
-                "sortino_ratio":
-
-                self.sortino_ratio(
-
-                    returns
-
-                ),
-
-
-
-                "recovery_factor":
-
-                self.recovery_factor(
-
-                    current_equity,
-
-                    max_dd
-
-                ),
-
-
-
-                "consistency_score":
-
-                consistency,
-
-
-
-                "risk_level":
-
-                self.risk_level(
-
-                    max_dd,
-
-                    vol
-
-                ),
-
-
-
-                "performance_grade":
-
-                self.performance_grade(
-
-                    consistency
-
-                ),
-
-
-
-                "snapshots_analyzed":
-
-                len(history)
+                "No equity history available"
 
             }
 
 
 
-        finally:
 
 
-            self.db.close()
+        # Equity calculations
+
+        equity = self.equity_values(
+
+            history
+
+        )
 
 
-    # -----------------------------------------------
-    # CLOSE DATABASE CONNECTION
-    # -----------------------------------------------
+        returns = self.returns(
 
-    def close(self):
+            equity
+
+        )
+
+
+
+        current_equity = float(
+
+            equity[-1]
+
+        )
+
+
+
+        total_return = self.total_return(
+
+            current_equity
+
+        )
+
+
+
+        equity_drawdown = self.equity_drawdown(
+
+            equity
+
+        )
+
+
+
+        volatility = self.volatility(
+
+            returns
+
+        )
+
+
+
+
+
+        # Trade calculations
+
+        trade_data = self.trade_metrics()
+
+
+
+        profit_factor = round(
+
+            float(
+
+                trade_data.get(
+
+                    "profit_factor",
+
+                    0
+
+                )
+
+            ),
+
+            2
+
+        )
+
+
+
+        drawdown_amount = self.maximum_drawdown_amount(
+
+            trade_data
+
+        )
+
+
+
+        # Convert dollar drawdown to %
+
+        drawdown_percent = 0
+
+
+        if STARTING_CAPITAL > 0:
+
+
+            drawdown_percent = (
+
+                drawdown_amount
+
+                /
+
+                STARTING_CAPITAL
+
+            ) * 100
+
+
+
+
+
+        consistency = self.consistency_score(
+
+            returns,
+
+            drawdown_percent,
+
+            volatility
+
+        )
+
+
+
+        recovery = self.recovery_factor(
+
+            current_equity,
+
+            drawdown_amount
+
+        )
+
+
+
+
+
+        return {
+
+
+            "status":
+
+            "success",
+
+
+
+            "starting_capital":
+
+            STARTING_CAPITAL,
+
+
+
+            "current_equity":
+
+            round(
+
+                current_equity,
+
+                2
+
+            ),
+
+
+
+            "total_return_percent":
+
+            round(
+
+                total_return,
+
+                2
+
+            ),
+
+
+
+            "daily_return_percent":
+
+            self.daily_return(
+
+                returns
+
+            ),
+
+
+
+            "monthly_return_percent":
+
+            self.monthly_return(
+
+                returns
+
+            ),
+
+
+
+            "volatility":
+
+            round(
+
+                volatility * 100,
+
+                2
+
+            ),
+
+
+
+            "maximum_drawdown_amount":
+
+            drawdown_amount,
+
+
+
+            "maximum_drawdown_percent":
+
+            round(
+
+                drawdown_percent,
+
+                2
+
+            ),
+
+
+
+            "profit_factor":
+
+            profit_factor,
+
+
+
+            "sharpe_ratio":
+
+            self.sharpe_ratio(
+
+                returns,
+
+                trade_data
+
+            ),
+
+
+
+            "sortino_ratio":
+
+            self.sortino_ratio(
+
+                returns,
+
+                trade_data
+
+            ),
+
+
+
+            "recovery_factor":
+
+            recovery,
+
+
+
+            "consistency_score":
+
+            consistency,
+
+
+
+            "risk_level":
+
+            self.risk_level(
+
+                drawdown_percent,
+
+                volatility
+
+            ),
+
+
+
+            "performance_grade":
+
+            self.performance_grade(
+
+                total_return,
+
+                profit_factor,
+
+                drawdown_percent
+
+            ),
+
+
+
+            "total_trades":
+
+            trade_data.get(
+
+                "total_trades",
+
+                0
+
+            ),
+
+
+
+            "win_rate":
+
+            trade_data.get(
+
+                "win_rate",
+
+                0
+
+            ),
+
+
+
+            "snapshots_analyzed":
+
+            len(history)
+
+        }
+
+
+
+
+
+    # =================================================
+    # CLOSE DATABASE
+    # =================================================
+
+
+    def close(
+
+        self
+
+    ):
+
 
         if self.db:
 
@@ -884,18 +1398,28 @@ class PerformanceEngine:
 
 
 
+
+
 # =====================================================
-# API HELPER FUNCTION
+# API ACCESS FUNCTION
 # =====================================================
+
 
 def get_performance_analytics() -> Dict:
 
+
     engine = PerformanceEngine()
+
+
 
     try:
 
+
         return engine.generate_report()
 
+
+
     finally:
+
 
         engine.close()

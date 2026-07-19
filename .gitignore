@@ -147,3 +147,9 @@ frontend/.env.*
 
 trade_logs/
 backtest_results/
+
+
+# Project backups
+*_backup*
+backups/
+*.bak

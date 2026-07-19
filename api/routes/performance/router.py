@@ -15,8 +15,6 @@ from api.database import SessionLocal
 from api.models import EquitySnapshot
 
 
-from api.auth.dependency import check_auth
-
 from api.services.performance_engine import get_performance_analytics
 from api.services.daily_performance import get_daily_performance
 from api.services.monthly_performance import get_monthly_performance
@@ -49,18 +47,6 @@ def equity_history(
     request: Request
 
 ):
-
-
-    # ==========================
-    # AUTH CHECK
-    # ==========================
-
-    auth = check_auth(request)
-
-
-    if auth:
-
-        return auth
 
 
 
@@ -168,11 +154,6 @@ def equity_history(
 @router.get("/analytics")
 def analytics(request: Request):
 
-    auth = check_auth(request)
-
-    if auth:
-        return auth
-
     data = get_performance_analytics()
 
     if "consistency_score" in data:
@@ -188,11 +169,6 @@ def analytics(request: Request):
 @router.get("/daily")
 def daily_performance(request: Request):
 
-    auth = check_auth(request)
-
-    if auth:
-        return auth
-
     return get_daily_performance()
 
 
@@ -203,11 +179,6 @@ def daily_performance(request: Request):
 @router.get("/monthly")
 def monthly_performance(request: Request):
 
-    auth = check_auth(request)
-
-    if auth:
-        return auth
-
     return get_monthly_performance()
 
 
@@ -217,10 +188,5 @@ def monthly_performance(request: Request):
 
 @router.get("/trades")
 def trade_performance(request: Request):
-
-    auth = check_auth(request)
-
-    if auth:
-        return auth
 
     return get_trade_performance()
