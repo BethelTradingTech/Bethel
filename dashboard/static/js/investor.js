@@ -7,7 +7,7 @@ Unified Investor + MT5 Analytics
 */
 
 
-const API = "http://127.0.0.1:8000";
+const API = "https://api.betheltradingtechnologies.com";
 
 
 let equityChart = null;
