@@ -4,10 +4,15 @@
 <head>
 
 <title>
-Bethel Trading Technologies | Algorithmic Trading Dashboard
+Bethel Trading Technologies
 </title>
 
+
 <link rel="stylesheet" href="/static/css/style.css">
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 
 </head>
 
@@ -18,14 +23,16 @@ Bethel Trading Technologies | Algorithmic Trading Dashboard
 <div class="container">
 
 
+
 <header>
 
 <h1>
 Bethel Trading Technologies
 </h1>
 
+
 <p>
-Algorithmic Trading Technology Platform
+Algorithmic Trading Dashboard
 </p>
 
 
@@ -40,13 +47,7 @@ CONNECTING...
 
 
 
-<!-- ACCOUNT OVERVIEW -->
-
-<div class="positions-section">
-
-<h2>
-Account Overview
-</h2>
+<!-- ACCOUNT -->
 
 
 <div class="grid">
@@ -58,16 +59,19 @@ Account Overview
 </div>
 
 
+
 <div class="card">
 <h3>Equity</h3>
 <p id="equity">$0.00</p>
 </div>
 
 
+
 <div class="card">
-<h3>Floating Profit/Loss</h3>
+<h3>Profit / Loss</h3>
 <p id="profit">$0.00</p>
 </div>
+
 
 
 <div class="card">
@@ -76,57 +80,8 @@ Account Overview
 </div>
 
 
-</div>
 
 </div>
-
-
-
-
-
-
-<!-- MT5 -->
-
-<div class="positions-section">
-
-
-<h2>
-MT5 Account Verification
-</h2>
-
-
-<div class="grid">
-
-
-<div class="card">
-<h3>Login</h3>
-<p id="login">-</p>
-</div>
-
-
-<div class="card">
-<h3>Server</h3>
-<p id="server">-</p>
-</div>
-
-
-<div class="card">
-<h3>Currency</h3>
-<p id="currency">-</p>
-</div>
-
-
-<div class="card">
-<h3>Leverage</h3>
-<p id="leverage">-</p>
-</div>
-
-
-</div>
-
-</div>
-
-
 
 
 
@@ -153,10 +108,12 @@ Performance Analytics
 </div>
 
 
+
 <div class="card">
 <h3>Winning Trades</h3>
 <p id="winning-trades">0</p>
 </div>
+
 
 
 <div class="card">
@@ -165,10 +122,12 @@ Performance Analytics
 </div>
 
 
+
 <div class="card">
 <h3>Win Rate</h3>
 <p id="win-rate">0%</p>
 </div>
+
 
 
 <div class="card">
@@ -177,16 +136,17 @@ Performance Analytics
 </div>
 
 
+
 <div class="card">
 <h3>Total Profit</h3>
 <p id="total-profit">$0</p>
 </div>
 
 
-</div>
 
 </div>
 
+</div>
 
 
 
@@ -194,13 +154,14 @@ Performance Analytics
 
 
 
-<!-- EQUITY -->
+<!-- EQUITY CURVE -->
+
 
 <div class="positions-section">
 
 
 <h2>
-Equity Growth Curve
+Equity Curve
 </h2>
 
 
@@ -216,7 +177,6 @@ Equity Growth Curve
 
 
 
-
 <!-- RISK -->
 
 
@@ -224,7 +184,7 @@ Equity Growth Curve
 
 
 <h2>
-Risk Management Engine
+Risk Monitoring
 </h2>
 
 
@@ -237,16 +197,19 @@ Risk Management Engine
 </div>
 
 
+
 <div class="card">
 <h3>Drawdown</h3>
 <p id="drawdown">0%</p>
 </div>
 
 
+
 <div class="card">
-<h3>Exposure</h3>
+<h3>Open Exposure</h3>
 <p id="risk-open-positions">0</p>
 </div>
+
 
 
 <div class="card">
@@ -255,11 +218,10 @@ Risk Management Engine
 </div>
 
 
-</div>
-
 
 </div>
 
+</div>
 
 
 
@@ -267,15 +229,16 @@ Risk Management Engine
 
 
 
-<!-- LIVE POSITIONS -->
+<!-- POSITIONS -->
 
 
 <div class="positions-section">
 
 
 <h2>
-Live Trading Positions
+Live Trading Status
 </h2>
+
 
 
 <table>
@@ -286,64 +249,23 @@ Live Trading Positions
 <tr>
 
 <th>Symbol</th>
-<th>Direction</th>
+
+<th>Type</th>
+
 <th>Volume</th>
+
 <th>Profit</th>
+
 
 </tr>
 
+
 </thead>
+
 
 
 <tbody id="positions-table">
 
-</tbody>
-
-
-</table>
-
-
-</div>
-
-
-
-
-
-
-
-
-<!-- HISTORY -->
-
-
-<div class="positions-section">
-
-
-<h2>
-Trade History
-</h2>
-
-
-<table>
-
-
-<thead>
-
-<tr>
-
-<th>Symbol</th>
-<th>Direction</th>
-<th>Volume</th>
-<th>Profit</th>
-<th>Date</th>
-
-</tr>
-
-
-</thead>
-
-
-
-<tbody id="history-table">
 
 </tbody>
 
@@ -357,19 +279,11 @@ Trade History
 
 
 
-
-
 </div>
 
 
-
-
-
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script src="/static/js/app.js"></script>
-
 
 
 </body>

@@ -3,10 +3,33 @@ Bethel Trading Technologies
 FastAPI Main Application
 """
 
+
 from fastapi import FastAPI, Request
+
 from fastapi.staticfiles import StaticFiles
+
 from fastapi.templating import Jinja2Templates
+
 from fastapi.middleware.cors import CORSMiddleware
+
+
+
+# ==========================
+# DATABASE
+# ==========================
+
+from api.database import engine
+
+from api.models import Base
+
+
+
+# ==========================
+# SERVICES
+# ==========================
+
+from api.services.scheduler import start_scheduler
+
 
 
 # ==========================
@@ -14,135 +37,291 @@ from fastapi.middleware.cors import CORSMiddleware
 # ==========================
 
 from api.routes import accounts
+
 from api.routes import dashboard
+
+from api.routes import analytics
+
+from api.routes import risk
+
+
 from api.routes.mt5.router import router as mt5_router
 
-from auth.router import router as auth_router
+from api.routes.performance.router import router as performance_router
+
+
+from api.auth.routes import router as auth_router
+
+
+from dashboard.investor_router import router as investor_router
+
+
+
+from api.auth.dependency import check_auth
+
+
 
 
 
 # ==========================
-# APP INITIALIZATION
+# CREATE APP
 # ==========================
+
 
 app = FastAPI(
+
     title="Bethel Trading Technologies API",
+
     version="1.0"
+
 )
+
+
+
+
+
+# ==========================
+# DATABASE INIT
+# ==========================
+
+
+Base.metadata.create_all(
+
+    bind=engine
+
+)
+
+
+
+
+
+# ==========================
+# START SERVICES
+# ==========================
+
+
+start_scheduler()
+
+
 
 
 
 # ==========================
 # CORS
-# Cloudflare Frontend Support
 # ==========================
 
+
 app.add_middleware(
+
     CORSMiddleware,
 
     allow_origins=[
+
         "https://betheltradingtechnologies.com",
+
         "https://86207a4a.bethel-1vz.pages.dev",
+
         "http://localhost",
-        "http://127.0.0.1:8000",
+
+        "http://127.0.0.1:8000"
+
     ],
 
     allow_credentials=True,
 
     allow_methods=["*"],
 
-    allow_headers=["*"],
+    allow_headers=["*"]
+
 )
 
 
 
+
+
 # ==========================
-# STATIC FILES
+# STATIC
 # ==========================
+
 
 app.mount(
+
     "/static",
+
     StaticFiles(
+
         directory="dashboard/static"
+
     ),
+
     name="static"
+
 )
 
 
 
+
+
 # ==========================
-# TEMPLATE ENGINE
+# TEMPLATES
 # ==========================
+
 
 templates = Jinja2Templates(
+
     directory="dashboard/templates"
+
 )
 
 
 
+
+
 # ==========================
-# API ROUTERS
+# ROUTERS
 # ==========================
 
 
-# Trading Accounts
 app.include_router(
+
     accounts.router
+
 )
 
 
-
-# MT5 Bridge
 app.include_router(
-    mt5_router
-)
 
-
-
-# Dashboard Analytics
-app.include_router(
     dashboard.router
+
 )
 
 
-
-# Authentication
 app.include_router(
+
+    analytics.router
+
+)
+
+
+app.include_router(
+
+    risk.router
+
+)
+
+
+app.include_router(
+
+    mt5_router
+
+)
+
+
+app.include_router(
+
+    performance_router
+
+)
+
+
+app.include_router(
+
     auth_router
+
+)
+
+
+app.include_router(
+
+    investor_router
+
 )
 
 
 
+
+
 # ==========================
-# ROOT DASHBOARD PAGE
+# LOGIN
 # ==========================
 
-@app.get("/")
-def dashboard_home(
-    request: Request
-):
+
+@app.get("/login")
+
+def login_page(request: Request):
+
 
     return templates.TemplateResponse(
+
         request=request,
-        name="index.html",
-        context={
-            "company": "Bethel Trading Technologies"
-        }
+
+        name="login.html"
+
     )
 
 
 
+
+
 # ==========================
-# HEALTH CHECK
+# HOME DASHBOARD
 # ==========================
 
+
+@app.get("/")
+
+def dashboard_home(request: Request):
+
+
+    auth = check_auth(request)
+
+
+    if auth:
+
+        return auth
+
+
+
+    return templates.TemplateResponse(
+
+        request=request,
+
+        name="index.html",
+
+        context={
+
+            "company":
+
+            "Bethel Trading Technologies"
+
+        }
+
+    )
+
+
+
+
+
+# ==========================
+# HEALTH
+# ==========================
+
+
 @app.get("/health")
+
 def health():
 
     return {
 
-        "status": "online",
 
-        "service": "Bethel Trading Technologies API"
+        "status":
+
+        "online",
+
+
+        "service":
+
+        "Bethel Trading Technologies API"
+
 
     }

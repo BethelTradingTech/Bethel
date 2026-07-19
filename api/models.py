@@ -1,13 +1,24 @@
+"""
+Bethel Trading Technologies
+Database Models
+"""
+
 from sqlalchemy import Column, Integer, String, Float, DateTime
+
 from datetime import datetime
 
 from api.database import Base
 
 
 
+# ==========================
+# MT5 ACCOUNT
+# ==========================
+
 class MT5Account(Base):
 
     __tablename__ = "mt5_accounts"
+
 
     id = Column(
         Integer,
@@ -15,28 +26,36 @@ class MT5Account(Base):
         index=True
     )
 
+
     account_number = Column(
         String,
-        unique=True
+        unique=True,
+        index=True
     )
+
 
     server = Column(
         String
     )
 
+
     investor_password = Column(
-        String
+        String,
+        nullable=True
     )
+
 
     broker = Column(
         String,
         nullable=True
     )
 
+
     status = Column(
         String,
         default="DISCONNECTED"
     )
+
 
     created_at = Column(
         DateTime,
@@ -45,6 +64,12 @@ class MT5Account(Base):
 
 
 
+
+
+# ==========================
+# ACCOUNT STATISTICS
+# ==========================
+
 class AccountStatistics(Base):
 
     __tablename__ = "account_statistics"
@@ -52,28 +77,40 @@ class AccountStatistics(Base):
 
     id = Column(
         Integer,
-        primary_key=True
+        primary_key=True,
+        index=True
     )
+
 
     account_id = Column(
-        Integer
+        Integer,
+        index=True
     )
+
 
     balance = Column(
-        Float
+        Float,
+        default=0
     )
+
 
     equity = Column(
-        Float
+        Float,
+        default=0
     )
+
 
     profit = Column(
-        Float
+        Float,
+        default=0
     )
 
+
     drawdown = Column(
-        Float
+        Float,
+        default=0
     )
+
 
     updated_at = Column(
         DateTime,
@@ -82,6 +119,122 @@ class AccountStatistics(Base):
 
 
 
+
+
+# ==========================
+# EQUITY HISTORY / INVESTOR PERFORMANCE
+# ==========================
+
+class EquitySnapshot(Base):
+
+    __tablename__ = "equity_snapshots"
+
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+
+    account_id = Column(
+        Integer,
+        index=True
+    )
+
+
+    account_number = Column(
+        String,
+        index=True
+    )
+
+
+
+    # ACCOUNT VALUES
+
+    balance = Column(
+        Float,
+        nullable=False
+    )
+
+
+    equity = Column(
+        Float,
+        nullable=False
+    )
+
+
+    profit = Column(
+        Float,
+        default=0
+    )
+
+
+    drawdown = Column(
+        Float,
+        default=0
+    )
+
+
+
+    # PERFORMANCE METRICS
+
+
+    peak_equity = Column(
+        Float,
+        default=0
+    )
+
+
+    daily_return = Column(
+        Float,
+        default=0
+    )
+
+
+    monthly_return = Column(
+        Float,
+        default=0
+    )
+
+
+    total_return = Column(
+        Float,
+        default=0
+    )
+
+
+
+    # RISK METRICS
+
+
+    volatility = Column(
+        Float,
+        default=0
+    )
+
+
+    sharpe_ratio = Column(
+        Float,
+        default=0
+    )
+
+
+
+    timestamp = Column(
+        DateTime,
+        default=datetime.utcnow,
+        index=True
+    )
+
+
+
+
+
+# ==========================
+# TRADE HISTORY
+# ==========================
+
 class Trade(Base):
 
     __tablename__ = "trades"
@@ -89,12 +242,20 @@ class Trade(Base):
 
     id = Column(
         Integer,
-        primary_key=True
+        primary_key=True,
+        index=True
     )
 
 
     account_id = Column(
-        Integer
+        Integer,
+        index=True
+    )
+
+
+    ticket = Column(
+        String,
+        nullable=True
     )
 
 
@@ -142,6 +303,18 @@ class Trade(Base):
     )
 
 
+    closed_at = Column(
+        DateTime,
+        nullable=True
+    )
+
+
+
+
+
+# ==========================
+# OPEN POSITIONS
+# ==========================
 
 class Position(Base):
 
@@ -150,17 +323,20 @@ class Position(Base):
 
     id = Column(
         Integer,
-        primary_key=True
+        primary_key=True,
+        index=True
     )
 
 
     account_id = Column(
-        Integer
+        Integer,
+        index=True
     )
 
 
     ticket = Column(
-        String
+        String,
+        index=True
     )
 
 
@@ -190,5 +366,12 @@ class Position(Base):
 
 
     profit = Column(
-        Float
+        Float,
+        default=0
+    )
+
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow
     )

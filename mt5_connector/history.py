@@ -11,6 +11,8 @@ from mt5_connector.manager import MT5Manager
 
 
 
+
+
 class MT5History:
 
 
@@ -18,10 +20,13 @@ class MT5History:
 
 
         # Ensure MT5 connection
+
         connected = MT5Manager.ensure_connection()
 
 
+
         if not connected:
+
 
             return {
 
@@ -30,38 +35,58 @@ class MT5History:
                 "message": str(mt5.last_error())
 
             }
+
+
 
 
 
         date_to = datetime.now()
 
 
+
         date_from = date_to - timedelta(
+
             days=days
+
         )
+
+
 
 
 
         deals = mt5.history_deals_get(
+
             date_from,
+
             date_to
+
         )
+
+
 
 
 
         if deals is None:
 
+
             return {
+
 
                 "status": "failed",
 
+
                 "message": str(mt5.last_error())
+
 
             }
 
 
 
+
+
         result = []
+
+
 
 
 
@@ -70,27 +95,64 @@ class MT5History:
 
             result.append({
 
+
+                # Deal identification
+
                 "ticket": deal.ticket,
+
+
+                "position_id": deal.position_id,
+
+
+
+                # Trading information
 
                 "symbol": deal.symbol,
 
+
                 "type": deal.type,
+
+
+                "entry": deal.entry,
+
+
+                "reason": deal.reason,
+
+
+
+                # Volume and price
 
                 "volume": deal.volume,
 
+
                 "price": deal.price,
+
+
+
+                # Financial results
 
                 "profit": deal.profit,
 
+
                 "commission": deal.commission,
+
 
                 "swap": deal.swap,
 
+
+
+                # Time
+
                 "time": datetime.fromtimestamp(
+
                     deal.time
+
                 ).isoformat()
 
+
             })
+
+
 
 
 
@@ -99,8 +161,11 @@ class MT5History:
 
             "status": "success",
 
+
             "count": len(result),
 
+
             "history": result
+
 
         }

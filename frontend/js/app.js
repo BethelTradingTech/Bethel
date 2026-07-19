@@ -1,4 +1,4 @@
-const API_URL = "https://api.betheltradingtechnologies.com";
+const API_URL = "http://127.0.0.1:8000";
 
 
 async function loadDashboard() {
@@ -22,22 +22,29 @@ async function loadDashboard() {
         const data = await response.json();
 
 
-        console.log(data);
+        console.log("Dashboard Data:", data);
 
 
 
+        // =========================
         // SYSTEM STATUS
+        // =========================
 
         document.getElementById("status").innerHTML =
             "MT5 Status: " +
-            (data.system?.status || "UNKNOWN").toUpperCase();
+            (
+                data.system?.status ||
+                data.status ||
+                "ONLINE"
+            ).toUpperCase();
 
 
 
+        // =========================
         // ACCOUNT DATA
+        // =========================
 
         const account = data.account || {};
-
 
 
         document.getElementById("login").innerHTML =
@@ -49,40 +56,57 @@ async function loadDashboard() {
 
 
         document.getElementById("currency").innerHTML =
-            account.currency || "-";
+            account.currency || "USD";
 
 
 
-        // MONEY DATA
-
+        // =========================
+        // BALANCE / EQUITY / PROFIT
+        // =========================
 
         document.getElementById("balance").innerHTML =
-            "$" + Number(account.balance || 0).toFixed(2);
+            "$" +
+            Number(
+                account.balance || 0
+            ).toFixed(2);
 
 
 
         document.getElementById("equity").innerHTML =
-            "$" + Number(account.equity || 0).toFixed(2);
+            "$" +
+            Number(
+                account.equity || 0
+            ).toFixed(2);
 
 
 
         document.getElementById("profit").innerHTML =
-            "$" + Number(account.profit || 0).toFixed(2);
+            "$" +
+            Number(
+                account.profit || 0
+            ).toFixed(2);
 
 
 
 
-
+        // =========================
         // POSITIONS
-
+        // =========================
 
         const positions =
             data.positions || {};
 
 
 
+        const positionList =
+            positions.positions ||
+            positions ||
+            [];
+
+
+
         document.getElementById("positions").innerHTML =
-            positions.count || 0;
+            positionList.length;
 
 
 
@@ -96,27 +120,27 @@ async function loadDashboard() {
 
 
 
-        const list =
-            positions.positions || [];
-
-
-
-        list.forEach(position => {
+        positionList.forEach(position => {
 
 
             table.innerHTML += `
 
             <tr>
 
-                <td>${position.symbol || "-"}</td>
+                <td>
+                    ${position.symbol || "-"}
+                </td>
+
 
                 <td>
                     ${
-                        position.type === 0
+                        position.type === 0 ||
+                        position.type === "BUY"
                         ? "BUY"
                         : "SELL"
                     }
                 </td>
+
 
                 <td>
                     ${position.volume || 0}
@@ -129,7 +153,6 @@ async function loadDashboard() {
                     ).toFixed(2)}
                 </td>
 
-
             </tr>
 
             `;
@@ -139,31 +162,43 @@ async function loadDashboard() {
 
 
 
+        // =========================
+        // ONLINE INDICATOR
+        // =========================
+
+        document.getElementById("status").style.display =
+            "block";
+
+
     }
+
 
 
     catch(error) {
 
 
-        console.log(
+        console.error(
             "Dashboard Error:",
             error
         );
 
 
         document.getElementById("status").innerHTML =
-            "MT5 Status: ERROR";
+            "MT5 Status: OFFLINE";
 
 
     }
-
 
 }
 
 
 
+// Initial load
+
 loadDashboard();
 
+
+// Refresh every 5 seconds
 
 setInterval(
     loadDashboard,

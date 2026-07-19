@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<title>
+Bethel Trading Technologies - Investor Dashboard
+</title>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+<style>
+
+
+body{
+
+font-family:Arial,sans-serif;
+background:#f4f7fa;
+margin:0;
+padding:40px;
+
+}
+
+
+
+.container{
+
+max-width:1100px;
+margin:auto;
+background:white;
+padding:35px;
+border-radius:15px;
+
+}
+
+
+
+h1{
+
+text-align:center;
+
+}
+
+
+.subtitle{
+
+text-align:center;
+color:#555;
+
+}
+
+
+
+.status{
+
+text-align:center;
+font-weight:bold;
+margin:20px;
+
+}
+
+
+
+.cards{
+
+display:grid;
+grid-template-columns:
+repeat(auto-fit,minmax(200px,1fr));
+gap:20px;
+
+}
+
+
+
+.card{
+
+background:#eef3f8;
+padding:25px;
+border-radius:12px;
+text-align:center;
+
+}
+
+
+
+.value{
+
+font-size:28px;
+font-weight:bold;
+margin-top:15px;
+
+}
+
+
+
+.chart{
+
+margin-top:40px;
+
+}
+
+
+
+table{
+
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+
+}
+
+
+
+th,td{
+
+padding:12px;
+border-bottom:1px solid #ddd;
+text-align:center;
+
+}
+
+
+</style>
+
+
+</head>
+
+
+
+<body>
+
+
+<div class="container">
+
+
+<h1>
+Bethel Trading Technologies
+</h1>
+
+
+<p class="subtitle">
+Investor Performance Dashboard
+</p>
+
+
+
+<div class="status" id="status">
+
+Connecting...
+
+</div>
+
+<div class="cards">
+
+
+<div class="card">
+
+<h3>
+Total Trades
+</h3>
+
+<div class="value" id="trades">
+0
+</div>
+
+</div>
+
+
+
+
+<div class="card">
+
+<h3>
+Win Rate
+</h3>
+
+<div class="value" id="winrate">
+0%
+</div>
+
+</div>
+
+
+
+
+
+<div class="card">
+
+<h3>
+Profit Factor
+</h3>
+
+<div class="value" id="factor">
+0
+</div>
+
+</div>
+
+
+
+
+
+<div class="card">
+
+<h3>
+Total Profit
+</h3>
+
+<div class="value" id="profit">
+$0
+</div>
+
+</div>
+
+
+
+
+
+<div class="card">
+
+<h3>
+Risk Level
+</h3>
+
+<div class="value" id="risk">
+-
+</div>
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+<div class="cards">
+
+<div class="card">
+<h3>Sharpe Ratio</h3>
+<div class="value" id="sharpe">0</div>
+</div>
+
+<div class="card">
+<h3>Sortino Ratio</h3>
+<div class="value" id="sortino">0</div>
+</div>
+
+<div class="card">
+<h3>Recovery Factor</h3>
+<div class="value" id="recovery">N/A</div>
+</div>
+
+<div class="card">
+<h3>Consistency Score</h3>
+<div class="value" id="consistency">0</div>
+</div>
+
+<div class="card">
+<h3>Performance Grade</h3>
+<div class="value" id="grade">-</div>
+</div>
+
+<div class="card">
+<h3>Volatility</h3>
+<div class="value" id="volatility">0%</div>
+</div>
+
+</div>
+\n<div class="chart">
+
+
+<h2>
+Equity Growth Curve
+</h2>
+
+
+<canvas id="equityChart"></canvas>
+
+
+</div>
+
+
+
+
+
+
+<div class="chart">
+
+
+<h2>
+Investment Summary
+</h2>
+
+
+
+<table>
+
+
+<tr>
+
+<th>
+Metric
+</th>
+
+<th>
+Value
+</th>
+
+</tr>
+
+
+
+<tr>
+
+<td>
+Starting Balance
+</td>
+
+<td id="starting">
+$0
+</td>
+
+</tr>
+
+
+
+<tr>
+
+<td>
+Current Equity
+</td>
+
+<td id="current">
+$0
+</td>
+
+</tr>
+
+
+
+<tr>
+
+<td>
+Total Return
+</td>
+
+<td id="return">
+0%
+</td>
+
+</tr>
+
+
+
+<tr>
+
+<td>
+Maximum Drawdown
+</td>
+
+<td id="drawdown">
+0%
+</td>
+
+</tr>
+
+
+
+</table>
+
+
+</div>
+
+
+</div>
+
+<script>
+
+
+let equityChart = null;
+
+
+
+async function loadInvestor(){
+
+
+try{
+
+
+
+// ============================
+// PERFORMANCE METRICS
+// ============================
+
+
+const performanceResponse =
+
+await fetch(
+"/investor/api/performance"
+);
+
+
+
+const performanceData =
+
+await performanceResponse.json();
+
+
+
+const performance =
+
+performanceData.performance || {};
+
+
+
+document.getElementById("trades").innerHTML =
+
+performance.total_trades || 0;
+
+
+
+document.getElementById("winrate").innerHTML =
+
+(performance.win_rate || 0) + "%";
+
+
+
+document.getElementById("factor").innerHTML =
+
+performance.profit_factor || 0;
+
+
+
+document.getElementById("profit").innerHTML =
+
+"$" + Number(
+performance.total_profit || 0
+).toFixed(2);
+
+
+
+
+
+
+// ============================
+// RISK DATA
+// ============================
+
+
+const riskResponse =
+
+await fetch(
+"/investor/api/risk"
+);
+
+
+
+const riskData =
+
+await riskResponse.json();
+
+
+
+const risk =
+
+riskData.risk || {};
+
+
+
+document.getElementById("risk").innerHTML =
+
+risk.level || "-";
+
+
+
+
+
+
+
+// ============================
+// ADVANCED ANALYTICS
+// ============================
+
+const analyticsResponse = await fetch("/performance/analytics");
+const analytics = await analyticsResponse.json();
+
+document.getElementById("sharpe").innerHTML = analytics.sharpe_ratio ?? 0;
+document.getElementById("sortino").innerHTML = analytics.sortino_ratio ?? 0;
+document.getElementById("recovery").innerHTML = analytics.recovery_factor ?? "N/A";
+document.getElementById("consistency").innerHTML = analytics.consistency_score ?? 0;
+document.getElementById("grade").innerHTML = analytics.performance_grade ?? "-";
+document.getElementById("volatility").innerHTML = (analytics.volatility ?? 0) + "%";
+
+
+// ============================
+// EQUITY HISTORY
+// ============================
+
+
+const equityResponse =
+
+await fetch(
+"/performance/equity-history"
+);
+
+
+
+const equityData =
+
+await equityResponse.json();
+
+
+
+console.log(
+"Performance History:",
+equityData
+);
+
+
+
+const history =
+
+equityData.history || [];
+
+
+
+
+const curve = history.map(item => ({
+
+
+time:item.timestamp,
+
+
+equity:item.equity
+
+
+
+}));
+
+
+
+
+
+if(history.length){
+
+
+
+const startingBalance =
+
+history[0].balance;
+
+
+
+const currentEquity =
+
+history[
+history.length - 1
+].equity;
+
+
+
+document.getElementById("starting").innerHTML =
+
+"$" + Number(
+startingBalance
+).toFixed(2);
+
+
+
+
+document.getElementById("current").innerHTML =
+
+"$" + Number(
+currentEquity
+).toFixed(2);
+
+
+
+
+
+const returnPercent =
+
+(
+(currentEquity - startingBalance)
+/
+startingBalance
+)
+*
+100;
+
+
+
+
+document.getElementById("return").innerHTML =
+
+returnPercent.toFixed(2) + "%";
+
+
+
+
+
+const maxDrawdown = Math.max(
+
+...history.map(
+
+item => item.drawdown || 0
+
+)
+
+);
+
+
+
+document.getElementById("drawdown").innerHTML =
+
+maxDrawdown.toFixed(2) + "%";
+
+
+
+
+
+drawChart(curve);
+
+
+
+}
+
+
+
+
+
+
+
+document.getElementById("status").innerHTML =
+
+"Platform Status: ONLINE";
+
+
+
+}
+
+
+catch(error){
+
+
+console.error(
+error
+);
+
+
+
+document.getElementById("status").innerHTML =
+
+"Platform Status: ERROR";
+
+
+}
+
+
+}
+
+
+function drawChart(curve){
+
+
+
+const labels =
+
+curve.map(item =>
+
+new Date(
+item.time
+).toLocaleString()
+
+);
+
+
+
+const values =
+
+curve.map(item =>
+
+item.equity
+
+);
+
+
+
+
+const canvas =
+
+document.getElementById(
+"equityChart"
+);
+
+
+
+
+
+if(equityChart){
+
+
+equityChart.data.labels = labels;
+
+
+equityChart.data.datasets[0].data = values;
+
+
+equityChart.update();
+
+
+return;
+
+
+}
+
+
+
+
+
+
+equityChart = new Chart(
+
+canvas,
+
+{
+
+
+type:"line",
+
+
+
+data:{
+
+
+
+labels:labels,
+
+
+
+datasets:[
+
+{
+
+
+label:"Equity Growth",
+
+
+data:values,
+
+
+tension:0.3
+
+
+}
+
+]
+
+
+},
+
+
+
+
+options:{
+
+
+responsive:true,
+
+
+plugins:{
+
+
+legend:{
+
+
+display:true
+
+
+}
+
+
+}
+
+
+}
+
+
+
+}
+
+);
+
+
+
+
+}
+
+
+
+
+
+loadInvestor();
+
+
+
+setInterval(
+
+loadInvestor,
+
+10000
+
+);
+
+
+
+</script>
+
+
+
+</body>
+
+
+</html>

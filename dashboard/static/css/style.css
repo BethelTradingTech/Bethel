@@ -259,3 +259,15 @@ tr:hover {
     margin-top:25px;
 
 }
+/* ==============================
+   EQUITY CURVE CHART
+============================== */
+
+
+#equityChart {
+
+    width:100% !important;
+
+    height:400px !important;
+
+}

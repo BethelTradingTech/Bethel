@@ -29,6 +29,8 @@ class User(Base):
     )
 
 
+    # Login email
+
     email = Column(
         String,
         unique=True,
@@ -37,11 +39,35 @@ class User(Base):
     )
 
 
+    # Encrypted password
+
     hashed_password = Column(
         String,
         nullable=False
     )
 
+
+    # User profile
+
+    full_name = Column(
+        String,
+        nullable=True
+    )
+
+
+    country = Column(
+        String,
+        nullable=True
+    )
+
+
+    phone = Column(
+        String,
+        nullable=True
+    )
+
+
+    # Account status
 
     is_active = Column(
         Boolean,
@@ -49,7 +75,39 @@ class User(Base):
     )
 
 
+    # KYC preparation
+    # Future Sumsub integration
+
+    kyc_status = Column(
+        String,
+        default="PENDING"
+    )
+
+
+    # Subscription / copy trading
+
+    account_type = Column(
+        String,
+        default="CLIENT"
+    )
+
+
+    subscription_status = Column(
+        String,
+        default="FREE"
+    )
+
+
+    # Dates
+
     created_at = Column(
         DateTime,
         default=datetime.utcnow
+    )
+
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
     )
