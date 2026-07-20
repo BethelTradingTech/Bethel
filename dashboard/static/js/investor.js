@@ -1175,37 +1175,29 @@ ${trade.time ?? "--"}
 
 async function loadDashboard(){
 
-
     try{
 
+        await Promise.all([
 
-        await loadInvestorDashboard();
+            loadInvestorDashboard(),
 
+            loadEquity(),
 
-        await loadEquity();
+            loadAnalytics(),
 
+            loadTrades(),
 
-        await loadAnalytics();
+            loadMonthly(),
 
+            loadMT5(),
 
-        await loadTrades();
+            loadPositions(),
 
+            loadHistory()
 
-        await loadMonthly();
-
-
-        await loadMT5();
-
-
-        await loadPositions();
-
-
-        await loadHistory();
-
-
+        ]);
 
     }
-
 
     catch(error){
 
