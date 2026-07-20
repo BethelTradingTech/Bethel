@@ -1,67 +1,34 @@
-const INVESTOR_ID = 1;
-
 /*
 Bethel Trading Technologies
-Investor Dashboard Engine v6
-Unified Investor + MT5 Analytics
+
+File:
+investor.js
+
+Phase 7:
+Secure Investor Dashboard Frontend
+
+Responsibilities:
+
+- Investor profile
+- Portfolio data
+- Performance analytics
+- Equity curve
+- Trade analytics
+- MT5 monitoring
+- Live positions
+- Trade history
+
 */
 
 
-const API = "https://api.betheltradingtechnologies.com";
-
-
-let equityChart = null;
-let monthlyChart = null;
-let tradeChart = null;
-
-
-
 // ======================================
-// API CONNECTION
+// GLOBAL CONFIGURATION
 // ======================================
 
 
-async function getData(url){
-
-    try{
-
-        const response = await fetch(
-
-            API +
-            url +
-            "?t=" +
-            Date.now()
-
-        );
+const REFRESH_INTERVAL = 30000;
 
 
-        if(!response.ok){
-
-            throw new Error(
-                "API Error: " + url
-            );
-
-        }
-
-
-        return await response.json();
-
-
-    }
-
-    catch(error){
-
-        console.log(
-            "API ERROR:",
-            error
-        );
-
-
-        return null;
-
-    }
-
-}
 
 
 
@@ -70,7 +37,9 @@ async function getData(url){
 // ======================================
 
 
+
 function money(value){
+
 
     if(
         value === null ||
@@ -83,6 +52,7 @@ function money(value){
     }
 
 
+
     return "$" +
 
     Number(value).toLocaleString(
@@ -90,11 +60,8 @@ function money(value){
         undefined,
 
         {
-
             minimumFractionDigits:2,
-
             maximumFractionDigits:2
-
         }
 
     );
@@ -103,7 +70,11 @@ function money(value){
 
 
 
+
+
+
 function percent(value){
+
 
     if(
         value === null ||
@@ -118,12 +89,17 @@ function percent(value){
 
     return Number(value).toFixed(2) + "%";
 
+
 }
 
 
 
 
+
+
+
 function number(value){
+
 
     if(
         value === null ||
@@ -136,43 +112,200 @@ function number(value){
     }
 
 
+
     return Number(value).toFixed(2);
 
+
 }
+
+
+
 
 
 
 
 function safe(id,value){
 
+
     const element =
+
         document.getElementById(id);
+
 
 
     if(element){
 
+
         element.innerHTML = value;
 
+
     }
+
+
+}
+
+// ======================================
+// INVESTOR PROFILE ENGINE
+// ======================================
+
+
+async function loadInvestorDashboard(){
+
+
+    const investorId =
+
+        getInvestorId();
+
+
+
+    if(!investorId){
+
+
+        console.error(
+            "Investor ID missing from JWT"
+        );
+
+
+        return;
+
+
+    }
+
+
+
+
+    const data =
+
+        await apiGet(
+
+            "/investor/api/dashboard/" +
+
+            investorId
+
+        );
+
+
+
+
+    if(!data){
+
+
+        return;
+
+
+    }
+
+
+
+
+
+    // Investor information
+
+    if(data.investor){
+
+
+        safe(
+
+            "investorName",
+
+            data.investor.name ?? "--"
+
+        );
+
+
+
+        safe(
+
+            "investorEmail",
+
+            data.investor.email ?? "--"
+
+        );
+
+
+    }
+
+
+
+
+
+
+    // Portfolio information
+
+    if(data.portfolio){
+
+
+
+        safe(
+
+            "portfolioName",
+
+            data.portfolio.name ?? "--"
+
+        );
+
+
+
+
+        safe(
+
+            "portfolioCapital",
+
+            money(
+
+                data.portfolio.capital
+
+            )
+
+        );
+
+
+
+
+        safe(
+
+            "portfolioValue",
+
+            money(
+
+                data.portfolio.current_value
+
+            )
+
+        );
+
+
+
+    }
+
+
 
 }
 
 
-/*
-======================================
-EQUITY HISTORY ENGINE
-======================================
-*/
+
+
+
+
+
+// ======================================
+// EQUITY ENGINE
+// ======================================
 
 
 async function loadEquity(){
 
 
-    const data = await getData(
 
-        "/performance/equity-history"
+    const data =
 
-    );
+        await apiGet(
+
+            "/performance/equity-history"
+
+        );
+
+
 
 
 
@@ -186,15 +319,24 @@ async function loadEquity(){
 
     ){
 
+
         return;
 
+
     }
+
+
+
 
 
 
     const history =
 
         data.history.slice(-100);
+
+
+
+
 
 
 
@@ -208,11 +350,6 @@ async function loadEquity(){
 
 
 
-
-
-    // ==================================
-    // ACCOUNT OVERVIEW
-    // ==================================
 
 
 
@@ -230,6 +367,9 @@ async function loadEquity(){
 
 
 
+
+
+
     safe(
 
         "equity",
@@ -244,6 +384,10 @@ async function loadEquity(){
 
 
 
+
+
+
+
     safe(
 
         "profit",
@@ -255,6 +399,10 @@ async function loadEquity(){
         )
 
     );
+
+
+
+
 
 
 
@@ -275,163 +423,290 @@ async function loadEquity(){
 
 
 
-    // ==================================
-    // EQUITY CURVE CHART
-    // ==================================
 
 
+    if(typeof drawEquityChart === "function"){
 
-    const chart =
 
-        document.getElementById(
+        drawEquityChart(
 
-            "equityChart"
+            history
 
         );
 
 
-
-    if(!chart){
-
-        return;
-
     }
-
-
-
-
-    if(equityChart){
-
-        equityChart.destroy();
-
-    }
-
-
-
-
-    equityChart = new Chart(
-
-        chart,
-
-        {
-
-            type:"line",
-
-
-
-            data:{
-
-
-                labels:
-
-
-                    history.map(
-
-                        item =>
-
-                        item.timestamp
-
-                    ),
-
-
-
-
-                datasets:[{
-
-
-                    label:
-
-                    "Equity Growth Curve",
-
-
-
-
-                    data:
-
-
-                        history.map(
-
-                            item =>
-
-                            item.equity
-
-                        )
-
-
-                }]
-
-
-            },
-
-
-
-            options:{
-
-
-                responsive:true,
-
-
-                maintainAspectRatio:false
-
-
-
-            }
-
-
-        }
-
-    );
 
 
 
 }
 
 
-/*
-======================================
-TRADE PERFORMANCE ENGINE
-======================================
-*/
+// ======================================
+// ANALYTICS ENGINE
+// ======================================
 
 
-async function loadTrades(){
+async function loadAnalytics(){
 
 
-    const data = await getData(
+    const data =
 
-        "/performance/trades"
+        await apiGet(
 
-    );
+            "/performance/analytics"
+
+        );
+
 
 
 
     if(!data){
 
+
         return;
+
 
     }
 
 
 
 
+
+    safe(
+
+        "status",
+
+        data.status ?? "ONLINE"
+
+    );
+
+
+
+
+
+    safe(
+
+        "startingCapital",
+
+        money(
+
+            data.starting_capital
+
+        )
+
+    );
+
+
+
+
+
+    safe(
+
+        "currentEquity",
+
+        money(
+
+            data.current_equity
+
+        )
+
+    );
+
+
+
+
+
+    safe(
+
+        "return",
+
+        percent(
+
+            data.total_return_percent
+
+        )
+
+    );
+
+
+
+
+
+    safe(
+
+        "grade",
+
+        data.performance_grade ?? "--"
+
+    );
+
+
+
+
+
+    safe(
+
+        "risk",
+
+        data.risk_level ?? "--"
+
+    );
+
+
+
+
+
+    safe(
+
+        "consistency",
+
+        number(
+
+            data.consistency_score
+
+        )
+
+    );
+
+
+
+
+
+    safe(
+
+        "recovery",
+
+        number(
+
+            data.recovery_factor
+
+        )
+
+    );
+
+
+
+
+
+    safe(
+
+        "sharpe",
+
+        number(
+
+            data.sharpe_ratio
+
+        )
+
+    );
+
+
+
+
+
+    safe(
+
+        "sortino",
+
+        number(
+
+            data.sortino_ratio
+
+        )
+
+    );
+
+
+
+
+
+    safe(
+
+        "volatility",
+
+        percent(
+
+            data.volatility
+
+        )
+
+    );
+
+
+
+   safe(
+
+    "maxdd",
+
+    money(
+
+        data.maximum_drawdown_amount
+
+    )
+
+);
+
+
+
+
+
+safe(
+
+    "snapshots",
+
+    data.snapshots_analyzed ?? "--"
+
+);
+
+}
+
+
+
+
+
+
+
+// ======================================
+// TRADE PERFORMANCE ENGINE
+// ======================================
+
+
+async function loadTrades(){
+
+
+    const data =
+
+        await apiGet(
+
+            "/performance/trades"
+
+        );
+
+
+
+
+
+    if(!data){
+
+
+        return;
+
+
+    }
+
+
+
+
+
     const performance =
 
-        data.performance || {};
-
-
-
-    const risk =
-
-        data.risk || {};
+        data.performance || data;
 
 
 
 
 
-
-    // ==================================
-    // TRADE STATISTICS
-    // ==================================
 
 
     safe(
@@ -441,6 +716,10 @@ async function loadTrades(){
         performance.total_trades ?? "--"
 
     );
+
+
+
+
 
 
 
@@ -455,6 +734,10 @@ async function loadTrades(){
         )
 
     );
+
+
+
+
 
 
 
@@ -475,511 +758,47 @@ async function loadTrades(){
 
 
 
-    // ==================================
-    // RISK METRICS
-    // ==================================
+
+    if(typeof drawTradeChart === "function"){
 
 
-    safe(
+        drawTradeChart(
 
-        "sharpe",
-
-        number(
-
-            risk.sharpe_ratio
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "sortino",
-
-        number(
-
-            risk.sortino_ratio
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "maxdd",
-
-        money(
-
-            risk.max_drawdown
-
-        )
-
-    );
-
-
-
-
-
-
-
-    // ==================================
-    // TRADE DISTRIBUTION CHART
-    // ==================================
-
-
-    const chart =
-
-        document.getElementById(
-
-            "tradeChart"
+            performance
 
         );
 
 
-
-    if(!chart){
-
-        return;
-
     }
-
-
-
-
-
-    if(tradeChart){
-
-        tradeChart.destroy();
-
-    }
-
-
-
-
-
-
-    tradeChart = new Chart(
-
-        chart,
-
-        {
-
-
-            type:"doughnut",
-
-
-
-
-            data:{
-
-
-                labels:[
-
-
-                    "Winning Trades",
-
-                    "Losing Trades"
-
-
-                ],
-
-
-
-
-                datasets:[{
-
-
-                    label:
-
-                    "Trade Results",
-
-
-
-
-                    data:[
-
-
-                        performance.winning_trades ?? 0,
-
-
-                        performance.losing_trades ?? 0
-
-
-                    ]
-
-
-                }]
-
-
-            },
-
-
-
-            options:{
-
-
-                responsive:true,
-
-
-                maintainAspectRatio:false
-
-
-
-            }
-
-
-
-        }
-
-
-    );
 
 
 
 }
 
 
-/*
-======================================
-INVESTOR ANALYTICS ENGINE
-======================================
-*/
-
-
-async function loadInvestorAnalytics(){
-
-
-    const analytics = await getData(
-
-        "/performance/analytics"
-
-    );
-
-
-
-    if(!analytics){
-
-        return;
-
-    }
-
-
-
-
-
-
-    // ==================================
-    // SYSTEM STATUS
-    // ==================================
-
-
-    safe(
-
-        "status",
-
-        analytics.status ?? "ONLINE"
-
-    );
-
-
-
-
-
-
-
-    // ==================================
-    // CAPITAL INFORMATION
-    // ==================================
-
-
-    safe(
-
-        "startingCapital",
-
-        money(
-
-            analytics.starting_capital
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "currentEquity",
-
-        money(
-
-            analytics.current_equity
-
-        )
-
-    );
-
-
-
-
-
-
-
-    // ==================================
-    // PERFORMANCE RETURNS
-    // ==================================
-
-
-    safe(
-
-        "return",
-
-        percent(
-
-            analytics.total_return_percent
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "growth",
-
-        percent(
-
-            analytics.total_return_percent
-
-        )
-
-    );
-
-
-
-
-
-
-
-    // ==================================
-    // TRADING PERFORMANCE
-    // ==================================
-
-
-    safe(
-
-        "trades",
-
-        analytics.total_trades ?? "--"
-
-    );
-
-
-
-    safe(
-
-        "winrate",
-
-        percent(
-
-            analytics.win_rate
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "profitfactor",
-
-        number(
-
-            analytics.profit_factor
-
-        )
-
-    );
-
-
-
-
-
-
-
-    // ==================================
-    // INVESTOR QUALITY SCORE
-    // ==================================
-
-
-    safe(
-
-        "grade",
-
-        analytics.performance_grade ?? "--"
-
-    );
-
-
-
-    safe(
-
-        "risk",
-
-        analytics.risk_level ?? "--"
-
-    );
-
-
-
-    safe(
-
-        "consistency",
-
-        number(
-
-            analytics.consistency_score
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "recovery",
-
-        number(
-
-            analytics.recovery_factor
-
-        )
-
-    );
-
-
-
-
-
-
-
-    // ==================================
-    // RISK ANALYTICS TABLE
-    // ==================================
-
-
-    safe(
-
-        "sharpe",
-
-        number(
-
-            analytics.sharpe_ratio
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "sortino",
-
-        number(
-
-            analytics.sortino_ratio
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "maxdd",
-
-        money(
-
-            analytics.maximum_drawdown_amount
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "volatility",
-
-        percent(
-
-            analytics.volatility
-
-        )
-
-    );
-
-
-
-    safe(
-
-        "snapshots",
-
-        analytics.snapshots_analyzed ?? "--"
-
-    );
-
-
-
-}
-
-
-/*
-======================================
-MONTHLY PERFORMANCE ENGINE
-======================================
-*/
+// ======================================
+// MONTHLY PERFORMANCE ENGINE
+// ======================================
 
 
 async function loadMonthly(){
 
 
-    const data = await getData(
+    const data =
 
-        "/performance/monthly"
+        await apiGet(
 
-    );
+            "/performance/monthly"
 
-
-
-    if(!data){
-
-        return;
-
-    }
+        );
 
 
-
-    const monthly =
-
-        data.monthly_performance;
 
 
 
     if(
 
-        !monthly ||
-
-        monthly.length === 0
+        !data
 
     ){
 
@@ -990,212 +809,30 @@ async function loadMonthly(){
 
 
 
-    const chart =
 
-        document.getElementById(
 
-            "monthlyChart"
 
-        );
+    if(
 
+        data.monthly_performance
 
+    ){
 
-    if(!chart){
 
-        return;
 
-    }
+        if(typeof drawMonthlyChart === "function"){
 
 
+            drawMonthlyChart(
 
+                data.monthly_performance
 
-
-    if(monthlyChart){
-
-        monthlyChart.destroy();
-
-    }
-
-
-
-
-
-
-    monthlyChart = new Chart(
-
-        chart,
-
-        {
-
-
-            type:"bar",
-
-
-
-            data:{
-
-
-                labels:
-
-
-                    monthly.map(
-
-                        item =>
-
-                        item.month
-
-                    ),
-
-
-
-
-                datasets:[{
-
-
-                    label:
-
-                    "Monthly Return %",
-
-
-
-                    data:
-
-
-                        monthly.map(
-
-                            item =>
-
-                            item.return_percent
-
-                        )
-
-
-                }]
-
-
-            },
-
-
-
-            options:{
-
-
-                responsive:true,
-
-
-                maintainAspectRatio:false
-
-
-            }
-
+            );
 
 
         }
 
 
-    );
-
-
-}
-
-
-
-
-
-
-
-/*
-======================================
-INVESTOR MASTER DASHBOARD
-======================================
-*/
-
-
-async function loadInvestorDashboard(){
-
-
-    const data = await getData(
-
-        "/investor/api/dashboard/" + INVESTOR_ID
-
-    );
-
-
-    if(!data){
-
-        return;
-
-    }
-
-
-
-    if(data.investor){
-
-
-        safe(
-            "investorName",
-            data.investor.name ?? "--"
-        );
-
-
-        safe(
-            "investorEmail",
-            data.investor.email ?? "--"
-        );
-
-    }
-
-
-
-
-    if(data.portfolio){
-
-
-        safe(
-            "portfolioName",
-            data.portfolio.name ?? "--"
-        );
-
-
-        safe(
-            "portfolioCapital",
-            money(data.portfolio.capital)
-        );
-
-
-        safe(
-            "portfolioValue",
-            money(data.portfolio.current_value)
-        );
-
-
-    }
-
-
-
-
-
-    if(data.mt5){
-
-
-        safe(
-            "mt5Login",
-            data.mt5.login ?? "--"
-        );
-
-
-        safe(
-            "mt5Server",
-            data.mt5.server ?? "--"
-        );
-
-
-        safe(
-            "mt5Currency",
-            data.mt5.currency ?? "--"
-        );
-
-
     }
 
 
@@ -1203,29 +840,43 @@ async function loadInvestorDashboard(){
 
 
 
-/*
-======================================
-MT5 ACCOUNT VERIFICATION
-======================================
-*/
+
+
+
+
+
+// ======================================
+// MT5 ACCOUNT ENGINE
+// ======================================
 
 
 async function loadMT5(){
 
 
-    const data = await getData(
 
-        "/investor/api/mt5"
+    const data =
 
-    );
+        await apiGet(
+
+            "/investor/api/mt5"
+
+        );
+
+
 
 
 
     if(!data){
 
+
         return;
 
+
     }
+
+
+
+
 
 
 
@@ -1239,6 +890,8 @@ async function loadMT5(){
 
 
 
+
+
     safe(
 
         "mt5Login",
@@ -1246,6 +899,8 @@ async function loadMT5(){
         data.login ?? "--"
 
     );
+
+
 
 
 
@@ -1259,6 +914,8 @@ async function loadMT5(){
 
 
 
+
+
     safe(
 
         "mt5Currency",
@@ -1266,6 +923,8 @@ async function loadMT5(){
         data.currency ?? "--"
 
     );
+
+
 
 
 
@@ -1282,26 +941,23 @@ async function loadMT5(){
 }
 
 
-
-
-
-
-
-/*
-======================================
-LIVE POSITIONS TABLE
-======================================
-*/
+// ======================================
+// LIVE POSITIONS ENGINE
+// ======================================
 
 
 async function loadPositions(){
 
 
-    const data = await getData(
+    const data =
 
-        "/mt5/positions"
+        await apiGet(
 
-    );
+            "/mt5/positions"
+
+        );
+
+
 
 
 
@@ -1315,6 +971,8 @@ async function loadPositions(){
 
 
 
+
+
     if(
 
         !table ||
@@ -1325,9 +983,13 @@ async function loadPositions(){
 
     ){
 
+
         return;
 
+
     }
+
+
 
 
 
@@ -1337,28 +999,31 @@ async function loadPositions(){
 
 
 
+
+
+
     data.positions.forEach(
 
         position => {
 
 
-            table.innerHTML += `
 
+            table.innerHTML += `
 
 <tr>
 
 <td>
-${position.symbol}
+${position.symbol ?? "--"}
 </td>
 
 
 <td>
-${position.type}
+${position.type ?? "--"}
 </td>
 
 
 <td>
-${position.volume}
+${position.volume ?? "--"}
 </td>
 
 
@@ -1369,12 +1034,15 @@ ${money(position.profit)}
 
 </tr>
 
-
 `;
+
+
 
         }
 
+
     );
+
 
 
 }
@@ -1385,21 +1053,25 @@ ${money(position.profit)}
 
 
 
-/*
-======================================
-TRADE HISTORY TABLE
-======================================
-*/
+
+
+// ======================================
+// TRADE HISTORY ENGINE
+// ======================================
 
 
 async function loadHistory(){
 
 
-    const data = await getData(
+    const data =
 
-        "/mt5/history"
+        await apiGet(
 
-    );
+            "/mt5/history"
+
+        );
+
+
 
 
 
@@ -1413,6 +1085,8 @@ async function loadHistory(){
 
 
 
+
+
     if(
 
         !table ||
@@ -1423,9 +1097,13 @@ async function loadHistory(){
 
     ){
 
+
         return;
 
+
     }
+
+
 
 
 
@@ -1435,29 +1113,32 @@ async function loadHistory(){
 
 
 
+
+
+
     data.history.forEach(
 
         trade => {
 
 
-            table.innerHTML += `
 
+            table.innerHTML += `
 
 <tr>
 
 
 <td>
-${trade.symbol}
+${trade.symbol ?? "--"}
 </td>
 
 
 <td>
-${trade.type}
+${trade.type ?? "--"}
 </td>
 
 
 <td>
-${trade.volume}
+${trade.volume ?? "--"}
 </td>
 
 
@@ -1467,60 +1148,78 @@ ${money(trade.profit)}
 
 
 <td>
-${trade.time}
+${trade.time ?? "--"}
 </td>
 
 
 </tr>
 
-
 `;
+
+
 
         }
 
+
     );
+
 
 
 }
 
 
-
-
-
-
-
-/*
-======================================
-DASHBOARD LOADER
-======================================
-*/
+// ======================================
+// MASTER DASHBOARD LOADER
+// ======================================
 
 
 async function loadDashboard(){
 
 
-    await loadInvestorDashboard();
+    try{
 
 
-    await loadEquity();
+        await loadInvestorDashboard();
 
 
-    await loadTrades();
+        await loadEquity();
 
 
-    await loadMonthly();
+        await loadAnalytics();
 
 
-    await loadInvestorAnalytics();
+        await loadTrades();
 
 
-    await loadMT5();
+        await loadMonthly();
 
 
-    await loadPositions();
+        await loadMT5();
 
 
-    await loadHistory();
+        await loadPositions();
+
+
+        await loadHistory();
+
+
+
+    }
+
+
+    catch(error){
+
+
+        console.error(
+
+            "Dashboard Loading Error:",
+
+            error
+
+        );
+
+
+    }
 
 
 }
@@ -1531,34 +1230,64 @@ async function loadDashboard(){
 
 
 
-/*
-======================================
-START APPLICATION
-======================================
-*/
+
+
+// ======================================
+// APPLICATION START
+// ======================================
 
 
 window.addEventListener(
 
     "load",
 
-    function(){
+    ()=>{
+
+
+
+        // Check JWT authentication
+
+
+        if(
+
+            !requireLogin()
+
+        ){
+
+
+            return;
+
+
+        }
+
+
+
+
+
+
+        // First dashboard load
 
 
         loadDashboard();
 
 
 
-        // Refresh every 30 seconds
+
+
+
+
+
+        // Auto refresh every 30 seconds
 
 
         setInterval(
 
             loadDashboard,
 
-            30000
+            REFRESH_INTERVAL
 
         );
+
 
 
     }

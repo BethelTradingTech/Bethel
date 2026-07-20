@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from jose import jwt
 
 
-SECRET_KEY = "BETHEL_TRADING_SECRET_CHANGE_LATER"
+SECRET_KEY = "BETHEL_TRADING_SECRET_KEY_CHANGE_THIS"
 
 ALGORITHM = "HS256"
 

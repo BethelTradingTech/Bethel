@@ -1,64 +1,44 @@
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
+
 
 <head>
 
+
 <title>
-Bethel Trading Technologies Login
+Bethel Trading Technologies Investor Login
 </title>
 
 
-<style>
-
-body {
-
-    font-family: Arial, sans-serif;
-    background: #f4f7fa;
-    text-align: center;
-    padding-top: 100px;
-
-}
+<meta charset="UTF-8">
 
 
-.login-box {
-
-    background: white;
-    width: 350px;
-    margin: auto;
-    padding: 30px;
-    border-radius: 10px;
-
-}
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-input {
-
-    width: 90%;
-    padding: 12px;
-    margin: 10px;
-
-}
-
-
-button {
-
-    padding: 12px 40px;
-    cursor: pointer;
-
-}
-
-
-</style>
+<link rel="stylesheet" href="/static/css/login.css">
 
 
 </head>
 
 
+
+
+
 <body>
 
 
+
+
+
+<!-- ======================================
+     LOGIN CONTAINER
+====================================== -->
+
+
 <div class="login-box">
+
 
 
 <h1>
@@ -66,43 +46,315 @@ Bethel Trading Technologies
 </h1>
 
 
+
 <h3>
-Admin Login
+Investor Login
 </h3>
 
 
-<form action="/login" method="post">
+
+
+
+<!-- ======================================
+     ERROR MESSAGE
+====================================== -->
+
+
+<div id="error">
+
+</div>
+
+
+
+
+
+
+<!-- ======================================
+     LOGIN FORM
+====================================== -->
+
+
+<form id="loginForm">
+
+
+
+
+
+<!-- EMAIL -->
 
 
 <input
-type="text"
-name="username"
-placeholder="Username"
-required>
+
+type="email"
+
+id="email"
+
+placeholder="Email"
+
+required
+
+>
 
 
-<br>
+
+
+
+<!-- PASSWORD -->
 
 
 <input
+
 type="password"
-name="password"
+
+id="password"
+
 placeholder="Password"
-required>
+
+required
+
+>
 
 
-<br>
 
 
-<button type="submit">
+
+
+
+<!-- REMEMBER ME -->
+
+
+<label>
+
+
+<input
+
+type="checkbox"
+
+id="remember"
+
+>
+
+
+Remember me
+
+
+</label>
+
+
+
+
+
+
+
+<!-- LOGIN BUTTON -->
+
+
+<button
+
+type="submit"
+
+id="loginButton"
+
+>
+
+
 Login
+
+
 </button>
+
+
+
 
 
 </form>
 
 
+
 </div>
+
+
+
+
+
+
+
+<!-- ======================================
+     AUTHENTICATION ENGINE
+====================================== -->
+
+
+<script src="/static/js/auth.js"></script>
+
+
+
+
+
+
+
+<!-- ======================================
+     LOGIN CONTROLLER
+====================================== -->
+
+
+<script>
+
+
+document
+
+.getElementById("loginForm")
+
+.addEventListener(
+
+"submit",
+
+async function(event){
+
+
+
+event.preventDefault();
+
+
+
+
+
+const email =
+
+document
+
+.getElementById("email")
+
+.value;
+
+
+
+
+
+const password =
+
+document
+
+.getElementById("password")
+
+.value;
+
+
+
+
+
+const button =
+
+document
+
+.getElementById("loginButton");
+
+
+
+
+
+const error =
+
+document
+
+.getElementById("error");
+
+
+
+
+
+// Disable button
+
+
+button.disabled = true;
+
+
+button.innerHTML =
+
+"Logging in...";
+
+
+
+error.innerHTML = "";
+
+
+
+
+
+
+
+
+// Call auth.js login()
+
+
+const success =
+
+await login(
+
+email,
+
+password
+
+);
+
+
+
+
+
+
+
+if(success){
+
+
+
+window.location.href =
+
+"/investor/";
+
+
+
+return;
+
+
+}
+
+
+
+
+
+
+
+
+// Failed login
+
+
+error.innerHTML =
+
+"Invalid email or password";
+
+
+
+button.disabled = false;
+
+
+button.innerHTML =
+
+"Login";
+
+
+
+
+
+}
+
+
+
+);
+
+
+</script>
+
+
+
 
 
 </body>

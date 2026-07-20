@@ -17,9 +17,29 @@ def check_auth(request: Request):
 
     if not token:
 
+
+        authorization = request.headers.get(
+            "Authorization"
+        )
+
+
+        if authorization and authorization.startswith(
+            "Bearer "
+        ):
+
+
+            token = authorization.split(
+                " "
+            )[1]
+
+
+
+    if not token:
+
         return RedirectResponse(
             "/login"
         )
+
 
 
     try:
