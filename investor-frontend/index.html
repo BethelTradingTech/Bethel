@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bethel Trading | Institutional Dashboard</title>
+    <!-- Use Google Fonts for a premium fintech feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/investor.css?v=1">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="dashboard-wrapper">
+    <!-- Top Nav / Header -->
+    <header class="top-nav">
+        <div class="brand">
+            <h1>Bethel Trading</h1>
+        </div>
+        <div class="system-status">
+            <span>Status:</span> <strong id="status">CONNECTING...</strong>
+        </div>
+    </header>
+
+    <main class="container">
+        
+        <!-- TOP KPI ROW -->
+        <section class="kpi-grid">
+            <div class="card highlight">
+                <h3>Current Equity</h3>
+                <p id="currentEquity">$0.00</p>
+            </div>
+            <div class="card">
+                <h3>Floating P/L</h3>
+                <p id="profit" class="text-up">--</p>
+            </div>
+            <div class="card">
+                <h3>Drawdown</h3>
+                <p id="drawdown">--</p>
+            </div>
+        </section>
+
+        <!-- PRIMARY ANALYTICS GRID -->
+        <div class="main-grid">
+            <div class="left-col">
+                <section class="panel">
+                    <h2>Equity Growth Curve</h2>
+                    <div class="chart-container"><canvas id="equityChart"></canvas></div>
+                </section>
+                
+                <section class="panel">
+                    <h2>Trade History</h2>
+                    <table id="historyTable">
+                        <thead>
+                            <tr><th>Symbol</th><th>Dir</th><th>Vol</th><th>Profit</th><th>Date</th></tr>
+                        </thead>
+                        <tbody><!-- JS populated --></tbody>
+                    </table>
+                </section>
+            </div>
+
+            <aside class="right-col">
+                <section class="panel">
+                    <h2>Account Details</h2>
+                    <div class="profile-list">
+                        <div><span>Investor</span><strong id="investorName">--</strong></div>
+                        <div><span>Portfolio</span><strong id="portfolioName">--</strong></div>
+                        <div><span>Balance</span><strong id="balance">--</strong></div>
+                    </div>
+                </section>
+                
+                <section class="panel">
+                    <h2>Risk Metrics</h2>
+                    <table>
+                        <tr><td>Sharpe Ratio</td><td id="sharpe">--</td></tr>
+                        <tr><td>Profit Factor</td><td id="profitfactor">--</td></tr>
+                        <tr><td>Volatilty</td><td id="volatility">--</td></tr>
+                    </table>
+                </section>
+            </aside>
+        </div>
+
+    </main>
+</div>
+
+<script src="/js/investor.js?v=1"></script>
+</body>
+</html>

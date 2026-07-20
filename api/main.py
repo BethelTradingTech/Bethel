@@ -166,30 +166,17 @@ app.add_middleware(
 
     CORSMiddleware,
 
-
     allow_origins=[
-
-
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
         "https://betheltradingtechnologies.com",
-
-
-        "https://86207a4a.bethel-1vz.pages.dev",
-
-
-        "http://localhost",
-
-
-        "http://127.0.0.1:8000"
-
-
+        "https://www.betheltradingtechnologies.com",
+        "https://86207a4a.bethel-1vz.pages.dev"
     ],
-
 
     allow_credentials=True,
 
-
     allow_methods=["*"],
-
 
     allow_headers=["*"]
 
