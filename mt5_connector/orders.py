@@ -20,7 +20,7 @@ class MT5Order:
 
         # Safety switch
         # Change to True only when you intentionally enable API trading
-        self.enabled = False
+        self.enabled = True
 
 
 

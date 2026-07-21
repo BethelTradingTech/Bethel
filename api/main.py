@@ -17,7 +17,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from fastapi.middleware.cors import CORSMiddleware
-
+from api.copytrading.subscriber_routes import router as subscriber_router
+from api.copytrading.dashboard_routes import router as copy_dashboard_router
 
 
 
@@ -92,7 +93,7 @@ from dashboard.investor_router import router as investor_router
 
 
 from api.investors.routes.portfolio import router as portfolio_router
-
+from api.copytrading.routes import router as copytrading_router
 
 from api.investors.routes.mt5_accounts import router as mt5_accounts_router
 from api.investors.routes.dashboard import router as investor_dashboard_router
@@ -344,7 +345,21 @@ app.include_router(
 )
 
 
+# Copy Trading System
 
+app.include_router(
+
+    copytrading_router
+
+)
+
+app.include_router(
+    subscriber_router
+)
+
+app.include_router(
+    copy_dashboard_router
+)
 
 
 # ==========================
