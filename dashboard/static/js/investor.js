@@ -17,6 +17,7 @@ Responsibilities:
 - MT5 monitoring
 - Live positions
 - Trade history
+- Copy trading dashboard
 
 */
 
@@ -31,15 +32,12 @@ const REFRESH_INTERVAL = 30000;
 
 
 
-
 // ======================================
 // FORMATTERS
 // ======================================
 
 
-
 function money(value){
-
 
     if(
         value === null ||
@@ -50,7 +48,6 @@ function money(value){
         return "$0.00";
 
     }
-
 
 
     return "$" +
@@ -71,10 +68,7 @@ function money(value){
 
 
 
-
-
 function percent(value){
-
 
     if(
         value === null ||
@@ -89,17 +83,12 @@ function percent(value){
 
     return Number(value).toFixed(2) + "%";
 
-
 }
 
 
 
 
-
-
-
 function number(value){
-
 
     if(
         value === null ||
@@ -112,37 +101,28 @@ function number(value){
     }
 
 
-
     return Number(value).toFixed(2);
 
-
 }
-
-
-
 
 
 
 
 function safe(id,value){
 
-
     const element =
 
         document.getElementById(id);
 
 
-
     if(element){
-
 
         element.innerHTML = value;
 
-
     }
 
-
 }
+
 
 // ======================================
 // INVESTOR PROFILE ENGINE
@@ -152,139 +132,85 @@ function safe(id,value){
 async function loadInvestorDashboard(){
 
 
-    const investorId =
-
-        getInvestorId();
-
+    const investorId = getInvestorId();
 
 
     if(!investorId){
-
 
         console.error(
             "Investor ID missing from JWT"
         );
 
-
         return;
-
 
     }
 
 
 
+    const data = await apiGet(
 
-    const data =
+        "/investor/api/dashboard/" +
 
-        await apiGet(
+        investorId
 
-            "/investor/api/dashboard/" +
-
-            investorId
-
-        );
-
+    );
 
 
 
     if(!data){
 
-
         return;
-
 
     }
 
 
-
-
-
-    // Investor information
 
     if(data.investor){
 
 
         safe(
-
             "investorName",
-
             data.investor.name ?? "--"
-
         );
-
 
 
         safe(
-
             "investorEmail",
-
             data.investor.email ?? "--"
-
         );
-
 
     }
 
 
-
-
-
-
-    // Portfolio information
 
     if(data.portfolio){
 
 
-
         safe(
-
             "portfolioName",
-
             data.portfolio.name ?? "--"
-
         );
 
 
-
-
         safe(
-
             "portfolioCapital",
-
             money(
-
                 data.portfolio.capital
-
             )
-
         );
-
-
 
 
         safe(
-
             "portfolioValue",
-
             money(
-
                 data.portfolio.current_value
-
             )
-
         );
-
-
 
     }
 
 
-
 }
-
-
-
-
 
 
 
@@ -296,16 +222,11 @@ async function loadInvestorDashboard(){
 async function loadEquity(){
 
 
+    const data = await apiGet(
 
-    const data =
+        "/performance/equity-history"
 
-        await apiGet(
-
-            "/performance/equity-history"
-
-        );
-
-
+    );
 
 
 
@@ -319,37 +240,21 @@ async function loadEquity(){
 
     ){
 
-
         return;
-
 
     }
 
 
 
+    const history = data.history.slice(-100);
 
 
 
-    const history =
+    const latest = history[
 
-        data.history.slice(-100);
+        history.length - 1
 
-
-
-
-
-
-
-    const latest =
-
-        history[
-
-            history.length - 1
-
-        ];
-
-
-
+    ];
 
 
 
@@ -367,12 +272,9 @@ async function loadEquity(){
 
 
 
-
-
-
     safe(
 
-        "equity",
+        "currentEquity",
 
         money(
 
@@ -381,10 +283,6 @@ async function loadEquity(){
         )
 
     );
-
-
-
-
 
 
 
@@ -402,10 +300,6 @@ async function loadEquity(){
 
 
 
-
-
-
-
     safe(
 
         "drawdown",
@@ -417,11 +311,6 @@ async function loadEquity(){
         )
 
     );
-
-
-
-
-
 
 
 
@@ -438,8 +327,10 @@ async function loadEquity(){
     }
 
 
-
 }
+
+
+
 
 
 // ======================================
@@ -450,26 +341,19 @@ async function loadEquity(){
 async function loadAnalytics(){
 
 
-    const data =
+    const data = await apiGet(
 
-        await apiGet(
+        "/performance/analytics"
 
-            "/performance/analytics"
-
-        );
-
+    );
 
 
 
     if(!data){
 
-
         return;
 
-
     }
-
-
 
 
 
@@ -480,8 +364,6 @@ async function loadAnalytics(){
         data.status ?? "ONLINE"
 
     );
-
-
 
 
 
@@ -499,8 +381,6 @@ async function loadAnalytics(){
 
 
 
-
-
     safe(
 
         "currentEquity",
@@ -512,8 +392,6 @@ async function loadAnalytics(){
         )
 
     );
-
-
 
 
 
@@ -531,8 +409,6 @@ async function loadAnalytics(){
 
 
 
-
-
     safe(
 
         "grade",
@@ -543,8 +419,6 @@ async function loadAnalytics(){
 
 
 
-
-
     safe(
 
         "risk",
@@ -552,8 +426,6 @@ async function loadAnalytics(){
         data.risk_level ?? "--"
 
     );
-
-
 
 
 
@@ -571,8 +443,6 @@ async function loadAnalytics(){
 
 
 
-
-
     safe(
 
         "recovery",
@@ -584,8 +454,6 @@ async function loadAnalytics(){
         )
 
     );
-
-
 
 
 
@@ -603,8 +471,6 @@ async function loadAnalytics(){
 
 
 
-
-
     safe(
 
         "sortino",
@@ -616,8 +482,6 @@ async function loadAnalytics(){
         )
 
     );
-
-
 
 
 
@@ -635,35 +499,30 @@ async function loadAnalytics(){
 
 
 
-   safe(
+    safe(
 
-    "maxdd",
+        "maxdd",
 
-    money(
+        money(
 
-        data.maximum_drawdown_amount
+            data.maximum_drawdown_amount
 
-    )
+        )
 
-);
-
-
+    );
 
 
 
-safe(
+    safe(
 
-    "snapshots",
+        "snapshots",
 
-    data.snapshots_analyzed ?? "--"
+        data.snapshots_analyzed ?? "--"
 
-);
+    );
+
 
 }
-
-
-
-
 
 
 
@@ -675,37 +534,25 @@ safe(
 async function loadTrades(){
 
 
-    const data =
+    const data = await apiGet(
 
-        await apiGet(
+        "/performance/trades"
 
-            "/performance/trades"
-
-        );
-
-
+    );
 
 
 
     if(!data){
 
-
         return;
 
-
     }
-
-
 
 
 
     const performance =
 
         data.performance || data;
-
-
-
-
 
 
 
@@ -716,10 +563,6 @@ async function loadTrades(){
         performance.total_trades ?? "--"
 
     );
-
-
-
-
 
 
 
@@ -737,10 +580,6 @@ async function loadTrades(){
 
 
 
-
-
-
-
     safe(
 
         "profitfactor",
@@ -752,10 +591,6 @@ async function loadTrades(){
         )
 
     );
-
-
-
-
 
 
 
@@ -772,8 +607,11 @@ async function loadTrades(){
     }
 
 
-
 }
+
+
+
+
 
 
 // ======================================
@@ -784,23 +622,15 @@ async function loadTrades(){
 async function loadMonthly(){
 
 
-    const data =
+    const data = await apiGet(
 
-        await apiGet(
+        "/performance/monthly"
 
-            "/performance/monthly"
-
-        );
+    );
 
 
 
-
-
-    if(
-
-        !data
-
-    ){
+    if(!data){
 
         return;
 
@@ -808,16 +638,7 @@ async function loadMonthly(){
 
 
 
-
-
-
-
-    if(
-
-        data.monthly_performance
-
-    ){
-
+    if(data.monthly_performance){
 
 
         if(typeof drawMonthlyChart === "function"){
@@ -832,16 +653,10 @@ async function loadMonthly(){
 
         }
 
-
     }
 
 
 }
-
-
-
-
-
 
 
 
@@ -853,30 +668,19 @@ async function loadMonthly(){
 async function loadMT5(){
 
 
+    const data = await apiGet(
 
-    const data =
+        "/investor/api/mt5"
 
-        await apiGet(
-
-            "/investor/api/mt5"
-
-        );
-
-
+    );
 
 
 
     if(!data){
 
-
         return;
 
-
     }
-
-
-
-
 
 
 
@@ -890,8 +694,6 @@ async function loadMT5(){
 
 
 
-
-
     safe(
 
         "mt5Login",
@@ -899,8 +701,6 @@ async function loadMT5(){
         data.login ?? "--"
 
     );
-
-
 
 
 
@@ -914,8 +714,6 @@ async function loadMT5(){
 
 
 
-
-
     safe(
 
         "mt5Currency",
@@ -923,8 +721,6 @@ async function loadMT5(){
         data.currency ?? "--"
 
     );
-
-
 
 
 
@@ -937,8 +733,11 @@ async function loadMT5(){
     );
 
 
-
 }
+
+
+
+
 
 
 // ======================================
@@ -949,27 +748,19 @@ async function loadMT5(){
 async function loadPositions(){
 
 
-    const data =
+    const data = await apiGet(
 
-        await apiGet(
+        "/mt5/positions"
 
-            "/mt5/positions"
-
-        );
+    );
 
 
 
+    const table = document.getElementById(
 
+        "positionsTable"
 
-    const table =
-
-        document.getElementById(
-
-            "positionsTable"
-
-        );
-
-
+    );
 
 
 
@@ -983,14 +774,9 @@ async function loadPositions(){
 
     ){
 
-
         return;
 
-
     }
-
-
-
 
 
 
@@ -998,14 +784,9 @@ async function loadPositions(){
 
 
 
-
-
-
-
     data.positions.forEach(
 
         position => {
-
 
 
             table.innerHTML += `
@@ -1016,39 +797,28 @@ async function loadPositions(){
 ${position.symbol ?? "--"}
 </td>
 
-
 <td>
 ${position.type ?? "--"}
 </td>
-
 
 <td>
 ${position.volume ?? "--"}
 </td>
 
-
 <td>
 ${money(position.profit)}
 </td>
-
 
 </tr>
 
 `;
 
-
-
         }
-
 
     );
 
 
-
 }
-
-
-
 
 
 
@@ -1063,27 +833,19 @@ ${money(position.profit)}
 async function loadHistory(){
 
 
-    const data =
+    const data = await apiGet(
 
-        await apiGet(
+        "/mt5/history"
 
-            "/mt5/history"
-
-        );
+    );
 
 
 
+    const table = document.getElementById(
 
+        "historyTable"
 
-    const table =
-
-        document.getElementById(
-
-            "historyTable"
-
-        );
-
-
+    );
 
 
 
@@ -1097,22 +859,13 @@ async function loadHistory(){
 
     ){
 
-
         return;
-
 
     }
 
 
 
-
-
-
     table.innerHTML = "";
-
-
-
-
 
 
 
@@ -1121,51 +874,128 @@ async function loadHistory(){
         trade => {
 
 
-
             table.innerHTML += `
 
 <tr>
-
 
 <td>
 ${trade.symbol ?? "--"}
 </td>
 
-
 <td>
 ${trade.type ?? "--"}
 </td>
-
 
 <td>
 ${trade.volume ?? "--"}
 </td>
 
-
 <td>
 ${money(trade.profit)}
 </td>
-
 
 <td>
 ${trade.time ?? "--"}
 </td>
 
-
 </tr>
 
 `;
 
-
-
         }
 
+    );
+
+
+}
+
+
+
+// ======================================
+// COPY TRADING DASHBOARD
+// ======================================
+
+
+async function loadCopyTradingDashboard(){
+
+
+    const data = await apiGet(
+
+        "/copytrading/dashboard"
 
     );
 
 
 
+    if(!data){
+
+        return;
+
+    }
+
+
+
+    safe(
+
+        "copyMode",
+
+        data.mode ?? "PAPER"
+
+    );
+
+
+
+    safe(
+
+        "copySubscribers",
+
+        data.subscribers?.total ?? 0
+
+    );
+
+
+
+    safe(
+
+        "copyMasterTrades",
+
+        data.trading?.master_trades ?? 0
+
+    );
+
+
+
+    safe(
+
+        "copyOrders",
+
+        data.trading?.copy_orders ?? 0
+
+    );
+
+
+
+    safe(
+
+        "copyExecutedOrders",
+
+        data.trading?.executed_orders ?? 0
+
+    );
+
+
+
+    safe(
+
+        "copyExecutionLogs",
+
+        data.execution_logs ?? 0
+
+    );
+
+
 }
+
 
 
 // ======================================
@@ -1175,29 +1005,45 @@ ${trade.time ?? "--"}
 
 async function loadDashboard(){
 
+
     try{
+
 
         await Promise.all([
 
+
             loadInvestorDashboard(),
+
+
+            loadCopyTradingDashboard(),
+
 
             loadEquity(),
 
+
             loadAnalytics(),
+
 
             loadTrades(),
 
+
             loadMonthly(),
+
 
             loadMT5(),
 
+
             loadPositions(),
+
 
             loadHistory()
 
+
         ]);
 
+
     }
+
 
     catch(error){
 
@@ -1222,8 +1068,6 @@ async function loadDashboard(){
 
 
 
-
-
 // ======================================
 // APPLICATION START
 // ======================================
@@ -1236,8 +1080,7 @@ window.addEventListener(
     ()=>{
 
 
-
-        // Check JWT authentication
+        // Check authentication
 
 
         if(
@@ -1255,15 +1098,10 @@ window.addEventListener(
 
 
 
-
-
-        // First dashboard load
+        // Initial dashboard load
 
 
         loadDashboard();
-
-
-
 
 
 
@@ -1281,7 +1119,8 @@ window.addEventListener(
         );
 
 
-
     }
 
 );
+
+
