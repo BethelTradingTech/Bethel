@@ -121,3 +121,124 @@ def list_subscribers():
     finally:
 
         db.close()
+
+# ==========================================================
+# SUBSCRIBER COPY TRADING DASHBOARD
+# ==========================================================
+
+
+@router.get("/{subscriber_id}/dashboard")
+def subscriber_dashboard(
+    subscriber_id: int
+):
+
+    db = SessionLocal()
+
+    try:
+
+        subscriber = db.query(
+            CopySubscriber
+        ).filter(
+            CopySubscriber.id == subscriber_id
+        ).first()
+
+
+        if not subscriber:
+
+            return {
+
+                "status": "error",
+
+                "message": "Subscriber not found"
+
+            }
+
+
+
+        from api.copytrading.models import (
+            CopyOrder,
+            CopyExecutionLog
+        )
+
+
+
+        total_orders = db.query(
+            CopyOrder
+        ).filter(
+            CopyOrder.subscriber_id == subscriber_id
+        ).count()
+
+
+
+        executed_orders = db.query(
+            CopyOrder
+        ).filter(
+            CopyOrder.subscriber_id == subscriber_id,
+            CopyOrder.status == "PAPER_EXECUTED"
+        ).count()
+
+
+
+        pending_orders = db.query(
+            CopyOrder
+        ).filter(
+            CopyOrder.subscriber_id == subscriber_id,
+            CopyOrder.status == "PENDING"
+        ).count()
+
+
+
+        execution_logs = db.query(
+            CopyExecutionLog
+        ).filter(
+            CopyExecutionLog.subscriber_id == subscriber_id
+        ).count()
+
+
+
+        return {
+
+
+            "status": "success",
+
+
+            "subscriber": {
+
+                "id": subscriber.id,
+
+                "name": subscriber.name,
+
+                "email": subscriber.email,
+
+                "broker": subscriber.broker,
+
+                "mt5_account": subscriber.mt5_account,
+
+                "allocation_percent": subscriber.allocation_percent,
+
+                "risk_multiplier": subscriber.risk_multiplier,
+
+                "status": subscriber.status
+
+            },
+
+
+            "copy_trading": {
+
+                "total_orders": total_orders,
+
+                "executed_orders": executed_orders,
+
+                "pending_orders": pending_orders,
+
+                "execution_logs": execution_logs
+
+            }
+
+
+        }
+
+
+    finally:
+
+        db.close()

@@ -6,6 +6,10 @@ Copy Trading Service
 Purpose:
     Converts master account trades into subscriber copy orders.
 
+Rule:
+    Subscriber copy order uses the exact same
+    lot size as the master trade.
+
 Mode:
     PAPER EXECUTION
 
@@ -13,6 +17,8 @@ This service does NOT manage investor funds.
 It only creates copier instructions.
 """
 
+
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -24,17 +30,27 @@ class CopyTradingService:
 
 
     # ======================================================
-    # ALLOCATION CALCULATION
+    # COPY VOLUME
     # ======================================================
 
     @staticmethod
     def calculate_volume(
-        master_volume: float,
-        allocation_percent: float
+        master_volume: float
     ) -> float:
+        """
+        Copy exact master lot size.
+
+        Example:
+
+        Master:
+            EURUSD BUY 0.50 lots
+
+        Subscriber:
+            EURUSD BUY 0.50 lots
+        """
 
         return round(
-            master_volume * (allocation_percent / 100),
+            master_volume,
             2
         )
 
@@ -50,19 +66,34 @@ class CopyTradingService:
         subscriber: models.CopySubscriber,
         master_trade: models.MasterTrade
     ):
+        """
+        Create subscriber copy order
+        from master trade.
+        """
 
 
-        # -----------------------------------------------
+        # --------------------------------------------------
         # Duplicate protection
-        # -----------------------------------------------
+        # --------------------------------------------------
 
         existing = (
+
             db.query(models.CopyOrder)
+
             .filter(
-                models.CopyOrder.master_ticket == master_trade.ticket,
-                models.CopyOrder.subscriber_id == subscriber.id
+
+                models.CopyOrder.master_ticket
+                ==
+                master_trade.ticket,
+
+                models.CopyOrder.subscriber_id
+                ==
+                subscriber.id
+
             )
+
             .first()
+
         )
 
 
@@ -72,20 +103,21 @@ class CopyTradingService:
 
 
 
-        # -----------------------------------------------
-        # Calculate copied volume
-        # -----------------------------------------------
+        # --------------------------------------------------
+        # Copy exact master volume
+        # --------------------------------------------------
 
         copied_volume = CopyTradingService.calculate_volume(
-            master_trade.volume,
-            subscriber.allocation_percent
+
+            master_trade.volume
+
         )
 
 
 
-        # -----------------------------------------------
-        # Create paper copy order
-        # -----------------------------------------------
+        # --------------------------------------------------
+        # Create PAPER copy order
+        # --------------------------------------------------
 
         copy_order = models.CopyOrder(
 
@@ -107,7 +139,9 @@ class CopyTradingService:
 
             take_profit=master_trade.take_profit,
 
-            status="PAPER"
+            status="PAPER",
+
+            created_at=datetime.utcnow()
 
         )
 

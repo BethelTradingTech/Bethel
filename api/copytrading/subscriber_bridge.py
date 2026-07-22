@@ -8,6 +8,21 @@ Single Copy Trade Execution Layer
 Execution Modes:
     PAPER
     LIVE
+
+Purpose:
+    Executes generated subscriber copy orders.
+
+Responsibilities:
+    - Execute copy orders
+    - Prevent duplicate execution
+    - Record execution logs
+    - Update order status
+
+Does NOT:
+    - Manage investor funds
+    - Calculate allocations
+    - Apply risk multipliers
+    - Generate copy orders
 """
 
 
@@ -23,71 +38,31 @@ from config.execution import EXECUTION_MODE
 
 
 
-
-
 class SubscriberBridge:
 
 
-
     # ======================================================
-    # CALCULATE SUBSCRIBER VOLUME
+    # COPY MASTER VOLUME
     # ======================================================
 
     @staticmethod
     def calculate_volume(
-        master_volume,
-        subscriber
-    ):
+        master_volume: float
+    ) -> float:
+        """
+        Subscriber receives identical
+        lot size as master trade.
+        """
 
-
-        risk_multiplier = (
-
-            subscriber.risk_multiplier
-
-            if subscriber.risk_multiplier
-
-            else 1.0
-
+        return round(
+            master_volume,
+            2
         )
-
-
-        allocation = (
-
-            subscriber.allocation_percent / 100
-
-            if subscriber.allocation_percent
-
-            else 1.0
-
-        )
-
-
-        volume = (
-
-            master_volume
-
-            * risk_multiplier
-
-            * allocation
-
-        )
-
-
-        # MT5 minimum lot
-
-        if volume < 0.01:
-
-            volume = 0.01
-
-
-        return round(volume, 2)
-
-
 
 
 
     # ======================================================
-    # EXECUTE SINGLE COPY ORDER
+    # EXECUTE ONE COPY ORDER
     # ======================================================
 
     @staticmethod
@@ -98,25 +73,21 @@ class SubscriberBridge:
 
 
         # --------------------------------------------------
-        # DUPLICATE EXECUTION PROTECTION
+        # Prevent duplicate execution
         # --------------------------------------------------
 
-        existing_execution = (
+        executed = (
 
             db.query(models.CopyExecutionLog)
 
             .filter(
 
                 models.CopyExecutionLog.copy_order_id
-
                 ==
-
                 copy_order.id,
 
                 models.CopyExecutionLog.status
-
                 ==
-
                 "success"
 
             )
@@ -126,25 +97,24 @@ class SubscriberBridge:
         )
 
 
-        if existing_execution:
-
+        if executed:
 
             return {
 
                 "status": "skipped",
 
-                "message": "Copy order already executed",
+                "message":
+                    "Order already executed",
 
-                "copy_order_id": copy_order.id
+                "copy_order_id":
+                    copy_order.id
 
             }
 
 
 
-
-
         # --------------------------------------------------
-        # LOAD SUBSCRIBER
+        # Load subscriber
         # --------------------------------------------------
 
         subscriber = (
@@ -154,9 +124,7 @@ class SubscriberBridge:
             .filter(
 
                 models.CopySubscriber.id
-
                 ==
-
                 copy_order.subscriber_id
 
             )
@@ -166,43 +134,35 @@ class SubscriberBridge:
         )
 
 
-
         if not subscriber:
-
 
             return {
 
                 "status": "failed",
 
-                "message": "Subscriber not found",
+                "message":
+                    "Subscriber not found",
 
-                "copy_order_id": copy_order.id
+                "copy_order_id":
+                    copy_order.id
 
             }
 
 
 
-
-
         # --------------------------------------------------
-        # CALCULATE VOLUME
+        # Exact master volume
         # --------------------------------------------------
 
         volume = SubscriberBridge.calculate_volume(
 
-            copy_order.volume,
-
-            subscriber
+            copy_order.volume
 
         )
 
 
 
-
-
         execution_result = {}
-
-
 
 
 
@@ -215,17 +175,16 @@ class SubscriberBridge:
 
             execution_result = {
 
+                "status":
+                    "success",
 
-                "status": "success",
+                "mode":
+                    "PAPER",
 
-                "mode": "PAPER",
-
-                "message": "Paper execution completed"
-
+                "message":
+                    "Paper execution completed"
 
             }
-
-
 
 
 
@@ -255,8 +214,6 @@ class SubscriberBridge:
 
 
 
-
-
         # ==================================================
         # INVALID MODE
         # ==================================================
@@ -266,43 +223,37 @@ class SubscriberBridge:
 
             execution_result = {
 
+                "status":
+                    "failed",
 
-                "status": "failed",
-
-                "message": "Invalid execution mode"
-
+                "message":
+                    "Invalid execution mode"
 
             }
 
 
 
-
-
         # --------------------------------------------------
-        # UPDATE COPY ORDER
+        # Update order status
         # --------------------------------------------------
 
         if execution_result.get("status") == "success":
 
 
+            copy_order.status = (
 
-            if EXECUTION_MODE == "PAPER":
+                "PAPER_EXECUTED"
 
+                if EXECUTION_MODE == "PAPER"
 
-                copy_order.status = "PAPER_EXECUTED"
+                else
 
+                "LIVE_EXECUTED"
 
-
-            else:
-
-
-                copy_order.status = "LIVE_EXECUTED"
-
+            )
 
 
             copy_order.executed_at = datetime.utcnow()
-
-
 
 
         else:
@@ -312,86 +263,77 @@ class SubscriberBridge:
 
 
 
-
-
-
         # --------------------------------------------------
-        # CREATE EXECUTION LOG
+        # Create execution record
         # --------------------------------------------------
 
         execution_log = models.CopyExecutionLog(
 
-
             copy_order_id=copy_order.id,
-
 
             subscriber_id=subscriber.id,
 
-
             symbol=copy_order.symbol,
-
 
             direction=copy_order.direction,
 
-
             requested_volume=copy_order.volume,
-
 
             executed_volume=volume,
 
-
             mode=EXECUTION_MODE,
-
 
             status=execution_result.get(
                 "status"
             ),
 
-
             error_message=execution_result.get(
                 "message"
-            )
+            ),
 
+            created_at=datetime.utcnow()
 
         )
-
 
 
         db.add(execution_log)
 
 
-        db.commit()
+        try:
 
+            db.commit()
 
+        except Exception:
+
+            db.rollback()
+
+            raise
 
 
 
         return {
 
+            "subscriber":
+                subscriber.id,
 
-            "subscriber": subscriber.id,
+            "symbol":
+                copy_order.symbol,
 
+            "direction":
+                copy_order.direction,
 
-            "symbol": copy_order.symbol,
+            "volume":
+                volume,
 
-
-            "direction": copy_order.direction,
-
-
-            "volume": volume,
-
-
-            "execution": execution_result
-
+            "execution":
+                execution_result
 
         }
 
 
 
-
-
     # ======================================================
-    # PROCESS ALL READY COPY ORDERS
+    # PROCESS ALL PENDING ORDERS
     # ======================================================
 
     @staticmethod
@@ -400,14 +342,15 @@ class SubscriberBridge:
     ):
 
 
-
         orders = (
 
             db.query(models.CopyOrder)
 
             .filter(
 
-                models.CopyOrder.status == "PAPER"
+                models.CopyOrder.status
+                ==
+                "PENDING"
 
             )
 
@@ -416,9 +359,7 @@ class SubscriberBridge:
         )
 
 
-
         results = []
-
 
 
         for order in orders:
@@ -437,4 +378,12 @@ class SubscriberBridge:
 
 
 
-        return results
+        return {
+
+            "processed":
+                len(results),
+
+            "results":
+                results
+
+        }

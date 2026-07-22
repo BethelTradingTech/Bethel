@@ -7,6 +7,10 @@ Purpose:
     Keeps subscriber copy orders synchronized
     with master account trades.
 
+Rule:
+    Subscriber receives the exact same lot size
+    as the master trade.
+
 Mode:
     PAPER EXECUTION
 """
@@ -20,14 +24,21 @@ from api.copytrading import models
 
 
 
+
 class TradeSyncEngine:
 
+
+
+    # ======================================================
+    # SYNC OPEN MASTER TRADE
+    # ======================================================
 
     @staticmethod
     def sync_open_trade(
         db: Session,
         master_trade
     ):
+
 
         subscribers = (
 
@@ -42,10 +53,13 @@ class TradeSyncEngine:
         )
 
 
+
         created = []
 
 
+
         for subscriber in subscribers:
+
 
 
             existing = (
@@ -69,60 +83,77 @@ class TradeSyncEngine:
             )
 
 
+
+            # Duplicate protection
+
             if existing:
 
                 continue
 
 
 
+
+
+            # IMPORTANT:
+            # COPY EXACT MASTER LOT SIZE
+
             volume = round(
-
-                master_trade.volume
-                *
-                (
-                    subscriber.allocation_percent
-                    /
-                    100
-                ),
-
+                master_trade.volume,
                 2
-
             )
+
+
 
 
 
             order = models.CopyOrder(
 
+
                 subscriber_id=subscriber.id,
+
 
                 subscriber_account=subscriber.mt5_account,
 
+
                 master_ticket=master_trade.ticket,
+
 
                 symbol=master_trade.symbol,
 
+
                 direction=master_trade.direction,
+
 
                 volume=volume,
 
+
                 entry_price=master_trade.entry_price,
+
 
                 stop_loss=master_trade.stop_loss,
 
+
                 take_profit=master_trade.take_profit,
+
 
                 status="PENDING",
 
+
                 created_at=datetime.utcnow()
+
 
             )
 
 
+
             db.add(order)
+
 
             db.commit()
 
+
             db.refresh(order)
+
 
 
             created.append(order.id)
@@ -133,11 +164,18 @@ class TradeSyncEngine:
 
 
 
+
+
+    # ======================================================
+    # SYNC CLOSED MASTER TRADE
+    # ======================================================
+
     @staticmethod
     def sync_close_trade(
         db: Session,
         master_ticket: int
     ):
+
 
 
         orders = (
@@ -157,7 +195,9 @@ class TradeSyncEngine:
         )
 
 
+
         closed = []
+
 
 
         for order in orders:
@@ -174,6 +214,7 @@ class TradeSyncEngine:
 
 
         db.commit()
+
 
 
         return closed

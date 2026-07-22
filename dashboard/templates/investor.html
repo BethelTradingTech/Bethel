@@ -1,1023 +1,311 @@
 <!DOCTYPE html>
-
-<html>
-
-
+<html lang="en">
 <head>
-
-
-<title>
-Bethel Trading Technologies - Investor Dashboard
-</title>
-
-
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-
-
-<link rel="stylesheet" href="/static/css/investor.css">
-
-
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-
-
+    <title>Bethel Trading Technologies - Investor Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/investor.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
-
-
 
 <body>
 
-
-
 <div class="container">
 
+    <!-- ======================================
+         DASHBOARD HEADER
+    ====================================== -->
+    <header>
+        <h1>Bethel Trading Technologies</h1>
+        <h2>Investor Performance Dashboard</h2>
 
+        <div class="status-box">
+            <span>System Status:</span>
+            <strong id="status">CONNECTING...</strong>
+        </div>
+    </header>
 
+    <!-- ======================================
+         ACCOUNT OVERVIEW & COPY TRADING
+    ====================================== -->
+    <section class="cards">
+        
+        <div class="card">
+            <h3>Investor</h3>
+            <p id="investorName">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Email</h3>
+            <p id="investorEmail">--</p>
+        </div>
 
-<!-- ======================================
-     DASHBOARD HEADER
-====================================== -->
+        <div class="card">
+            <h3>Portfolio</h3>
+            <p id="portfolioName">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Capital</h3>
+            <p id="portfolioCapital">--</p>
+        </div>
 
-<header>
+        <div class="card">
+            <h3>Portfolio Value</h3>
+            <p id="portfolioValue">--</p> 
+        </div>
 
+        <div class="card">
+            <h3>Copy Trading</h3>
+            <p>Mode: <strong id="copyMode">--</strong></p>
+            <p>Subscribers: <strong id="copySubscribers">--</strong></p>
+            <p>Master Trades: <strong id="copyMasterTrades">--</strong></p>
+            <p>Copy Orders: <strong id="copyOrders">--</strong></p>
+            <p>Executed Orders: <strong id="copyExecutedOrders">--</strong></p>
+            <p>Execution Logs: <strong id="copyExecutionLogs">--</strong></p>
+        </div>
 
+    </section>
 
-<h1>
-Bethel Trading Technologies
-</h1>
+    <!-- ======================================
+         FINANCIAL METRICS
+    ====================================== -->
+    <section class="cards">
 
+        <div class="card">
+            <h3>Starting Capital</h3>
+            <p id="startingCapital">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Balance</h3>
+            <p id="balance">--</p>
+        </div>
 
-<h2>
-Investor Performance Dashboard
-</h2>
+        <div class="card">
+            <h3>Current Equity</h3>
+            <p id="currentEquity">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Floating Profit/Loss</h3>
+            <p id="profit">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Drawdown</h3>
+            <p id="drawdown">--</p>
+        </div>
 
+    </section>
 
+    <!-- ======================================
+         PERFORMANCE ANALYTICS
+    ====================================== -->
+    <section class="cards">
 
-<div class="status-box">
+        <div class="card">
+            <h3>Total Trades</h3>
+            <p id="trades">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Winning Rate</h3>
+            <p id="winrate">--</p>
+        </div>
 
-<span>
-System Status:
-</span>
+        <div class="card">
+            <h3>Profit Factor</h3>
+            <p id="profitfactor">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Total Return</h3>
+            <p id="return">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Performance Grade</h3>
+            <p id="grade">--</p>
+        </div>
 
-<strong id="status">
-CONNECTING...
-</strong>
+        <div class="card">
+            <h3>Risk Level</h3>
+            <p id="risk">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Consistency Score</h3>
+            <p id="consistency">--</p>
+        </div>
 
+        <div class="card">
+            <h3>Recovery Factor</h3>
+            <p id="recovery">--</p>
+        </div>
+
+    </section>
+
+    <!-- ======================================
+         RISK MANAGEMENT ANALYTICS
+    ====================================== -->
+    <section class="panel metrics">
+        <h2>Risk Management Analytics</h2>
+        <table>
+            <tr>
+                <td>Sharpe Ratio</td>
+                <td id="sharpe">--</td>
+            </tr>
+            <tr>
+                <td>Sortino Ratio</td>
+                <td id="sortino">--</td>
+            </tr>
+            <tr>
+                <td>Maximum Drawdown Amount</td>
+                <td id="maxdd">--</td>
+            </tr>
+            <tr>
+                <td>Volatility</td>
+                <td id="volatility">--</td>
+            </tr>
+            <tr>
+                <td>Snapshots Analyzed</td>
+                <td id="snapshots">--</td>
+            </tr>
+        </table>
+    </section>
+
+    <!-- ======================================
+         EQUITY GROWTH CURVE
+    ====================================== -->
+    <section class="panel">
+        <h2>Equity Growth Curve</h2>
+        <div class="chart-container">
+            <canvas id="equityChart"></canvas>
+        </div>
+    </section>
+
+    <!-- ======================================
+         MONTHLY PERFORMANCE
+    ====================================== -->
+    <section class="panel">
+        <h2>Monthly Performance</h2>
+        <div class="chart-container">
+            <canvas id="monthlyChart"></canvas>
+        </div>
+    </section>
+
+    <!-- ======================================
+         TRADE DISTRIBUTION
+    ====================================== -->
+    <section class="panel">
+        <h2>Trade Distribution</h2>
+        <div class="chart-container">
+            <canvas id="tradeChart"></canvas>
+        </div>
+    </section>
+
+    <!-- ======================================
+         MT5 ACCOUNT VERIFICATION
+    ====================================== -->
+    <section class="panel">
+        <h2>MT5 Account Verification</h2>
+        <section class="cards">
+            <div class="card">
+                <h3>MT5 Status</h3>
+                <p id="mt5Status">--</p>
+            </div>
+            <div class="card">
+                <h3>Login</h3>
+                <p id="mt5Login">--</p>
+            </div>
+            <div class="card">
+                <h3>Server</h3>
+                <p id="mt5Server">--</p>
+            </div>
+            <div class="card">
+                <h3>Currency</h3>
+                <p id="mt5Currency">--</p>
+            </div>
+            <div class="card">
+                <h3>Leverage</h3>
+                <p id="mt5Leverage">--</p>
+            </div>
+        </section>
+    </section>
+
+    <!-- ======================================
+         SUBSCRIBER COPY ORDERS (PHASE 10)
+    ====================================== -->
+    <section class="panel">
+        <h2>Subscriber Copy Orders</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Master Ticket</th>
+                    <th>Symbol</th>
+                    <th>Direction</th>
+                    <th>Volume</th>
+                    <th>Entry Price</th>
+                    <th>Stop Loss</th>
+                    <th>Take Profit</th>
+                    <th>Status</th>
+                    <th>Created Time</th>
+                    <th>Executed Time</th>
+                </tr>
+            </thead>
+            <tbody id="ordersTable">
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ======================================
+         LIVE TRADING POSITIONS
+    ====================================== -->
+    <section class="panel">
+        <h2>Live Trading Positions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Direction</th>
+                    <th>Volume</th>
+                    <th>Profit</th>
+                </tr>
+            </thead>
+            <tbody id="positionsTable">
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ======================================
+         TRADE HISTORY
+    ====================================== -->
+    <section class="panel">
+        <h2>Trade History</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Direction</th>
+                    <th>Volume</th>
+                    <th>Profit</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody id="historyTable">
+            </tbody>
+        </table>
+    </section>
 
 </div>
-
-
-
-</header>
-
-
-
-
-
-
-
-<!-- ======================================
-     ACCOUNT OVERVIEW
-====================================== -->
-
-
-<section class="cards">
-
-<div class="card">
-<h3>Investor</h3>
-<p id="investorName">--</p>
-</div>
-
-<div class="card">
-<h3>Email</h3>
-<p id="investorEmail">--</p>
-</div>
-
-<div class="card">
-<h3>Portfolio</h3>
-<p id="portfolioName">--</p>
-</div>
-
-<div class="card">
-<h3>Capital</h3>
-<p id="portfolioCapital">--</p>
-</div>
-
-<div class="card">
-<h3>Portfolio Value</h3>
-<p id="portfolioValue">--</p> <!-- ======================================
-     COPY TRADING DASHBOARD
-====================================== -->
-
-<section class="card">
-
-<h3>
-Copy Trading
-</h3>
-
-<p>
-Mode:
-<strong id="copyMode">--</strong>
-</p>
-
-<p>
-Subscribers:
-<strong id="copySubscribers">--</strong>
-</p>
-
-<p>
-Master Trades:
-<strong id="copyMasterTrades">--</strong>
-</p>
-
-<p>
-Copy Orders:
-<strong id="copyOrders">--</strong>
-</p>
-
-<p>
-Executed Orders:
-<strong id="copyExecutedOrders">--</strong>
-</p>
-
-<p>
-Execution Logs:
-<strong id="copyExecutionLogs">--</strong>
-</p>
-
-</section>
-</div>
-
-</section>
-
-<section class="cards">
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Starting Capital
-</h3>
-
-
-<p id="startingCapital">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Balance
-</h3>
-
-
-<p id="balance">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Current Equity
-</h3>
-
-
-<p id="currentEquity">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Floating Profit/Loss
-</h3>
-
-
-<p id="profit">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Drawdown
-</h3>
-
-
-<p id="drawdown">
---
-</p>
-
-
-</div>
-
-
-
-
-
-</section>
-
-
-<!-- ======================================
-     PERFORMANCE ANALYTICS
-====================================== -->
-
-
-<section class="cards">
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Total Trades
-</h3>
-
-
-<p id="trades">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Winning Rate
-</h3>
-
-
-<p id="winrate">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Profit Factor
-</h3>
-
-
-<p id="profitfactor">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Total Return
-</h3>
-
-
-<p id="return">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Performance Grade
-</h3>
-
-
-<p id="grade">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Risk Level
-</h3>
-
-
-<p id="risk">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Consistency Score
-</h3>
-
-
-<p id="consistency">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Recovery Factor
-</h3>
-
-
-<p id="recovery">
---
-</p>
-
-
-</div>
-
-
-
-
-
-</section>
-
-
-
-
-
-
-
-
-<!-- ======================================
-     RISK MANAGEMENT ANALYTICS
-====================================== -->
-
-
-<section class="panel metrics">
-
-
-
-<h2>
-Risk Management Analytics
-</h2>
-
-
-
-
-<table>
-
-
-
-<tr>
-
-<td>
-Sharpe Ratio
-</td>
-
-
-<td id="sharpe">
---
-</td>
-
-
-</tr>
-
-
-
-
-
-
-<tr>
-
-<td>
-Sortino Ratio
-</td>
-
-
-<td id="sortino">
---
-</td>
-
-
-</tr>
-
-
-
-
-
-
-
-<tr>
-
-<td>
-Maximum Drawdown Amount
-</td>
-
-
-<td id="maxdd">
---
-</td>
-
-
-</tr>
-
-
-
-
-
-
-
-<tr>
-
-<td>
-Volatility
-</td>
-
-
-<td id="volatility">
---
-</td>
-
-
-</tr>
-
-
-
-
-
-
-
-<tr>
-
-<td>
-Snapshots Analyzed
-</td>
-
-
-<td id="snapshots">
---
-</td>
-
-
-</tr>
-
-
-
-
-
-</table>
-
-
-
-</section>
-
-
-<!-- ======================================
-     EQUITY GROWTH CURVE
-====================================== -->
-
-
-<section class="panel">
-
-
-<h2>
-Equity Growth Curve
-</h2>
-
-
-
-
-<div class="chart-container">
-
-
-<canvas id="equityChart"></canvas>
-
-
-</div>
-
-
-
-</section>
-
-
-
-
-
-
-
-<!-- ======================================
-     MONTHLY PERFORMANCE
-====================================== -->
-
-
-<section class="panel">
-
-
-<h2>
-Monthly Performance
-</h2>
-
-
-
-
-<div class="chart-container">
-
-
-<canvas id="monthlyChart"></canvas>
-
-
-</div>
-
-
-
-</section>
-
-
-
-
-
-
-
-<!-- ======================================
-     TRADE DISTRIBUTION
-====================================== -->
-
-
-<section class="panel">
-
-
-<h2>
-Trade Distribution
-</h2>
-
-
-
-
-<div class="chart-container">
-
-
-<canvas id="tradeChart"></canvas>
-
-
-</div>
-
-
-
-</section>
-
-
-<!-- ======================================
-     MT5 ACCOUNT VERIFICATION
-====================================== -->
-
-
-<section class="panel">
-
-
-<h2>
-MT5 Account Verification
-</h2>
-
-
-
-
-<section class="cards">
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-MT5 Status
-</h3>
-
-
-<p id="mt5Status">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Login
-</h3>
-
-
-<p id="mt5Login">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Server
-</h3>
-
-
-<p id="mt5Server">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Currency
-</h3>
-
-
-<p id="mt5Currency">
---
-</p>
-
-
-</div>
-
-
-
-
-
-
-
-<div class="card">
-
-
-<h3>
-Leverage
-</h3>
-
-
-<p id="mt5Leverage">
---
-</p>
-
-
-</div>
-
-
-
-
-
-</section>
-
-
-
-</section>
-
-
-
-
-
-
-
-
-
-<!-- ======================================
-     LIVE TRADING POSITIONS
-====================================== -->
-
-
-<section class="panel">
-
-
-
-<h2>
-Live Trading Positions
-</h2>
-
-
-
-
-
-<table>
-
-
-
-<thead>
-
-
-<tr>
-
-
-<th>
-Symbol
-</th>
-
-
-
-<th>
-Direction
-</th>
-
-
-
-<th>
-Volume
-</th>
-
-
-
-<th>
-Profit
-</th>
-
-
-
-</tr>
-
-
-</thead>
-
-
-
-
-
-<tbody id="positionsTable">
-
-
-</tbody>
-
-
-
-
-</table>
-
-
-
-</section>
-
-
-
-
-
-
-
-
-
-<!-- ======================================
-     TRADE HISTORY
-====================================== -->
-
-
-<section class="panel">
-
-
-
-<h2>
-Trade History
-</h2>
-
-
-
-
-
-<table>
-
-
-
-<thead>
-
-
-<tr>
-
-
-
-<th>
-Symbol
-</th>
-
-
-
-<th>
-Direction
-</th>
-
-
-
-<th>
-Volume
-</th>
-
-
-
-<th>
-Profit
-</th>
-
-
-
-<th>
-Date
-</th>
-
-
-
-</tr>
-
-
-
-</thead>
-
-
-
-
-
-
-<tbody id="historyTable">
-
-
-</tbody>
-
-
-
-
-
-</table>
-
-
-
-</section>
-
-
-
-
-
-
-
-
-</div>
-
-
-
-
-
-
 
 <!-- ======================================
      JAVASCRIPT
 ====================================== -->
-
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script src="/static/js/auth.js"></script>
-
 <script src="/static/js/api.js"></script>
-
 <script src="/static/js/charts.js"></script>
-
 <script src="/static/js/investor.js"></script>
 
-
-
-
 </body>
-
-
 </html>
