@@ -117,6 +117,10 @@ class CopySubscriber(Base):
         index=True,
         nullable=False
     )
+    password_hash = Column(
+        String(255),
+        nullable=True
+    )
     broker = Column(
         String(100),
         nullable=True
@@ -140,7 +144,15 @@ class CopySubscriber(Base):
     )
     status = Column(
         String(20),
-        default="ACTIVE"
+        default="PENDING"
+    )
+    payment_status = Column(
+        String(20),
+        default="UNPAID"
+    )
+    activated_at = Column(
+        DateTime,
+        nullable=True
     )
     synchronized = Column(
         Boolean,
@@ -322,4 +334,79 @@ class CopyExecutionLog(Base):
     created_at = Column(
         DateTime,
         default=datetime.utcnow
+    )
+
+   # ==========================
+# COPY TRADE PERFORMANCE
+# ==========================
+
+class CopyTradePerformance(Base):
+    __tablename__ = "copy_trade_performance"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    subscriber_id = Column(
+        Integer,
+        index=True,
+        nullable=False
+    )
+
+    copy_order_id = Column(
+        Integer,
+        index=True,
+        nullable=False
+    )
+
+    symbol = Column(
+        String(20),
+        nullable=False
+    )
+
+    direction = Column(
+        String(10),
+        nullable=False
+    )
+
+    entry_price = Column(
+        Float,
+        nullable=False
+    )
+
+    exit_price = Column(
+        Float,
+        nullable=True
+    )
+
+    volume = Column(
+        Float,
+        nullable=False
+    )
+
+    profit_loss = Column(
+        Float,
+        default=0.0
+    )
+
+    profit_percent = Column(
+        Float,
+        default=0.0
+    )
+
+    status = Column(
+        String(20),
+        default="OPEN"
+    )
+
+    opened_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    closed_at = Column(
+        DateTime,
+        nullable=True
     )

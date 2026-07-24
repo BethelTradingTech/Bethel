@@ -13,36 +13,33 @@ Flow:
 
     Master Trade
           |
-          ↓
+          v
     Allocation Engine
           |
-          ↓
+          v
     Copy Orders
           |
-          ↓
+          v
     Subscriber Bridge
           |
-          ↓
+          v
     Copy Execution Logs
 
 
-This module does NOT manage investor funds.
+Does NOT:
+    - Manage investor funds
+    - Hold client assets
+    - Execute external withdrawals
 """
 
 
 from fastapi import APIRouter, Depends
-
 from sqlalchemy.orm import Session
 
 
-from api.database import (
-    SessionLocal,
-    get_db
-)
-
+from api.database import get_db, SessionLocal
 
 from api.copytrading import models
-
 
 from api.copytrading.schemas import (
     SubscriberCreate,
@@ -50,59 +47,31 @@ from api.copytrading.schemas import (
     MasterTradeCreate
 )
 
-
-from api.copytrading.service import (
-    CopyTradingService
-)
-
-
-from api.copytrading.sync_engine import (
-    TradeSyncEngine
-)
-
-
-from api.copytrading.allocation import (
-    AllocationEngine
-)
-
-
-from api.copytrading.subscriber_bridge import (
-    SubscriberBridge
-)
-
-
+from api.copytrading.service import CopyTradingService
+from api.copytrading.sync_engine import TradeSyncEngine
+from api.copytrading.allocation import AllocationEngine
+from api.copytrading.subscriber_bridge import SubscriberBridge
 
 
 
 router = APIRouter(
-
-    prefix="/copytrading",
-
     tags=["Copy Trading"]
-
 )
 
 
 
-
-
-# ==========================================================
+# =====================================================
 # CREATE SUBSCRIBER
-# ==========================================================
-
+# =====================================================
 
 @router.post(
     "/subscribers",
     response_model=SubscriberResponse
 )
 def create_subscriber(
-
     subscriber: SubscriberCreate,
-
     db: Session = Depends(get_db)
-
 ):
-
 
     new_subscriber = models.CopySubscriber(
 
@@ -114,7 +83,9 @@ def create_subscriber(
 
         allocation_percent=subscriber.allocation_percent,
 
-        status="ACTIVE"
+        status="PENDING",
+
+        payment_status="UNPAID"
 
     )
 
@@ -132,58 +103,37 @@ def create_subscriber(
 
 
 
-
-
-# ==========================================================
+# =====================================================
 # LIST SUBSCRIBERS
-# ==========================================================
-
+# =====================================================
 
 @router.get(
-
     "/subscribers",
-
     response_model=list[SubscriberResponse]
-
 )
 def list_subscribers(
-
     db: Session = Depends(get_db)
-
 ):
 
-
     return (
-
-        db.query(
-            models.CopySubscriber
-        )
-
+        db.query(models.CopySubscriber)
         .all()
-
     )
 
 
 
 
 
-
-
-# ==========================================================
+# =====================================================
 # RECEIVE MASTER TRADE
-# CREATE COPY ORDERS
-# ==========================================================
-
+# =====================================================
 
 @router.post(
     "/sync-trade"
 )
 def receive_master_trade(
-
     trade: MasterTradeCreate,
-
     db: Session = Depends(get_db)
-
 ):
 
 
@@ -218,14 +168,10 @@ def receive_master_trade(
 
     subscribers = (
 
-        db.query(
-            models.CopySubscriber
-        )
+        db.query(models.CopySubscriber)
 
         .filter(
-
-            models.CopySubscriber.status == "ACTIVE"
-
+            models.CopySubscriber.status=="ACTIVE"
         )
 
         .all()
@@ -234,23 +180,16 @@ def receive_master_trade(
 
 
 
-    created_orders = []
-
+    created_orders=[]
 
 
     for subscriber in subscribers:
 
-
         order = CopyTradingService.create_copy_order(
-
             db,
-
             subscriber,
-
             master_trade
-
         )
-
 
         created_orders.append(order.id)
 
@@ -258,14 +197,13 @@ def receive_master_trade(
 
     return {
 
+        "status":"success",
 
-        "status": "success",
+        "master_ticket":master_trade.ticket,
 
-        "master_ticket": master_trade.ticket,
+        "subscribers_processed":len(subscribers),
 
-        "subscribers_processed": len(subscribers),
-
-        "copy_orders_created": created_orders
+        "copy_orders_created":created_orders
 
     }
 
@@ -273,44 +211,27 @@ def receive_master_trade(
 
 
 
-
-
-# ==========================================================
-# ALLOCATE COPY ORDERS FROM EXISTING MASTER TRADE
-# ==========================================================
-
+# =====================================================
+# ALLOCATION ENGINE
+# =====================================================
 
 @router.post(
     "/sync/{master_trade_id}"
 )
 def sync_master_trade(
-
-    master_trade_id: int
-
+    master_trade_id:int
 ):
 
-
-    db = SessionLocal()
-
+    db=SessionLocal()
 
     try:
 
-
-        result = AllocationEngine.generate_copy_orders(
-
+        return AllocationEngine.generate_copy_orders(
             db,
-
             master_trade_id
-
         )
 
-
-        return result
-
-
-
     finally:
-
 
         db.close()
 
@@ -318,35 +239,24 @@ def sync_master_trade(
 
 
 
-
-
-# ==========================================================
+# =====================================================
 # SYNC OPEN MASTER TRADE
-# ==========================================================
-
+# =====================================================
 
 @router.post(
     "/sync-open/{master_ticket}"
 )
 def sync_open_trade(
-
-    master_ticket: int,
-
-    db: Session = Depends(get_db)
-
+    master_ticket:int,
+    db:Session=Depends(get_db)
 ):
 
+    master_trade=(
 
-    master_trade = (
-
-        db.query(
-            models.MasterTrade
-        )
+        db.query(models.MasterTrade)
 
         .filter(
-
-            models.MasterTrade.ticket == master_ticket
-
+            models.MasterTrade.ticket==master_ticket
         )
 
         .first()
@@ -354,38 +264,31 @@ def sync_open_trade(
     )
 
 
-
     if not master_trade:
-
 
         return {
 
-            "status": "error",
+            "status":"error",
 
-            "message": "Master trade not found"
+            "message":"Master trade not found"
 
         }
 
 
 
-    orders = TradeSyncEngine.sync_open_trade(
-
+    orders=TradeSyncEngine.sync_open_trade(
         db,
-
         master_trade
-
     )
-
 
 
     return {
 
+        "status":"success",
 
-        "status": "success",
+        "master_ticket":master_ticket,
 
-        "master_ticket": master_ticket,
-
-        "copy_orders_created": orders
+        "copy_orders_created":orders
 
     }
 
@@ -393,160 +296,217 @@ def sync_open_trade(
 
 
 
-
-
-
-# ==========================================================
+# =====================================================
 # PAPER EXECUTION BRIDGE
-# ==========================================================
-
+# =====================================================
 
 @router.post(
     "/bridge-execute"
 )
 def bridge_execute(
-
-    db: Session = Depends(get_db)
-
+    db:Session=Depends(get_db)
 ):
 
-
-    results = SubscriberBridge.process_orders(
-
-        db
-
-    )
+    results=SubscriberBridge.process_orders(db)
 
 
     return {
 
+        "status":"success",
 
-        "status": "success",
+        "mode":"PAPER",
 
-        "mode": "PAPER",
+        "executed":results,
 
-        "executed": results,
-
-        "count": len(results)
+        "count":len(results)
 
     }
 
 
-# ==========================================================
-# LIST COPY ORDERS
-# ==========================================================
 
-@router.get("/orders")
+
+
+# =====================================================
+# LIST COPY ORDERS
+# =====================================================
+
+@router.get(
+    "/orders"
+)
 def list_copy_orders(
-    db: Session = Depends(get_db)
+    db:Session=Depends(get_db)
 ):
 
-    orders = (
-        db.query(
-            models.CopyOrder
-        )
+    orders=(
+
+        db.query(models.CopyOrder)
+
         .all()
+
     )
+
 
     return {
 
-        "status": "success",
+        "status":"success",
 
-        "mode": "PAPER",
+        "mode":"PAPER",
 
-        "total_orders": len(orders),
+        "total_orders":len(orders),
 
-        "orders": [
+        "orders":[
 
             {
-                "id": order.id,
-                "subscriber_id": order.subscriber_id,
-                "subscriber_account": order.subscriber_account,
-                "master_ticket": order.master_ticket,
-                "symbol": order.symbol,
-                "direction": order.direction,
-                "volume": order.volume,
-                "status": order.status,
-                "created_at": order.created_at,
-                "executed_at": order.executed_at
+
+                "id":o.id,
+
+                "subscriber_id":o.subscriber_id,
+
+                "subscriber_account":o.subscriber_account,
+
+                "master_ticket":o.master_ticket,
+
+                "symbol":o.symbol,
+
+                "direction":o.direction,
+
+                "volume":o.volume,
+
+                "status":o.status,
+
+                "created_at":o.created_at,
+
+                "executed_at":o.executed_at
+
             }
 
-            for order in orders
+            for o in orders
 
         ]
 
     }
 
-# ==========================================================
-# GET SUBSCRIBER DETAILS
-# ==========================================================
 
-@router.get("/subscribers/{subscriber_id}")
+
+
+
+# =====================================================
+# SUBSCRIBER DETAILS
+# =====================================================
+
+@router.get(
+    "/subscribers/{subscriber_id}"
+)
 def get_subscriber(
-    subscriber_id: int,
-    db: Session = Depends(get_db)
+    subscriber_id:int,
+    db:Session=Depends(get_db)
 ):
 
-    subscriber = (
+    subscriber=(
+
         db.query(models.CopySubscriber)
+
         .filter(
-            models.CopySubscriber.id == subscriber_id
+            models.CopySubscriber.id==subscriber_id
         )
+
         .first()
+
     )
+
 
     if not subscriber:
+
         return {
-            "status": "error",
-            "message": "Subscriber not found"
+
+            "status":"error",
+
+            "message":"Subscriber not found"
+
         }
 
+
+
     return {
-        "status": "success",
-        "subscriber": {
-            "id": subscriber.id,
-            "name": subscriber.name,
-            "email": subscriber.email,
-            "account": subscriber.mt5_account,
-            "allocation_percent": subscriber.allocation_percent,
-            "status": subscriber.status
+
+        "status":"success",
+
+        "subscriber":{
+
+            "id":subscriber.id,
+
+            "name":subscriber.name,
+
+            "email":subscriber.email,
+
+            "account":subscriber.mt5_account,
+
+            "allocation_percent":subscriber.allocation_percent,
+
+            "status":subscriber.status
+
         }
+
     }
 
 
 
-# ==========================================================
-# GET SUBSCRIBER COPY ORDERS
-# ==========================================================
 
-@router.get("/subscribers/{subscriber_id}/orders")
+
+# =====================================================
+# SUBSCRIBER COPY ORDERS
+# =====================================================
+
+@router.get(
+    "/subscribers/{subscriber_id}/orders"
+)
 def get_subscriber_orders(
-    subscriber_id: int,
-    db: Session = Depends(get_db)
+    subscriber_id:int,
+    db:Session=Depends(get_db)
 ):
 
-    orders = (
+
+    orders=(
+
         db.query(models.CopyOrder)
+
         .filter(
-            models.CopyOrder.subscriber_id == subscriber_id
+            models.CopyOrder.subscriber_id==subscriber_id
         )
+
         .all()
+
     )
 
 
     return {
-        "status": "success",
-        "subscriber_id": subscriber_id,
-        "total_orders": len(orders),
-        "orders": [
+
+        "status":"success",
+
+        "subscriber_id":subscriber_id,
+
+        "total_orders":len(orders),
+
+        "orders":[
+
             {
-                "id": order.id,
-                "master_ticket": order.master_ticket,
-                "symbol": order.symbol,
-                "direction": order.direction,
-                "volume": order.volume,
-                "status": order.status
+
+                "id":o.id,
+
+                "master_ticket":o.master_ticket,
+
+                "symbol":o.symbol,
+
+                "direction":o.direction,
+
+                "volume":o.volume,
+
+                "status":o.status
+
             }
-            for order in orders
+
+            for o in orders
+
         ]
+
     }

@@ -13,6 +13,10 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from api.broker_accounts import models as broker_account_models
+from api.broker_accounts.routes import router as broker_accounts_router
+from api.copytrading.onboarding_routes import router as onboarding_router
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.copytrading.subscriber_routes import router as subscriber_router
 from api.copytrading.dashboard_routes import router as copy_dashboard_router
@@ -114,15 +118,24 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:8080",
         "http://localhost:8080",
+
+        # React PWA development server
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:5174",
+        "http://localhost:5174",
+
+        # Production website
         "https://betheltradingtechnologies.com",
         "https://www.betheltradingtechnologies.com",
-        "https://86207a4a.bethel-1vz.pages.dev"
+
+        # Cloudflare Pages
+        "https://86207a4a.bethel-1vz.pages.dev",
     ],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
-
 
 # ==========================
 # STATIC FILES
@@ -166,6 +179,8 @@ app.include_router(copytrading_router)
 app.include_router(subscriber_router)
 app.include_router(copy_dashboard_router)
 app.include_router(copy_order_router)
+app.include_router(broker_accounts_router)
+app.include_router(onboarding_router)
 
 
 # ==========================

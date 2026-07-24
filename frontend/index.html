@@ -1,592 +1,437 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bethel Trading Technologies | Algorithmic Trading Technology</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        :root {
-            --bg-color: #0b0f19;
-            --card-bg: #111827;
-            --accent-color: #10b981; /* Fintech Emerald Green */
-            --accent-hover: #059669;
-            --text-primary: #f3f4f6;
-            --text-secondary: #9ca3af;
-            --border-color: #1f2937;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+<title>Bethel Trading Technologies | Institutional Algorithmic Trading Technology</title>
 
-        html {
-            scroll-behavior: smooth;
-        }
+<meta name="description" content="Bethel Trading Technologies develops institutional algorithmic trading infrastructure, automated trading systems, copy trading technology, and quantitative solutions.">
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
+<meta name="keywords" content="algorithmic trading, copy trading technology, MT5 automation, quantitative trading, trading infrastructure">
 
-        /* Navigation Bar */
-        header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: rgba(11, 15, 25, 0.8);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border-color);
-            z-index: 1000;
-        }
+<meta name="author" content="Bethel Trading Technologies">
 
-        .nav-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 1.25rem 2rem;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-        }
+<meta property="og:title" content="Bethel Trading Technologies">
+<meta property="og:description" content="Institutional Algorithmic Trading Technology for modern markets.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://betheltradingtechnologies.com">
 
-        .logo {
-            margin-right: auto;
-            font-weight: 700;
-            font-size: 1.25rem;
-            color: var(--text-primary);
-            text-decoration: none;
-            letter-spacing: -0.5px;
-        }
+<link rel="icon" href="assets/logo/favicon.png">
 
-        .logo span {
-            color: var(--accent-color);
-        }
+<link rel="stylesheet" href="css/style.css">
 
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-            list-style: none;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.95rem;
-            transition: color 0.3s ease;
-        }
-
-        .nav-links a:hover {
-            color: var(--accent-color);
-        }
-
-        /* Hero Section */
-        .hero {
-            padding: 10rem 2rem 6rem;
-            text-align: center;
-            max-width: 900px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .badge {
-            background-color: rgba(16, 185, 129, 0.1);
-            color: var(--accent-color);
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        h1 {
-            font-size: clamp(2.5rem, 5vw, 4rem);
-            font-weight: 700;
-            line-height: 1.15;
-            letter-spacing: -1px;
-            margin-bottom: 1.5rem;
-        }
-
-        .hero p {
-            font-size: clamp(1.1rem, 2vw, 1.3rem);
-            color: var(--text-secondary);
-            max-width: 700px;
-            margin-bottom: 2.5rem;
-        }
-
-        .cta-group {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.8rem 1.8rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 1rem;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background-color: var(--accent-color);
-            color: #000;
-        }
-
-        .btn-primary:hover {
-            background-color: var(--accent-hover);
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background-color: transparent;
-            color: var(--text-primary);
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-secondary:hover {
-            background-color: var(--card-bg);
-            border-color: var(--text-secondary);
-            transform: translateY(-2px);
-        }
-
-        /* Sections General styling */
-        section {
-            padding: 6rem 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .section-header {
-            text-align: center;
-            margin-bottom: 4rem;
-        }
-
-        .section-header h2 {
-            font-size: 2.25rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
-
-        .section-header p {
-            color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        /* About Section */
-        .about-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 3rem;
-            align-items: center;
-        }
-
-        .about-text {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 3rem;
-            border-radius: 16px;
-        }
-
-        .about-text p {
-            font-size: 1.15rem;
-            color: var(--text-secondary);
-            margin-bottom: 1.5rem;
-        }
-
-        /* Services Grid */
-        .services-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-        }
-
-        .service-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 2.5rem;
-            border-radius: 16px;
-            transition: all 0.3s ease;
-        }
-
-        .service-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(16, 185, 129, 0.4);
-        }
-
-        .service-icon {
-            font-size: 2rem;
-            color: var(--accent-color);
-            margin-bottom: 1.5rem;
-        }
-
-        .service-card h3 {
-            font-size: 1.35rem;
-            margin-bottom: 1rem;
-        }
-
-        .service-card p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-        }
-
-        /* Performance Section */
-        .performance-box {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 3rem;
-            text-align: center;
-        }
-
-        .platforms-container {
-            display: flex;
-            justify-content: center;
-            gap: 3rem;
-            margin-top: 2rem;
-            flex-wrap: wrap;
-        }
-
-        .platform-link {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-color);
-            padding: 1.5rem 2.5rem;
-            border-radius: 12px;
-            text-decoration: none;
-            color: var(--text-primary);
-            font-weight: 600;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .platform-link:hover {
-            border-color: var(--accent-color);
-            background: rgba(16, 185, 129, 0.05);
-            transform: translateY(-2px);
-        }
-
-        /* Contact Form & Info */
-        .contact-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-        }
-
-        @media (max-width: 768px) {
-            .contact-grid {
-                grid-template-columns: 1fr;
-                gap: 2.5rem;
-            }
-            .nav-links {
-                display: none;
-            }
-        }
-
-        .contact-info h3 {
-            font-size: 1.75rem;
-            margin-bottom: 1rem;
-        }
-
-        .contact-info p {
-            color: var(--text-secondary);
-            margin-bottom: 2rem;
-        }
-
-        .contact-method {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .contact-icon {
-            width: 50px;
-            height: 50px;
-            background: rgba(16, 185, 129, 0.1);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--accent-color);
-            font-size: 1.25rem;
-        }
-
-        /* Cleaned Up Social Media Row Aesthetic */
-        .social-networks-header {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin: 2.5rem 0 1rem 0;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .social-links-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
-            gap: 0.75rem;
-            margin-top: 1rem;
-        }
-
-        .social-item {
-            height: 45px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            text-decoration: none;
-            transition: all 0.2s ease;
-        }
-
-        .social-item:hover {
-            border-color: var(--accent-color);
-            color: var(--accent-color);
-            background: rgba(16, 185, 129, 0.05);
-            transform: translateY(-2px);
-        }
-
-        .contact-form {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            padding: 2.5rem;
-            border-radius: 16px;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 0.9rem;
-            margin-bottom: 0.5rem;
-            color: var(--text-secondary);
-        }
-
-        .form-control {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: var(--accent-color);
-        }
-
-        /* Footer & Compliance */
-        footer {
-            background-color: #060911;
-            border-top: 1px solid var(--border-color);
-            padding: 4rem 2rem 2rem;
-        }
-
-        .footer-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-        }
-
-        .footer-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1.5rem;
-        }
-
-        .disclaimer {
-            font-size: 0.75rem;
-            color: #6b7280;
-            line-height: 1.5;
-            border-top: 1px solid var(--border-color);
-            padding-top: 2rem;
-        }
-    </style>
 </head>
+
+
 <body>
 
-    <header>
-        <div class="nav-container">
-            <a href="#" class="logo">Bethel<span>Trading</span></a>
-            <ul class="nav-links">
-                <li><a href="#about">About Us</a></li>
-                <li><a href="#services">Services</a></li>
-                <li><a href="#performance">Performance</a></li>
-                <li><a href="#contact">Contact</a></li>
-            </ul>
-        </div>
-    </header>
 
-    <section class="hero">
-        <span class="badge">Smart Trading Systems</span>
-        <h1>Algorithmic Trading Technology for Modern Investors</h1>
-        <p>Discipline-driven execution. Fully transparent algorithms. Rigorous institutional-grade risk management.</p>
-        <div class="cta-group">
-            <a href="#performance" class="btn btn-primary">View Verified Performance</a>
-            <a href="#contact" class="btn btn-secondary">Partner With Us</a>
-        </div>
-    </section>
+<header>
 
-    <section id="about">
-        <div class="section-header">
-            <h2>About Us</h2>
-            <p>Our philosophy is built on transparent execution and mathematical discipline.</p>
-        </div>
-        <div class="about-grid">
-            <div class="about-text">
-                <p>Bethel Trading Technologies develops elite algorithmic trading systems designed to navigate today's volatile markets with precision.</p>
-                <p>Rather than relying on human emotion or market speculation, our software targets systematic inefficiencies in order to maintain a structured approach to wealth preservation and capital appreciation.</p>
-            </div>
-        </div>
-    </section>
+<nav>
 
-    <section id="services">
-        <div class="section-header">
-            <h2>Our Services</h2>
-            <p>Innovative technology designed to elevate modern investment portfolios.</p>
-        </div>
-        <div class="services-grid">
-            <div class="service-card">
-                <div class="service-icon"><i class="fa-solid fa-gears"></i></div>
-                <h3>Automated Trading Systems</h3>
-                <p>Deploy custom-built algorithms designed to monitor, track, and execute trades instantly without emotional bias.</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fa-solid fa-copy"></i></div>
-                <h3>Copy Trading Solutions</h3>
-                <p>Seamlessly mirror active algorithmic portfolios directly into your personal broker account with real-time replication.</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fa-solid fa-signal"></i></div>
-                <h3>Trading Signal Services</h3>
-                <p>Receive high-probability alerts and algorithmic insights curated by our core research team.</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
-                <h3>Strategy Research & Dev</h3>
-                <p>Rigorous historical backtesting, modeling, and system optimization based on institutional-grade criteria.</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fa-solid fa-handshake"></i></div>
-                <h3>Investor Partnerships</h3>
-                <p>Tailored capital management solutions built to fit specific risk appetites and return profiles.</p>
-            </div>
-        </div>
-    </section>
+<div class="logo">
+Bethel<span>Trading</span>
+</div>
 
-    <section id="performance">
-        <div class="section-header">
-            <h2>Verified Performance</h2>
-            <p>Complete mathematical transparency. Track our active results live on third-party verification hubs.</p>
-        </div>
-        <div class="performance-box">
-            <p>Performance reporting is independently verified through premium third-party tracking portals.</p>
-            <div class="platforms-container">
-                <a href="https://www.myfxbook.com" target="_blank" class="platform-link">
-                    <i class="fa-solid fa-chart-line"></i> Verify via Myfxbook <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.8rem;"></i>
-                </a>
-                <a href="https://www.fxblue.com" target="_blank" class="platform-link">
-                    <i class="fa-solid fa-shield-halved"></i> Verify via FX Blue <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.8rem;"></i>
-                </a>
-            </div>
-        </div>
-    </section>
 
-    <section id="contact">
-        <div class="contact-grid">
-            <div class="contact-info">
-                <h3>Let's Build the Future of Your Capital</h3>
-                <p>Get in touch to request our historical pitch books, discuss technical API integration, or learn how to partner with our automated trading systems.</p>
-                
-                <div class="contact-method">
-                    <div class="contact-icon"><i class="fa-solid fa-envelope"></i></div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: var(--text-secondary);">Direct Inquiries</div>
-                        <a href="mailto:info@betheltradingtechnologies.com" style="color: var(--text-primary); text-decoration: none; font-weight: 500;">info@betheltradingtechnologies.com</a>
-                    </div>
-                </div>
+<ul>
 
-                <!-- Blended Social Ecosystem Section -->
-                <div class="social-networks-header">Corporate Channels & Trust</div>
-                <div class="social-links-grid">
-                    <a href="https://www.linkedin.com/company/135675389/" target="_blank" class="social-item" title="LinkedIn"><i class="fa-brands fa-linkedin-in"></i></a>
-                    <a href="https://www.facebook.com/profile.php?id=61591695215237" target="_blank" class="social-item" title="Facebook"><i class="fa-brands fa-facebook-f"></i></a>
-                    <a href="https://www.instagram.com/betheltradingtech" target="_blank" class="social-item" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
-                    <a href="https://x.com/betheltradingt" target="_blank" class="social-item" title="X (Twitter)"><i class="fa-brands fa-x-twitter"></i></a>
-                    <a href="https://www.tiktok.com/@betheltradingtech" target="_blank" class="social-item" title="TikTok"><i class="fa-brands fa-tiktok"></i></a>
-                    <a href="https://youtube.com/@betheltradingtech" target="_blank" class="social-item" title="YouTube"><i class="fa-brands fa-youtube"></i></a>
-                    <a href="https://wa.me/12462590997" target="_blank" class="social-item" title="WhatsApp Business"><i class="fa-brands fa-whatsapp"></i></a>
-                </div>
-            </div>
-            
-            <div class="contact-form">
-                <form action="https://formspree.io/f/xbjnqozp" method="POST">
-                    <div class="form-group">
-                        <label for="name">Your Name</label>
-                        <input type="text" id="name" name="name" class="form-control" placeholder="John Doe" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email Address</label>
-                        <input type="email" id="email" name="_replyto" class="form-control" placeholder="john@example.com" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="message">Your Message</label>
-                        <textarea id="message" name="message" rows="4" class="form-control" placeholder="How can we help you?" required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Send Message</button>
-                </form>
-            </div>
-        </div>
-    </section>
+<li><a href="#technology">Technology</a></li>
+<li><a href="#services">Services</a></li>
+<li><a href="#performance">Performance</a></li>
+<li><a href="#contact">Contact</a></li>
 
-    <footer>
-        <div class="footer-content">
-            <div class="footer-top">
-                <a href="#" class="logo">Bethel<span>Trading</span></a>
-                <p style="font-size: 0.9rem; color: var(--text-secondary);">&copy; 2026 Bethel Trading Technologies. All rights reserved.</p>
-            </div>
-            <div class="disclaimer">
-                <strong>RISK WARNING & DISCLOSURE:</strong> Trading foreign exchange, CFDs, and financial derivatives on margin carries a high level of risk and may not be suitable for all investors. The high degree of leverage can work against you as well as for you. Before deciding to trade any automated system or partner with Bethel Trading Technologies, you should carefully consider your investment objectives, level of experience, and risk appetite. The possibility exists that you could sustain a loss of some or all of your initial investment. Past performance is not indicative of future results.
-            </div>
-        </div>
-    </footer>
+</ul>
+
+</nav>
+
+</header>
+
+
+
+<section class="hero">
+
+
+<div class="badge">
+Institutional Algorithmic Trading Technology
+</div>
+
+
+<h1>
+Building Automated Trading Infrastructure For Modern Markets
+</h1>
+
+
+<p>
+Bethel Trading Technologies develops algorithmic trading systems, copy trading infrastructure, and quantitative solutions designed around transparency, automation, and disciplined execution.
+</p>
+
+
+<div class="buttons">
+
+<a href="#technology" class="primary">
+Explore Technology
+</a>
+
+
+<a href="#performance" class="secondary">
+Verified Performance
+</a>
+
+</div>
+
+
+</section>
+
+
+
+
+
+<section id="technology">
+
+<h2>
+Technology Infrastructure
+</h2>
+
+
+<div class="cards">
+
+
+<div class="card">
+
+<h3>
+MT5 Integration
+</h3>
+
+<p>
+Advanced connectivity between trading platforms, execution engines, and analytical systems.
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>
+Quantitative Engine
+</h3>
+
+<p>
+Research-driven algorithms built using historical analysis, modelling, and systematic strategies.
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>
+Risk Management
+</h3>
+
+<p>
+Structured controls designed to monitor exposure, performance, and trading behaviour.
+</p>
+
+</div>
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+<section id="services">
+
+
+<h2>
+Our Services
+</h2>
+
+
+<div class="cards">
+
+
+<div class="card">
+
+<h3>
+Automated Trading Systems
+</h3>
+
+<p>
+Custom algorithmic solutions designed for systematic execution without emotional bias.
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>
+Copy Trading Technology
+</h3>
+
+<p>
+Infrastructure that enables real-time strategy replication between master and subscriber accounts.
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>
+Strategy Research
+</h3>
+
+<p>
+Backtesting, optimization, and quantitative development for algorithmic strategies.
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>
+API Solutions
+</h3>
+
+<p>
+Trading technology integrations for brokers, platforms, and financial applications.
+</p>
+
+</div>
+
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+<section id="performance">
+
+
+<h2>
+Verified Performance
+</h2>
+
+
+<p class="center">
+
+Transparent reporting through independent third-party tracking platforms.
+
+</p>
+
+
+
+<div class="stats">
+
+
+<div>
+<strong>81%</strong>
+<span>Historical Win Rate</span>
+</div>
+
+
+<div>
+<strong>4.54</strong>
+<span>Profit Factor</span>
+</div>
+
+
+<div>
+<strong>A</strong>
+<span>Performance Grade</span>
+</div>
+
+
+<div>
+<strong>LOW</strong>
+<span>Risk Rating</span>
+</div>
+
+
+</div>
+
+
+
+<div class="buttons">
+
+<a class="primary" href="https://www.myfxbook.com" target="_blank">
+Myfxbook Verification
+</a>
+
+
+<a class="secondary" href="https://www.fxblue.com" target="_blank">
+FX Blue Verification
+</a>
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+<section>
+
+
+<h2>
+How Copy Trading Works
+</h2>
+
+
+<div class="workflow">
+
+
+<div>
+1<br>
+Master Strategy Executes
+</div>
+
+
+<div>
+2<br>
+Signal Captured
+</div>
+
+
+<div>
+3<br>
+Copy Engine Processes
+</div>
+
+
+<div>
+4<br>
+Subscriber Account Replicates
+</div>
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+
+<section>
+
+
+<h2>
+Non-Custodial Architecture
+</h2>
+
+
+<p class="center">
+
+Bethel Trading Technologies provides technology infrastructure. Client funds remain with their selected broker.
+
+</p>
+
+
+</section>
+
+
+
+
+
+
+
+<section id="contact">
+
+
+<h2>
+Partner With Bethel
+</h2>
+
+
+<p class="center">
+
+Contact us for technology partnerships, API integration, and algorithmic trading solutions.
+
+</p>
+
+
+<div class="contact">
+
+Email:
+<br>
+
+<strong>
+info@betheltradingtechnologies.com
+</strong>
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+<footer>
+
+
+<div class="logo">
+Bethel<span>Trading</span>
+</div>
+
+
+<p>
+© 2026 Bethel Trading Technologies. All rights reserved.
+</p>
+
+
+<p class="risk">
+
+Risk Warning: Trading foreign exchange, CFDs, and leveraged products carries significant risk. Past performance does not guarantee future results.
+
+</p>
+
+
+</footer>
+
+
+
+<script src="js/app.js"></script>
+
 
 </body>
+
 </html>

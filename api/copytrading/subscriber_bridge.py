@@ -333,7 +333,7 @@ class SubscriberBridge:
 
 
     # ======================================================
-    # PROCESS ALL PENDING ORDERS
+    # PROCESS ALL READY PAPER ORDERS
     # ======================================================
 
     @staticmethod
@@ -348,16 +348,18 @@ class SubscriberBridge:
 
             .filter(
 
-                models.CopyOrder.status
-                ==
-                "PENDING"
+                models.CopyOrder.status.in_(
+                    [
+                        "PAPER",
+                        "PENDING"
+                    ]
+                )
 
             )
 
             .all()
 
         )
-
 
         results = []
 
