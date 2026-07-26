@@ -7,7 +7,7 @@ from api.auth.services.jwt import decode_token
 security = HTTPBearer()
 
 
-def get_current_investor(
+def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
 
@@ -17,10 +17,10 @@ def get_current_investor(
             credentials.credentials
         )
 
-        if payload.get("role") != "investor":
+        if payload.get("role") not in {"investor", "admin"}:
             raise HTTPException(
                 status_code=403,
-                detail="Invalid investor role"
+                detail="Invalid role"
             )
 
         return payload
@@ -32,3 +32,11 @@ def get_current_investor(
             status_code=401,
             detail="Invalid authentication token"
         )
+
+
+def get_current_investor(
+    current=Depends(get_current_user)
+):
+    if current.get("role") != "investor":
+        raise HTTPException(status_code=403, detail="Investor access required")
+    return current

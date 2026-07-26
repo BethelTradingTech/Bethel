@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from api.database import SessionLocal
 
-from api.auth.investor_dependency import get_current_investor
+from api.auth.investor_dependency import get_current_user
 
 from api.investors.models import Investor, Portfolio
 
@@ -33,13 +33,16 @@ def investor_dashboard(
 
     investor_id: int,
 
-    current = Depends(get_current_investor)
+    current = Depends(get_current_user)
 
 ):
 
 
     # Security check
-    if current.get("investor_id") != investor_id:
+    if (
+        current.get("role") != "admin"
+        and current.get("investor_id") != investor_id
+    ):
 
         raise HTTPException(
 

@@ -1,0 +1,102 @@
+const API_BASE =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+        ? "http://127.0.0.1:8000"
+        : "https://api.betheltradingtechnologies.com";
+
+
+
+function getToken(){
+
+    return localStorage.getItem(
+        "bethel_access_token"
+    );
+
+}
+
+
+
+
+async function apiGet(endpoint){
+
+    try {
+
+
+        const token = getToken();
+
+
+
+        const headers = {
+            "Accept": "application/json"
+        };
+
+        if (token) {
+            headers.Authorization = "Bearer " + token;
+        }
+
+        const response = await fetch(
+            API_BASE + endpoint,
+            {
+                method: "GET",
+                headers,
+                credentials: "include"
+            }
+        );
+
+
+
+        const contentType =
+            response.headers.get(
+                "content-type"
+            );
+
+
+
+        if(
+            contentType &&
+            contentType.includes("text/html")
+        ){
+
+            console.error(
+                "Authentication redirect received for:",
+                endpoint
+            );
+
+            return null;
+
+        }
+
+
+
+        if(!response.ok){
+
+            throw new Error(
+                "API error: " + response.status
+            );
+
+        }
+
+
+
+        return await response.json();
+
+
+
+    } catch(error){
+
+
+        console.error(
+
+            "API request failed:",
+
+            error
+
+        );
+
+
+        return null;
+
+
+    }
+
+}

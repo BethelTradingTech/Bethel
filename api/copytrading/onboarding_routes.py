@@ -12,11 +12,10 @@ Does NOT:
     - Manage funds
 """
 
-from datetime import datetime
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from api.auth.dependency import require_admin, require_subscriber_or_admin
 from api.database import SessionLocal
 from api.copytrading.models import CopySubscriber
 
@@ -46,7 +45,8 @@ class MT5ConnectionRequest(BaseModel):
 @router.post("/connect-mt5/{subscriber_id}")
 def connect_mt5(
     subscriber_id: int,
-    data: MT5ConnectionRequest
+    data: MT5ConnectionRequest,
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
     db = SessionLocal()
@@ -103,71 +103,16 @@ def connect_mt5(
 
 @router.post("/activate/{subscriber_id}")
 def activate_subscriber(
-    subscriber_id: int
+    subscriber_id: int,
+    _admin=Depends(require_admin),
 ):
-
-    db = SessionLocal()
-
-    try:
-
-        subscriber = db.query(
-            CopySubscriber
-        ).filter(
-            CopySubscriber.id == subscriber_id
-        ).first()
-
-
-        if not subscriber:
-
-            raise HTTPException(
-                status_code=404,
-                detail="Subscriber not found"
-            )
-
-
-        if subscriber.payment_status != "PAID":
-
-            return {
-
-                "status": "error",
-
-                "message": "Subscription payment required"
-
-            }
-
-
-        if not subscriber.mt5_account:
-
-            return {
-
-                "status": "error",
-
-                "message": "MT5 account not connected"
-
-            }
-
-
-        subscriber.status = "ACTIVE"
-        subscriber.activated_at = datetime.utcnow()
-
-
-        db.commit()
-
-
-        return {
-
-            "status": "success",
-
-            "message": "Subscriber activated",
-
-            "subscriber_id": subscriber.id
-
-        }
-
-
-    finally:
-
-        db.close()
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Legacy activation is disabled. Complete KYC, subscription, payment, "
+            "broker verification, and use /onboarding/{subscriber_id}/approval."
+        ),
+    )
 
 
 
@@ -177,7 +122,8 @@ def activate_subscriber(
 
 @router.get("/status/{subscriber_id}")
 def onboarding_status(
-    subscriber_id: int
+    subscriber_id: int,
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
     db = SessionLocal()
@@ -232,44 +178,13 @@ def onboarding_status(
 
 @router.post("/payment-confirm/{subscriber_id}")
 def confirm_payment(
-    subscriber_id: int
+    subscriber_id: int,
+    _admin=Depends(require_admin),
 ):
-
-    db = SessionLocal()
-
-    try:
-
-        subscriber = db.query(
-            CopySubscriber
-        ).filter(
-            CopySubscriber.id == subscriber_id
-        ).first()
-
-
-        if not subscriber:
-
-            raise HTTPException(
-                status_code=404,
-                detail="Subscriber not found"
-            )
-
-
-        subscriber.payment_status = "PAID"
-
-        db.commit()
-
-
-        return {
-
-            "status": "success",
-
-            "message": "Payment confirmed",
-
-            "subscriber_id": subscriber.id
-
-        }
-
-
-    finally:
-
-        db.close()
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Legacy payment confirmation is disabled. "
+            "Use /onboarding/{subscriber_id}/payment/confirm."
+        ),
+    )

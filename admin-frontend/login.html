@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bethel Admin Login</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <main class="login-shell">
+        <form id="login-form" class="login-card">
+            <h1>Bethel Trading Technologies</h1>
+            <p>Admin Dashboard</p>
+
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="username" required>
+
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+            <button id="login-button" type="submit">Sign in</button>
+            <p id="login-error" class="login-error" role="alert"></p>
+        </form>
+    </main>
+
+    <script src="js/auth.js?v=20260725c"></script>
+    <script src="js/login.js?v=20260725c"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bethel Investor Login</title>
+    <link rel="stylesheet" href="css/investor.css?v=2">
+</head>
+<body>
+    <main class="container" style="max-width: 440px; padding-top: 10vh;">
+        <section class="panel">
+            <h1>Bethel Trading</h1>
+            <p>Private Investor Dashboard</p>
+            <form id="login-form">
+                <label for="email">Email</label>
+                <input id="email" type="email" autocomplete="username" required>
+
+                <label for="password">Password</label>
+                <input id="password" type="password" autocomplete="current-password" required>
+
+                <button id="login-button" type="submit">Sign in</button>
+                <p id="login-error" role="alert"></p>
+            </form>
+        </section>
+    </main>
+
+    <script src="js/auth.js?v=2"></script>
+    <script src="js/login.js?v=2"></script>
+</body>
+</html>

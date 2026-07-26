@@ -16,7 +16,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.broker_accounts import models as broker_account_models
 from api.broker_accounts.routes import router as broker_accounts_router
 from api.copytrading.onboarding_routes import router as onboarding_router
-from fastapi.middleware.cors import CORSMiddleware
 
 from api.copytrading.subscriber_routes import router as subscriber_router
 from api.copytrading.dashboard_routes import router as copy_dashboard_router
@@ -46,6 +45,7 @@ from api.routes import accounts
 from api.routes import dashboard
 from api.routes import analytics
 from api.routes import risk
+from api.routes.investor import router as investor_mt5_status_router
 
 
 # ==========================
@@ -119,6 +119,9 @@ app.add_middleware(
         "http://127.0.0.1:8080",
         "http://localhost:8080",
 
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+
         # React PWA development server
         "http://127.0.0.1:5173",
         "http://localhost:5173",
@@ -167,6 +170,7 @@ app.include_router(accounts.router)
 app.include_router(dashboard.router)
 app.include_router(analytics.router)
 app.include_router(risk.router)
+app.include_router(investor_mt5_status_router)
 app.include_router(mt5_router)
 app.include_router(performance_router)
 app.include_router(auth_router)

@@ -81,6 +81,16 @@ def login(
 
             )
 
+        if not user.active:
+
+            raise HTTPException(
+
+                status_code=403,
+
+                detail="Account is disabled"
+
+            )
+
 
 
         # Verify password
