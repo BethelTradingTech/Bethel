@@ -1,0 +1,62 @@
+body {
+
+  margin:0;
+
+  font-family:Arial,sans-serif;
+
+  background:#f5f7fb;
+
+}
+
+
+* {
+
+  box-sizing:border-box;
+
+}
+
+
+table {
+
+  width:100%;
+
+  border-collapse:collapse;
+
+}
+
+
+th {
+
+  text-align:left;
+
+  padding:12px;
+
+  background:#f0f2f5;
+
+}
+
+
+td {
+
+  padding:12px;
+
+  border-bottom:1px solid #ddd;
+
+}
+
+
+@media(max-width:768px){
+
+
+table {
+
+  display:block;
+
+  overflow-x:auto;
+
+  white-space:nowrap;
+
+}
+
+
+}

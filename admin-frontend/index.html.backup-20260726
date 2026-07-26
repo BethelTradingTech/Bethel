@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Bethel Admin">
+
+    <title>Bethel Admin Dashboard</title>
+
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/app-icon.svg">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+
+<body>
+
+<header>
+    <div>
+        <h1>Bethel Trading Technologies</h1>
+        <span>Admin Dashboard</span>
+    </div>
+    <div>
+        <button id="install-app-button" type="button" hidden>Install app</button>
+        <button id="logout-button" type="button">Log out</button>
+    </div>
+</header>
+
+
+<main>
+
+<section class="grid">
+
+<div class="card">
+<h3>MT5 Status</h3>
+<p id="mt5-status">Loading...</p>
+</div>
+
+
+<div class="card">
+<h3>Balance</h3>
+<p id="balance">$0.00</p>
+</div>
+
+
+<div class="card">
+<h3>Equity</h3>
+<p id="equity">$0.00</p>
+</div>
+
+
+<div class="card">
+<h3>Open Positions</h3>
+<p id="positions">0</p>
+</div>
+
+
+<div class="card">
+<h3>Subscribers</h3>
+<p id="subscribers">0</p>
+</div>
+
+
+<div class="card">
+<h3>Master Trades</h3>
+<p id="master-trades">0</p>
+</div>
+
+
+<div class="card">
+<h3>Copy Orders</h3>
+<p id="copy-trades">0</p>
+</div>
+
+
+<div class="card">
+<h3>Executed Orders</h3>
+<p id="executed-orders">0</p>
+</div>
+
+</section>
+
+
+<section class="panel">
+
+<h2>Investors</h2>
+
+<div class="investor-admin-grid">
+    <div class="table-scroll">
+        <table>
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Portfolio Value</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody id="investors-table"></tbody>
+        </table>
+    </div>
+
+    <aside id="investor-detail" class="investor-detail">
+        <h3>Investor details</h3>
+        <p>Select an investor to view their account.</p>
+    </aside>
+</div>
+
+</section>
+
+
+<section class="panel">
+
+<h2>System Performance</h2>
+
+<table>
+
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+
+<tbody>
+
+<tr>
+<td>Total Return</td>
+<td id="return">-</td>
+</tr>
+
+<tr>
+<td>Win Rate</td>
+<td id="winrate">-</td>
+</tr>
+
+<tr>
+<td>Profit Factor</td>
+<td id="profit-factor">-</td>
+</tr>
+
+<tr>
+<td>Risk Level</td>
+<td id="risk">-</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</section>
+
+
+<section class="panel">
+
+<h2>Open Positions</h2>
+
+<table>
+
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Type</th>
+<th>Volume</th>
+<th>Profit</th>
+</tr>
+</thead>
+
+<tbody id="positions-table">
+
+</tbody>
+
+</table>
+
+</section>
+
+
+</main>
+
+
+<script src="js/auth.js?v=20260725c"></script>
+<script>
+if (requireAuthentication()) {
+    document.getElementById("logout-button").addEventListener("click", logout);
+}
+</script>
+<script src="js/api.js?v=20260725e"></script>
+<script src="js/admin.js?v=20260725d"></script>
+<script src="js/pwa.js?v=1"></script>
+
+</body>
+
+</html>

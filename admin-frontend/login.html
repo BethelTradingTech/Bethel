@@ -3,8 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Bethel Admin">
     <title>Bethel Admin Login</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/app-icon.svg">
     <link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
@@ -20,11 +26,13 @@
             <input id="password" name="password" type="password" autocomplete="current-password" required>
 
             <button id="login-button" type="submit">Sign in</button>
+            <button id="install-app-button" type="button" hidden>Install app</button>
             <p id="login-error" class="login-error" role="alert"></p>
         </form>
     </main>
 
     <script src="js/auth.js?v=20260725c"></script>
-    <script src="js/login.js?v=20260725c"></script>
+    <script src="js/login.js?v=20260725e"></script>
+    <script src="js/pwa.js?v=1"></script>
 </body>
 </html>

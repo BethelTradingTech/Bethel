@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Bethel Investor">
     <title>Bethel Investor Login</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/app-icon.svg">
     <link rel="stylesheet" href="css/investor.css?v=2">
 </head>
 <body>
@@ -18,13 +25,15 @@
                 <label for="password">Password</label>
                 <input id="password" type="password" autocomplete="current-password" required>
 
-                <button id="login-button" type="submit">Sign in</button>
+            <button id="login-button" type="submit">Sign in</button>
+            <button id="install-app-button" type="button" hidden>Install app</button>
                 <p id="login-error" role="alert"></p>
             </form>
         </section>
     </main>
 
-    <script src="js/auth.js?v=2"></script>
-    <script src="js/login.js?v=2"></script>
+    <script src="js/auth.js?v=3"></script>
+    <script src="js/login.js?v=3"></script>
+    <script src="js/pwa.js?v=2"></script>
 </body>
 </html>

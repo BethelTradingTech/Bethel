@@ -1,102 +1,12 @@
-const API_BASE =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
-        ? "http://127.0.0.1:8000"
-        : "https://api.betheltradingtechnologies.com";
-
-
-
-function getToken(){
-
-    return localStorage.getItem(
-        "bethel_access_token"
-    );
-
+const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1")?"http://127.0.0.1:8000":"https://api.betheltradingtechnologies.com";
+function getToken(){return localStorage.getItem("bethel_access_token")}
+async function apiRequest(endpoint,options={}){
+ const headers={Accept:"application/json",...(options.headers||{})};const token=getToken();if(token)headers.Authorization="Bearer "+token;
+ if(options.body&&!headers["Content-Type"])headers["Content-Type"]="application/json";
+ const response=await fetch(API_BASE+endpoint,{credentials:"include",...options,headers});
+ if(response.status===401||response.status===403)throw new Error("Administrator authorization required");
+ const type=response.headers.get("content-type")||"";const data=type.includes("application/json")?await response.json():await response.text();
+ if(!response.ok)throw new Error(data.detail||data||("API error "+response.status));return data;
 }
-
-
-
-
-async function apiGet(endpoint){
-
-    try {
-
-
-        const token = getToken();
-
-
-
-        const headers = {
-            "Accept": "application/json"
-        };
-
-        if (token) {
-            headers.Authorization = "Bearer " + token;
-        }
-
-        const response = await fetch(
-            API_BASE + endpoint,
-            {
-                method: "GET",
-                headers,
-                credentials: "include"
-            }
-        );
-
-
-
-        const contentType =
-            response.headers.get(
-                "content-type"
-            );
-
-
-
-        if(
-            contentType &&
-            contentType.includes("text/html")
-        ){
-
-            console.error(
-                "Authentication redirect received for:",
-                endpoint
-            );
-
-            return null;
-
-        }
-
-
-
-        if(!response.ok){
-
-            throw new Error(
-                "API error: " + response.status
-            );
-
-        }
-
-
-
-        return await response.json();
-
-
-
-    } catch(error){
-
-
-        console.error(
-
-            "API request failed:",
-
-            error
-
-        );
-
-
-        return null;
-
-
-    }
-
-}
+const apiGet=e=>apiRequest(e);
+const apiPut=(e,data)=>apiRequest(e,{method:"PUT",body:JSON.stringify(data)});

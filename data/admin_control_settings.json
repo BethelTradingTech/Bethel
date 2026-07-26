@@ -1,0 +1,31 @@
+{
+  "website": {
+    "company_name": "Bethel Trading Technologies",
+    "hero_badge": "Smart Trading Systems",
+    "hero_title": "Algorithmic Trading Technology for Modern Investors",
+    "hero_description": "Discipline-driven execution. Fully transparent algorithms. Rigorous institutional-grade risk management.",
+    "primary_cta_text": "View Verified Performance",
+    "primary_cta_url": "#performance",
+    "contact_email": "info@betheltradingtechnologies.com",
+    "contact_phone": "+1 (246) 259-0997",
+    "myfxbook_url": "https://www.myfxbook.com",
+    "fxblue_url": "https://www.fxblue.com",
+    "darwinex_url": "",
+    "whatsapp_url": "https://wa.me/12462590997",
+    "linkedin_url": "https://www.linkedin.com/company/135675389/",
+    "facebook_url": "https://www.facebook.com/profile.php?id=61591695215237",
+    "instagram_url": "https://www.instagram.com/betheltradingtech",
+    "x_url": "https://x.com/betheltradingt",
+    "youtube_url": "https://youtube.com/@betheltradingtech",
+    "tiktok_url": "https://www.tiktok.com/@betheltradingtech",
+    "risk_disclosure": "Trading foreign exchange, CFDs, and leveraged products carries significant risk. Past performance does not guarantee future results."
+  },
+  "system": {
+    "environment": "DEVELOPMENT",
+    "public_url": "https://betheltradingtechnologies.com",
+    "investor_portal_url": "/investor-frontend/",
+    "subscriber_portal_url": "/investor-frontend/",
+    "maintenance_mode": false,
+    "subscriber_registration_enabled": true
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Bethel Trading Investor",
+  "short_name": "Bethel Investor",
+  "description": "Secure investor onboarding, portfolio, analytics, and copy-trading portal.",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

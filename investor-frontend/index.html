@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Bethel Investor">
     <title>Bethel Trading | Institutional Dashboard</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/app-icon.svg">
     <link rel="stylesheet" href="css/investor.css?v=2">
 </head>
 <body>
@@ -16,6 +24,7 @@
         </div>
         <div class="system-status">
             <span>Status:</span> <strong id="status">CONNECTING...</strong>
+            <button id="install-app-button" type="button" hidden>Install app</button>
             <button id="logout-button" type="button">Log out</button>
         </div>
     </header>
@@ -83,7 +92,8 @@
     </main>
 </div>
 
-<script src="js/auth.js?v=2"></script>
-<script src="js/investor.js?v=2"></script>
+<script src="js/auth.js?v=3"></script>
+<script src="js/investor.js?v=3"></script>
+<script src="js/pwa.js?v=2"></script>
 </body>
 </html>

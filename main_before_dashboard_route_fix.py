@@ -1,4 +1,4 @@
-﻿"""
+"""
 Bethel Trading Technologies
 
 Main Platform Controller
@@ -46,15 +46,6 @@ app.mount(
     name="admin-frontend"
 )
 
-app.mount(
-    "/investor-frontend",
-    StaticFiles(
-        directory=os.path.join(BASE_DIR, "investor-frontend"),
-        html=True
-    ),
-    name="investor-frontend"
-)
-
 # ======================================
 # CORS
 # ======================================
@@ -63,18 +54,10 @@ app.add_middleware(
 
     CORSMiddleware,
 
-    allow_origin_regex=(
-        r"^http://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3})"
-        r":517[3-6]$"
-    ),
-
     allow_origins=[
 
         "http://localhost:5175",
         "http://127.0.0.1:5175",
-
-        "http://localhost:5176",
-        "http://127.0.0.1:5176",
 
         "http://localhost:5174",
         "http://127.0.0.1:5174",
@@ -84,9 +67,6 @@ app.add_middleware(
 
         "http://localhost:8080",
         "http://127.0.0.1:8080",
-
-        "http://localhost:8081",
-        "http://127.0.0.1:8081",
 
         "https://betheltradingtechnologies.com",
 
@@ -166,7 +146,7 @@ def load_router(
 
         )
 
-        print(f"âœ“ {name} Loaded")
+        print(f"✓ {name} Loaded")
 
 
     except Exception as e:
@@ -191,7 +171,7 @@ app.include_router(
 )
 
 
-print("âœ“ Authentication API Loaded")
+print("✓ Authentication API Loaded")
 
 
 
@@ -209,7 +189,7 @@ app.include_router(
 )
 
 
-print("âœ“ Subscriber Authentication API Loaded")
+print("✓ Subscriber Authentication API Loaded")
 
 
 
@@ -233,7 +213,7 @@ try:
     )
 
 
-    print("âœ“ Copy Trading API Loaded")
+    print("✓ Copy Trading API Loaded")
 
 
 except Exception as e:
@@ -261,7 +241,7 @@ try:
     )
 
 
-    print("âœ“ Subscriber API Loaded")
+    print("✓ Subscriber API Loaded")
 
 
 except Exception as e:
@@ -282,7 +262,7 @@ try:
         tags=["Copy Orders"]
     )
 
-    print("âœ“ Copy Orders API Loaded")
+    print("✓ Copy Orders API Loaded")
 
 except Exception as e:
 
@@ -303,7 +283,7 @@ try:
         tags=["Copy Dashboard"]
     )
 
-    print("âœ“ Copy Dashboard API Loaded")
+    print("✓ Copy Dashboard API Loaded")
 
 except Exception as e:
 
@@ -325,52 +305,12 @@ try:
     )
 
 
-    print("âœ“ Subscriber Onboarding Loaded")
+    print("✓ Subscriber Onboarding Loaded")
 
 
 except Exception as e:
 
     print("Onboarding Load Error:", e)
-
-
-# ======================================
-# BROKER ACCOUNTS
-# ======================================
-
-try:
-
-    from api.broker_accounts.routes import router as broker_accounts_router
-
-    app.include_router(
-
-        broker_accounts_router
-
-    )
-
-    print("âœ“ Broker Accounts API Loaded")
-
-except Exception as e:
-
-    print("Broker Accounts API Load Error:", e)
-
-
-# ======================================
-# CLIENT ONBOARDING WORKFLOW
-# ======================================
-
-try:
-
-    from api.onboarding.routes import router as client_onboarding_router
-    from api.database import Base as ApiBase, engine as api_engine
-
-    app.include_router(client_onboarding_router)
-    ApiBase.metadata.create_all(bind=api_engine)
-
-    print("âœ“ Client Onboarding Workflow Loaded")
-
-except Exception as e:
-
-    print("Client Onboarding Workflow Load Error:", e)
 
 
 
@@ -394,7 +334,7 @@ try:
     )
 
 
-    print("âœ“ Performance API Loaded")
+    print("✓ Performance API Loaded")
 
 
 except Exception as e:
@@ -410,10 +350,6 @@ except Exception as e:
 try:
 
     from api.routes.public_investor import router as investor_router
-    from api.routes.investor import router as investor_status_router
-    from api.auth.routes.investor_login import router as investor_auth_router
-    from api.investors.routes.dashboard import router as investor_dashboard_router
-    from api.investors.routes.admin import router as admin_investors_router
 
 
     app.include_router(
@@ -424,41 +360,14 @@ try:
 
     )
 
-    app.include_router(
 
-        investor_status_router,
-
-        tags=["Investor"]
-
-    )
-
-    app.include_router(investor_auth_router)
-    app.include_router(investor_dashboard_router)
-    app.include_router(admin_investors_router)
-
-
-    print("âœ“ Investor API Loaded")
+    print("✓ Investor API Loaded")
 
 
 except Exception as e:
 
     print("Investor API Load Error:", e)
 
-
-
-# ======================================
-# DASHBOARD DATA API
-# ======================================
-
-try:
-    from api.routes.dashboard import router as system_dashboard_router
-
-    app.include_router(system_dashboard_router)
-
-    print("Dashboard Data API Loaded")
-
-except Exception as e:
-    print("Dashboard Data API Load Error:", e)
 
 
 # ======================================
@@ -475,7 +384,7 @@ try:
     )
 
 
-    print("âœ“ MT5 API Loaded")
+    print("✓ MT5 API Loaded")
 
 
 except Exception as e:
@@ -483,18 +392,6 @@ except Exception as e:
     print("MT5 API Load Error:", e)
 
 
-
-
-# ======================================
-# ADMIN MANAGEMENT CONTROL
-# ======================================
-
-try:
-    from api.admin.router import router as admin_control_router
-    app.include_router(admin_control_router)
-    print("âœ“ Admin Management Control Loaded")
-except Exception as e:
-    print("Admin Management Control Load Error:", e)
 
 # ======================================
 # STARTUP
@@ -521,11 +418,11 @@ def startup_event():
 
     print("Modules:")
 
-    print("âœ“ Configuration Loaded")
+    print("✓ Configuration Loaded")
 
-    print("âœ“ Logging Online")
+    print("✓ Logging Online")
 
-    print(f"âœ“ {database_status()}")
+    print(f"✓ {database_status()}")
 
     print()
 
@@ -555,4 +452,3 @@ if __name__ == "__main__":
         reload=True
 
     )
-
