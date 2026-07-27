@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -451,6 +451,44 @@
                 max-width: 340px;
             }
         }
+
+        .nav-onboarding {
+            display: inline-block;
+            padding: 0.55rem 0.9rem;
+            border-radius: 8px;
+            background: var(--accent-color);
+            color: #000 !important;
+            font-weight: 700;
+        }
+
+        .onboarding-float {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            z-index: 1000;
+            padding: 0.9rem 1.25rem;
+            border-radius: 999px;
+            background: var(--accent-color);
+            color: #000;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 12px 30px rgba(16, 185, 129, 0.35);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .onboarding-float:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 16px 36px rgba(16, 185, 129, 0.5);
+        }
+
+        @media (max-width: 600px) {
+            .onboarding-float {
+                right: 14px;
+                bottom: 14px;
+                padding: 0.8rem 1rem;
+                font-size: 0.9rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -463,6 +501,7 @@
                 <li><a href="#services">Services</a></li>
                 <li><a href="#performance">Performance</a></li>
                 <li><a href="#contact">Contact</a></li>
+                <li><a href="https://api.betheltradingtechnologies.com/investor-frontend/onboarding.html" class="nav-onboarding">Start Onboarding</a></li>
             </ul>
         </div>
     </header>
@@ -475,6 +514,7 @@
         <div class="cta-group">
             <a href="#performance" class="btn btn-primary">View Verified Performance</a>
             <a href="#contact" class="btn btn-secondary">Partner With Us</a>
+            <a href="https://api.betheltradingtechnologies.com/investor-frontend/onboarding.html" class="btn btn-primary">Open Subscriber Portal</a>
         </div>
     </section>
 
@@ -602,6 +642,7 @@
         </div>
     </footer>
 
+<a href="https://api.betheltradingtechnologies.com/investor-frontend/onboarding.html" class="onboarding-float" aria-label="Start subscriber onboarding">Onboard Now &rarr;</a>
 </body>
 </html>
 
