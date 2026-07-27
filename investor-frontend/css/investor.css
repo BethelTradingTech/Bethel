@@ -106,3 +106,24 @@ tr:hover { background: rgba(255,255,255,0.03); }
     font-size:12px;
     letter-spacing:.5px;
 }
+
+.portal-logo {
+  display: block;
+  width: min(180px, 60vw);
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto 1rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.brand .portal-logo {
+  width: 52px;
+  margin: 0;
+}
+.onboarding-header > .portal-logo {
+  width: 84px;
+  margin: 0 1rem 0 0;
+}
