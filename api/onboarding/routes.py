@@ -178,6 +178,28 @@ def review_kyc(
     return serialize_onboarding(db, onboarding)
 
 
+@router.post("/{subscriber_id}/payment/submit")
+def submit_payment(
+    subscriber_id: int,
+    data: PaymentConfirmation,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+    if onboarding.plan_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Select a subscription plan before submitting payment",
+        )
+    onboarding.payment_reference = data.reference
+    onboarding.payment_status = "PENDING_VERIFICATION"
+    onboarding.payment_confirmed_at = None
+    onboarding.admin_approval = "PENDING"
+    recompute_activation(db, onboarding)
+    db.commit()
+    return serialize_onboarding(db, onboarding)
+
+
 @router.post("/{subscriber_id}/payment/confirm")
 def confirm_payment(
     subscriber_id: int,

@@ -1,10 +1,12 @@
-from datetime import datetime
+﻿from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from api.broker_accounts.models import BrokerAccount
 from api.copytrading.models import CopySubscriber
+from api.profit_share.service import profit_share_accepted
+from api.legal.service import all_current_accepted
 from api.onboarding.models import ClientOnboarding
 
 
@@ -46,14 +48,20 @@ def refresh_broker_status(db: Session, onboarding: ClientOnboarding):
 
 
 def recompute_activation(db: Session, onboarding: ClientOnboarding):
+    from api.subscription_lifecycle.service import enforce_subscription_state
+    enforce_subscription_state(db, onboarding)
+    from api.profit_share.service import profit_share_accepted
+    from api.legal.service import all_current_accepted
     subscriber = get_subscriber(db, onboarding.subscriber_id)
     ready = all(
         (
-            onboarding.subscription_status == "ACTIVE",
+            onboarding.subscription_status in ("ACTIVE", "GRACE"),
             onboarding.kyc_status == "APPROVED",
             onboarding.payment_status == "PAID",
             onboarding.broker_status == "CONNECTED",
             onboarding.admin_approval == "APPROVED",
+            profit_share_accepted(db, onboarding.subscriber_id),
+            all_current_accepted(db, onboarding.subscriber_id),
         )
     )
 
@@ -73,19 +81,23 @@ def recompute_activation(db: Session, onboarding: ClientOnboarding):
 
 
 def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
+    from api.subscription_lifecycle.service import lifecycle_snapshot
     refresh_broker_status(db, onboarding)
     recompute_activation(db, onboarding)
 
     requirements = {
-        "subscription": onboarding.subscription_status == "ACTIVE",
+        "subscription": onboarding.subscription_status in ("ACTIVE", "GRACE"),
         "kyc": onboarding.kyc_status == "APPROVED",
         "payment": onboarding.payment_status == "PAID",
         "broker": onboarding.broker_status == "CONNECTED",
         "admin_approval": onboarding.admin_approval == "APPROVED",
+        "profit_share": profit_share_accepted(db, onboarding.subscriber_id),
+        "legal_consent": all_current_accepted(db, onboarding.subscriber_id),
     }
 
     return {
         "subscriber_id": onboarding.subscriber_id,
+        "subscription_lifecycle": lifecycle_snapshot(db, onboarding.subscriber_id),
         "plan_id": onboarding.plan_id,
         "subscription_status": onboarding.subscription_status,
         "kyc_status": onboarding.kyc_status,

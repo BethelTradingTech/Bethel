@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Bethel Investor">
+    <title>Bethel Trading | Subscriber Onboarding</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/app-icon.svg">
+    <link rel="stylesheet" href="css/investor.css?v=4">
+    <link rel="stylesheet" href="css/onboarding.css?v=5">
+    <script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
+</head>
+<body>
+<main class="onboarding-shell">
+    <header class="onboarding-header">
+        <div>
+            <p class="eyebrow">Bethel Trading Technologies</p>
+            <h1>Subscriber onboarding</h1>
+            <p>Complete each requirement before copy trading is activated.</p>
+        </div>
+        <button id="subscriber-logout" type="button" hidden>Log out</button>
+    </header>
+
+    <section id="login-panel" class="panel onboarding-panel">
+        <h2>Subscriber sign in</h2>
+        <p class="muted">Use the subscriber email and password created for your account.</p>
+        <form id="subscriber-login-form">
+            <label for="subscriber-email">Email</label>
+            <input id="subscriber-email" type="email" autocomplete="username" required>
+            <label for="subscriber-password">Password</label>
+            <input id="subscriber-password" type="password" autocomplete="current-password" required>
+            <button id="subscriber-login-button" type="submit">Sign in</button>
+            <p id="subscriber-login-error" class="form-message error" role="alert"></p>
+        </form>
+        <p><a href="forgot-password.html">Forgot your password?</a></p>
+    </section>
+
+    <section id="workflow" hidden>
+        <section class="status-strip">
+            <div><span>Subscriber</span><strong id="subscriber-name">--</strong></div>
+            <div><span>Subscriber ID</span><strong id="subscriber-id">--</strong></div>
+            <div><span>Activation</span><strong id="activation-status">CHECKING</strong></div>
+        </section>
+
+        <div class="onboarding-grid">
+            <section class="panel onboarding-panel">
+                <div class="step-heading"><span>1</span><div><h2>Select subscription</h2><p>Choose the service plan for this account.</p></div></div>
+                <form id="subscription-form">
+                    <label for="plan-select">Available plan</label>
+                    <select id="plan-select" required><option value="">Loading plans...</option></select>
+                    <button type="submit">Save subscription</button>
+                    <p id="subscription-message" class="form-message"></p>
+                </form>
+            </section>
+
+            <section class="panel onboarding-panel">
+                <div class="step-heading"><span>2</span><div><h2>Connect MT5</h2><p>Link the trading account that remains under your control.</p></div></div>
+                <form id="mt5-form">
+                    <label for="mt5-broker">Broker</label>
+                    <input id="mt5-broker" type="text" value="MT5" required>
+                    <label for="mt5-account">MT5 account number</label>
+                    <input id="mt5-account" type="text" inputmode="numeric" required>
+                    <label for="mt5-server">MT5 server</label>
+                    <input id="mt5-server" type="text" placeholder="Example: HFMarketsGlobal-Demo" required>
+                    <button type="submit">Verify and connect MT5</button>
+                    <p id="mt5-message" class="form-message"></p>
+                </form>
+            </section>
+
+            <section class="panel onboarding-panel">
+                <div class="step-heading"><span>3</span><div><h2>Submit KYC</h2><p>Notify compliance that your identity documents are ready for review.</p></div></div>
+                <button id="kyc-submit-button" type="button">Start identity verification</button>
+                <p id="kyc-message" class="form-message"></p>
+                <div id="sumsub-websdk-container"></div>
+            </section>
+
+            <section class="panel onboarding-panel">
+                <div class="step-heading"><span>4</span><div><h2>Submit payment</h2><p>Enter your payment reference for administrative verification.</p></div></div>
+                <form id="payment-form">
+                    <button id="stripe-pay-button" type="button">Pay securely by card</button>
+                    <p id="stripe-payment-message" class="form-message"></p>
+                    <a id="stripe-checkout-link" class="dashboard-link" target="_blank" rel="noopener" hidden>Open secure card checkout</a>
+                    <div class="payment-divider"><span>or</span></div>
+                    <button id="paypal-pay-button" type="button">Pay with PayPal</button>
+                    <p id="paypal-payment-message" class="form-message"></p>
+                    <a id="paypal-checkout-link" class="dashboard-link" target="_blank" rel="noopener" hidden>Open PayPal checkout</a>
+                    <div class="payment-divider"><span>or</span></div>
+                    <button id="binance-pay-button" type="button">Pay with Binance Pay — USDT</button>
+                    <p id="binance-payment-message" class="form-message"></p>
+                    <a id="binance-checkout-link" class="dashboard-link" target="_blank" rel="noopener" hidden>Open Binance Pay checkout</a>
+                    <div class="payment-divider"><span>or</span></div>
+                    <button id="wise-instructions-button" type="button">Pay by Wise transfer</button>
+                    <div id="wise-instructions" class="payment-instructions" hidden></div>
+                    <label for="wise-reference">Wise transfer reference</label>
+                    <input id="wise-reference" type="text">
+                    <button id="wise-submit-button" type="button">Submit Wise transfer</button>
+                    <p id="wise-payment-message" class="form-message"></p>
+                    <div class="payment-divider"><span>or submit another manual payment</span></div>
+                    <label for="payment-reference">Payment reference</label>
+                    <input id="payment-reference" type="text" required>
+                    <button type="submit">Submit payment reference</button>
+                    <p id="payment-message" class="form-message"></p>
+                </form>
+            </section>
+        </div>
+
+        <section id="profit-share-panel" class="panel onboarding-panel">
+            <div class="step-heading"><span>5</span><div><h2>Profit-share agreement</h2><p>Review and accept the 20% performance fee before activation.</p></div></div>
+            <div class="profit-share-terms">
+                <p><strong>You retain 80% of eligible realized profit. Bethel receives 20%.</strong></p>
+                <p>Calculated monthly only on closed net profit above your high-water mark. Losses carry forward, recovered losses are not charged again, and no funds are withdrawn automatically.</p>
+            </div>
+            <label class="consent-check"><input id="profit-share-consent" type="checkbox"> I understand and accept the current 20% profit-share agreement.</label>
+            <button id="accept-profit-share" type="button">Accept profit-share agreement</button>
+            <p id="profit-share-message" class="form-message"></p>
+            <div id="profit-share-summary" class="profit-share-summary"></div>
+        </section>
+
+        <section id="legal-consent-panel" class="panel onboarding-panel">
+            <div class="step-heading"><span>6</span><div><h2>Legal agreements</h2><p>Read and accept every current document before activation.</p></div></div>
+            <div class="legal-template-warning">Working templates — final documents require Barbados legal review.</div>
+            <div id="legal-documents">Loading legal documents…</div>
+            <label class="consent-check"><input id="legal-consent-checkbox" type="checkbox"> I have read and accept every document displayed above and agree to use an electronic signature.</label>
+            <button id="accept-legal-documents" type="button">Accept all legal documents</button>
+            <p id="legal-consent-message" class="form-message"></p>
+        </section>
+
+        <section class="panel onboarding-panel status-panel">
+            <div class="status-panel-heading">
+                <div><h2>Onboarding status</h2><p class="muted">The dashboard unlocks after every required check is approved.</p></div>
+                <button id="refresh-status" type="button">Refresh status</button>
+            </div>
+            <div id="status-cards" class="status-cards"></div>
+            <p id="status-message" class="form-message"></p>
+            <a id="dashboard-link" class="dashboard-link" href="index.html" hidden>Open dashboard</a>
+        </section>
+    </section>
+</main>
+<script src="js/onboarding.js?v=8"></script>
+<script src="js/pwa.js?v=3"></script>
+</body>
+</html>

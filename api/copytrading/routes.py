@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 
 
 from api.database import get_db, SessionLocal
+from api.auth.dependency import require_admin, require_subscriber_or_admin
 
 from api.copytrading import models
 
@@ -51,6 +52,7 @@ from api.copytrading.service import CopyTradingService
 from api.copytrading.sync_engine import TradeSyncEngine
 from api.copytrading.allocation import AllocationEngine
 from api.copytrading.subscriber_bridge import SubscriberBridge
+from api.subscription_lifecycle.service import sweep_subscriptions
 
 
 
@@ -112,7 +114,8 @@ def create_subscriber(
     response_model=list[SubscriberResponse]
 )
 def list_subscribers(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     return (
@@ -165,6 +168,8 @@ def receive_master_trade(
     db.refresh(master_trade)
 
 
+
+    sweep_subscriptions(db)
 
     subscribers = (
 
@@ -395,11 +400,12 @@ def list_copy_orders(
 # =====================================================
 
 @router.get(
-    "/subscribers/{subscriber_id}"
+    "/subscribers/{subscriber_id}/profile"
 )
 def get_subscriber(
     subscriber_id:int,
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
     subscriber=(
@@ -462,7 +468,8 @@ def get_subscriber(
 )
 def get_subscriber_orders(
     subscriber_id:int,
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
 

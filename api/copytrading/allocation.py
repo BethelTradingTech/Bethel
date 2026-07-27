@@ -24,6 +24,7 @@ from api.copytrading.models import (
     CopyOrder
 )
 from datetime import datetime
+from api.subscription_lifecycle.service import sweep_subscriptions
 
 
 class AllocationEngine:
@@ -68,6 +69,8 @@ class AllocationEngine:
                 "status": "error",
                 "message": "Master trade not found"
             }
+
+        sweep_subscriptions(db)
 
         subscribers = db.query(
             CopySubscriber

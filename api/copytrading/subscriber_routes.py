@@ -24,6 +24,7 @@ from api.copytrading.performance_service import sync_copy_performance
 from api.copytrading.close_sync_service import sync_closed_trades
 
 from api.database import get_db
+from api.auth.dependency import require_admin, require_subscriber_or_admin
 
 from api.copytrading.models import (
     CopySubscriber,
@@ -50,7 +51,8 @@ router = APIRouter(
 
 @router.get("/")
 def list_subscribers(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     subscribers = (
@@ -105,7 +107,8 @@ def list_subscribers(
 @router.get("/{subscriber_id}")
 def get_subscriber(
     subscriber_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
     subscriber = (
@@ -175,8 +178,8 @@ def subscriber_dashboard(
 
     subscriber_id: int,
 
-    db: Session = Depends(get_db)
-
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
 
@@ -370,7 +373,8 @@ def subscriber_dashboard(
 @router.get("/{subscriber_id}/performance")
 def get_subscriber_performance(
     subscriber_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
     subscriber = db.query(CopySubscriber).filter(
@@ -506,10 +510,11 @@ def get_subscriber_performance(
 # SUBSCRIBER PERFORMANCE SUMMARY
 # =====================================================
 
-@router.get("/{subscriber_id}/performance")
+@router.get("/{subscriber_id}/order-performance")
 def subscriber_performance(
     subscriber_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
 ):
 
     subscriber = (
@@ -590,7 +595,8 @@ def subscriber_performance(
 
 @router.post("/performance/close-sync")
 def run_close_sync(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     return sync_closed_trades(db)
@@ -603,7 +609,8 @@ def run_close_sync(
 
 @router.post("/performance/sync")
 def run_performance_sync(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     result = sync_copy_performance(db)

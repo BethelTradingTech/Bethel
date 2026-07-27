@@ -1,4 +1,4 @@
-"""
+﻿"""
 Bethel Trading Technologies
 
 Broker Account Schemas
@@ -7,7 +7,7 @@ Purpose:
     API validation for subscriber MT5 account linking.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 
@@ -21,6 +21,15 @@ class BrokerAccountCreate(BaseModel):
 
     server: str
 
+
+
+class BrokerAccountLinkRequest(BaseModel):
+
+    broker: str = "MT5"
+
+    login: str
+
+    server: str
 
 
 class BrokerAccountResponse(BaseModel):

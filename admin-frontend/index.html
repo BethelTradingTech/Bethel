@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bethel Management Control</title>
-<link rel="stylesheet" href="css/admin-control.css?v=20260726a">
+<link rel="stylesheet" href="css/admin-control.css?v=20260726e">
 </head>
 <body>
 <div class="app-shell">
@@ -15,6 +15,12 @@
       <button class="nav-item" data-view="website">🌐 <span>Website Management</span></button>
       <button class="nav-item" data-view="investors">👥 <span>Investors</span></button>
       <button class="nav-item" data-view="subscribers">⧉ <span>Subscribers</span></button>
+      <button class="nav-item" data-view="operations">⛨ <span>Backup & Security</span></button>
+      <button class="nav-item" data-view="notifications">✉ <span>Notifications</span></button>
+      <button class="nav-item" data-view="legal">⚖ <span>Legal Consent</span></button>
+      <button class="nav-item" data-view="profitshare">％ <span>Profit Split</span></button>
+      <button class="nav-item" data-view="subscriptions">🗓 <span>Subscriptions</span></button>
+      <button class="nav-item" data-view="payments">💳 <span>Payments</span></button>
       <button class="nav-item" data-view="mt5">📈 <span>MT5 Accounts</span></button>
       <button class="nav-item" data-view="copytrading">⇄ <span>Copy Trading</span></button>
       <button class="nav-item" data-view="analytics">⌁ <span>Performance</span></button>
@@ -48,7 +54,7 @@
       <div class="panel-grid">
         <article class="panel"><h2>Quick Management</h2><div class="quick-grid">
           <button data-go="website">Edit public website</button><button data-go="investors">Manage investors</button>
-          <button data-go="subscribers">Manage subscribers</button><button data-go="mt5">Review MT5</button>
+          <button data-go="subscribers">Manage subscribers</button><button data-go="payments">Review payments</button><button data-go="subscriptions">Manage subscriptions</button><button data-go="mt5">Review MT5</button>
           <button data-go="api">Inspect API routes</button><button data-go="settings">System settings</button>
         </div></article>
         <article class="panel"><h2>Portal Links</h2>
@@ -91,7 +97,78 @@
       <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Portfolio</th><th>Action</th></tr></thead><tbody id="investors-table"><tr><td colspan="5">Loading…</td></tr></tbody></table></div></article>
     </section>
 
-    <section id="view-subscribers" class="view"><article class="panel"><h2>Subscriber Management</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>MT5 Account</th><th>Status</th></tr></thead><tbody id="subscribers-table"></tbody></table></div></article></section>
+    <section id="view-subscribers" class="view">
+      <article class="panel">
+        <div class="section-heading"><div><h2>Subscriber Onboarding Review</h2><p>Verify KYC, payment and MT5 before final activation.</p></div></div>
+        <div class="table-wrap"><table class="review-table"><thead><tr><th>Subscriber</th><th>Subscription</th><th>KYC</th><th>Payment</th><th>MT5</th><th>Approval</th><th>Actions</th></tr></thead><tbody id="subscribers-table"><tr><td colspan="7">Loading...</td></tr></tbody></table></div>
+      </article>
+    </section>
+
+    <section id="view-operations" class="view">
+      <article class="panel">
+        <div class="section-heading"><div><h2>Backup and Security Operations</h2><p>Verified database recovery points and security-sensitive request history.</p></div><div><button id="create-backup" type="button">Create backup</button><button id="reload-operations" type="button">Reload</button></div></div>
+        <h3>Database backups</h3>
+        <div class="table-wrap"><table class="operations-table"><thead><tr><th>Created</th><th>Filename</th><th>Reason</th><th>Size</th><th>Integrity</th><th>SHA-256</th></tr></thead><tbody id="backups-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+        <h3>Recent security events</h3>
+        <div class="table-wrap"><table class="operations-table"><thead><tr><th>Created</th><th>Severity</th><th>Event</th><th>Request</th><th>Status</th><th>IP</th><th>Detail</th></tr></thead><tbody id="security-events-table"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
+      </article>
+    </section>
+
+    <section id="view-notifications" class="view">
+      <article class="panel">
+        <div class="section-heading"><div><h2>Email Notifications</h2><p>Delivery status, renewal reminders and onboarding updates.</p></div><div><button id="sync-notifications" type="button">Synchronize notifications</button><button id="reload-notifications" type="button">Reload</button></div></div>
+        <p id="notification-config" class="notice"></p>
+        <div class="table-wrap"><table class="notification-table"><thead><tr><th>Created</th><th>Recipient</th><th>Type</th><th>Subject</th><th>Status</th><th>Attempts</th><th>Error</th></tr></thead><tbody id="notifications-table"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
+      </article>
+    </section>
+
+    <section id="view-legal" class="view">
+      <article class="panel">
+        <div class="section-heading"><div><h2>Legal Consent Records</h2><p>Current-version acceptance evidence for every subscriber.</p></div><button id="reload-legal" type="button">Reload records</button></div>
+        <div class="notice">Acceptances are immutable. Publishing a new document version requires subscribers to consent again.</div>
+        <div class="table-wrap"><table class="legal-table"><thead><tr><th>Subscriber</th><th>Accepted</th><th>Required</th><th>Status</th><th>Documents</th></tr></thead><tbody id="legal-table"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+      </article>
+    </section>
+
+    <section id="view-profitshare" class="view">
+      <article class="panel">
+        <div class="section-heading"><div><h2>20% Profit Split</h2><p>Monthly realized-profit accruals with high-water-mark protection.</p></div><strong id="profit-share-outstanding">—</strong></div>
+        <div class="notice">Calculations are statements only. They do not withdraw or charge subscriber funds automatically.</div>
+        <div class="table-wrap"><table class="profit-share-table"><thead><tr><th>Subscriber</th><th>Realized net</th><th>High-water mark</th><th>Eligible profit</th><th>20% accrued</th><th>Action</th></tr></thead><tbody id="profit-share-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+      </article>
+    </section>
+
+    <section id="view-subscriptions" class="view">
+      <div class="metric-grid subscription-metrics">
+        <article class="metric"><small>Active</small><strong id="subscriptions-active">—</strong></article>
+        <article class="metric"><small>Grace period</small><strong id="subscriptions-grace">—</strong></article>
+        <article class="metric"><small>Expired</small><strong id="subscriptions-expired">—</strong></article>
+        <article class="metric"><small>Suspended</small><strong id="subscriptions-suspended">—</strong></article>
+      </div>
+      <article class="panel subscription-panel">
+        <div class="section-heading"><div><h2>Subscription Lifecycle</h2><p>Renewals, grace periods, expiry and copy-trading access.</p></div><button id="sweep-subscriptions" type="button">Run expiry check</button></div>
+        <div class="table-wrap"><table class="subscription-table"><thead><tr><th>Subscriber</th><th>Status</th><th>Period ends</th><th>Grace ends</th><th>Days</th><th>Actions</th></tr></thead><tbody id="subscriptions-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+      </article>
+    </section>
+
+    <section id="view-payments" class="view">
+      <div class="metric-grid payment-metrics">
+        <article class="metric"><small>Payment records</small><strong id="payment-total">—</strong></article>
+        <article class="metric"><small>Pending review</small><strong id="payment-pending">—</strong></article>
+        <article class="metric"><small>Paid</small><strong id="payment-paid">—</strong></article>
+        <article class="metric"><small>Rejected</small><strong id="payment-rejected">—</strong></article>
+      </div>
+      <article class="panel payment-panel">
+        <div class="section-heading"><div><h2>Payment Reconciliation</h2><p>Review all payment methods from one protected administration screen.</p></div><button id="reload-payments" type="button">Reload payments</button></div>
+        <div class="payment-filters">
+          <select id="payment-method-filter"><option value="">All methods</option><option>STRIPE</option><option>PAYPAL</option><option value="BINANCE_USDT">BINANCE USDT</option><option>WISE</option><option>MANUAL</option></select>
+          <select id="payment-status-filter"><option value="">All statuses</option><option>PAID</option><option>PENDING_VERIFICATION</option><option>CREATED</option><option>PENDING</option><option>REJECTED</option></select>
+          <input id="payment-search" class="search" placeholder="Search subscriber, email or reference…">
+        </div>
+        <div id="payment-currency-totals" class="payment-totals"></div>
+        <div class="table-wrap"><table class="payment-table"><thead><tr><th>Date</th><th>Subscriber</th><th>Method</th><th>Reference</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody id="payments-table"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
+      </article>
+    </section>
 
     <section id="view-mt5" class="view"><article class="panel"><h2>MT5 Account Control</h2><div id="mt5-details" class="detail-grid"></div><h3>Open Positions</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Type</th><th>Volume</th><th>Profit</th></tr></thead><tbody id="positions-table"></tbody></table></div></article></section>
 
@@ -114,8 +191,8 @@
   </main>
 </div>
 <div id="overlay" class="overlay"></div>
-<script src="js/auth.js?v=20260725c"></script>
-<script src="js/api.js?v=20260726a"></script>
-<script src="js/admin-control.js?v=20260726a"></script>
+<script src="js/auth.js?v=20260726d"></script>
+<script src="js/api.js?v=20260726d"></script>
+<script src="js/admin-control.js?v=20260726k"></script>
 </body>
 </html>

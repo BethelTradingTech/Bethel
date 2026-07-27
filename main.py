@@ -1,4 +1,4 @@
-﻿"""
+"""
 Bethel Trading Technologies
 
 Main Platform Controller
@@ -59,49 +59,48 @@ app.mount(
 # CORS
 # ======================================
 
-app.add_middleware(
-
-    CORSMiddleware,
-
-    allow_origin_regex=(
-        r"^http://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3})"
-        r":517[3-6]$"
-    ),
-
-    allow_origins=[
-
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-
-        "http://localhost:5176",
-        "http://127.0.0.1:5176",
-
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-
-        "http://localhost:8080",
-        "http://127.0.0.1:8080",
-
-        "http://localhost:8081",
-        "http://127.0.0.1:8081",
-
-        "https://betheltradingtechnologies.com",
-
-        "https://www.betheltradingtechnologies.com",
-
-    ],
-
-    allow_credentials=True,
-
-    allow_methods=["*"],
-
-    allow_headers=["*"],
-
+PRODUCTION_MODE = (
+    os.getenv("BETHEL_ENVIRONMENT", "DEVELOPMENT").upper() == "PRODUCTION"
 )
+PRODUCTION_ORIGINS = [
+    "https://betheltradingtechnologies.com",
+    "https://www.betheltradingtechnologies.com",
+]
+DEVELOPMENT_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+    "http://localhost:5176",
+    "http://127.0.0.1:5176",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+]
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=(
+        PRODUCTION_ORIGINS
+        if PRODUCTION_MODE
+        else PRODUCTION_ORIGINS + DEVELOPMENT_ORIGINS
+    ),
+    allow_origin_regex=(
+        None
+        if PRODUCTION_MODE
+        else r"^http://192\.168\.\d{1,3}\.\d{1,3}:517[3-6]$"
+    ),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Accept",
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+    ],
+    max_age=600,
+)
 
 
 # ======================================
@@ -364,6 +363,55 @@ try:
     from api.database import Base as ApiBase, engine as api_engine
 
     app.include_router(client_onboarding_router)
+
+    from api.kyc.routes import router as kyc_router
+    app.include_router(kyc_router)
+
+    from api.payments import models as payment_models
+    from api.payments.routes import router as payments_router
+    app.include_router(payments_router)
+
+    from api.subscriber_invites import models as subscriber_invite_models
+    from api.subscriber_invites.routes import router as subscriber_invite_router
+    app.include_router(subscriber_invite_router)
+
+    from api.stripe_payments import models as stripe_payment_models
+    from api.stripe_payments.routes import router as stripe_payment_router
+    app.include_router(stripe_payment_router)
+
+    from api.alternative_payments import models as alternative_payment_models
+    from api.alternative_payments.routes import router as alternative_payment_router
+    app.include_router(alternative_payment_router)
+
+    from api.payment_admin import models as payment_admin_models
+    from api.payment_admin.routes import router as payment_admin_router
+    app.include_router(payment_admin_router)
+
+    from api.subscription_lifecycle import models as subscription_lifecycle_models
+    from api.subscription_lifecycle.routes import router as subscription_lifecycle_router
+    app.include_router(subscription_lifecycle_router)
+
+    from api.profit_share import models as profit_share_models
+    from api.profit_share.routes import router as profit_share_router
+    app.include_router(profit_share_router)
+
+    from api.legal import models as legal_models
+    from api.legal.routes import router as legal_consent_router
+    app.include_router(legal_consent_router)
+
+    from api.notifications import models as notification_models
+    from api.notifications.routes import router as email_notifications_router
+    app.include_router(email_notifications_router)
+
+    from api.operations import models as operations_models
+    from api.operations.audit import SecurityAuditMiddleware
+    from api.operations.routes import router as operations_router
+    app.include_router(operations_router)
+    app.add_middleware(SecurityAuditMiddleware)
+
+    from api.production_security import ProductionSecurityMiddleware
+    app.add_middleware(ProductionSecurityMiddleware)
+
     ApiBase.metadata.create_all(bind=api_engine)
 
     print("âœ“ Client Onboarding Workflow Loaded")
@@ -502,6 +550,21 @@ except Exception as e:
 
 @app.on_event("startup")
 def startup_event():
+    from api.database import SessionLocal
+    from api.subscription_lifecycle.service import sweep_subscriptions
+    from api.legal.service import seed_legal_documents
+    from api.operations.backup import ensure_scheduled_backup
+    from api.operations.scheduler import start_operations_scheduler
+    startup_db = SessionLocal()
+    try:
+        seed_legal_documents(startup_db)
+        sweep_subscriptions(startup_db)
+        startup_db.commit()
+    finally:
+        startup_db.close()
+
+    ensure_scheduled_backup()
+    start_operations_scheduler()
 
     print("=" * 40)
 
@@ -552,7 +615,7 @@ if __name__ == "__main__":
 
         port=8000,
 
-        reload=True
+        reload=False
 
     )
 

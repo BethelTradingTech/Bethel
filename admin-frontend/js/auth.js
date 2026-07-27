@@ -147,6 +147,48 @@ function isAuthenticated(){
 
     }
 
+    if(payload.role !== "admin"){
+
+        localStorage.removeItem(TOKEN_KEY);
+        return false;
+
+    }
+
+    if(payload.role !== "admin"){
+
+        localStorage.removeItem(TOKEN_KEY);
+        return false;
+
+    }
+
+    if(payload.role !== "admin"){
+
+        localStorage.removeItem(TOKEN_KEY);
+        return false;
+
+    }
+
+    if(payload.role !== "admin"){
+
+        localStorage.removeItem(TOKEN_KEY);
+        return false;
+
+    }
+
+    if(payload.role !== "admin"){
+
+        localStorage.removeItem(TOKEN_KEY);
+        return false;
+
+    }
+
+    if(payload.role !== "admin"){
+
+        localStorage.removeItem(TOKEN_KEY);
+        return false;
+
+    }
+
 
 
     if(payload.exp){

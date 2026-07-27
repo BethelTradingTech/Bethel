@@ -1,4 +1,4 @@
-const CACHE_NAME = "bethel-investor-v2";
+const CACHE_NAME = "bethel-investor-v8";
 const APP_SHELL = [
     "./",
     "./login.html",

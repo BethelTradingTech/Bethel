@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from api.copytrading import models
+from api.subscription_lifecycle.service import sweep_subscriptions
 
 
 
@@ -39,6 +40,8 @@ class TradeSyncEngine:
         master_trade
     ):
 
+
+        sweep_subscriptions(db)
 
         subscribers = (
 

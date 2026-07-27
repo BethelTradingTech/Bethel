@@ -1,10 +1,10 @@
-const CACHE_NAME = "bethel-admin-v1";
+const CACHE_NAME = "bethel-admin-v2";
 const APP_SHELL = [
     "./",
     "./login.html",
     "./offline.html",
     "./css/admin.css",
-    "./js/auth.js?v=20260725c",
+    "./js/auth.js?v=20260726d",
     "./js/login.js?v=20260725c",
     "./icons/app-icon.svg"
 ];

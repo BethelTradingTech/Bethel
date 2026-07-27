@@ -64,65 +64,14 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/register")
-def register_subscriber(
-    data: RegisterRequest
-):
-
-    db = SessionLocal()
-
-    try:
-
-        subscriber = (
-            db.query(CopySubscriber)
-            .filter(
-                CopySubscriber.email == data.email
-            )
-            .first()
-        )
-
-
-        if not subscriber:
-
-            raise HTTPException(
-                status_code=404,
-                detail="Subscriber not found"
-            )
-
-
-
-        subscriber.password_hash = hash_password(
-            data.password
-        )
-
-
-        db.commit()
-
-
-
-        return {
-
-            "status": "success",
-
-            "message":
-            "Subscriber password created",
-
-            "subscriber_id":
-            subscriber.id
-
-        }
-
-
-
-    finally:
-
-        db.close()
-
-
-
-
-# ======================================
-# LOGIN
-# ======================================
+def register_subscriber_password(data: RegisterRequest):
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Direct password registration is disabled. "
+            "Use an administrator-issued setup link."
+        ),
+    )
 
 
 @router.post("/login")

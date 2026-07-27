@@ -9,4 +9,5 @@ async function apiRequest(endpoint,options={}){
  if(!response.ok)throw new Error(data.detail||data||("API error "+response.status));return data;
 }
 const apiGet=e=>apiRequest(e);
+const apiPost=(e,data)=>apiRequest(e,{method:"POST",body:data===undefined?undefined:JSON.stringify(data)});
 const apiPut=(e,data)=>apiRequest(e,{method:"PUT",body:JSON.stringify(data)});

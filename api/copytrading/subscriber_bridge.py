@@ -31,6 +31,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from api.copytrading import models
+from api.subscription_lifecycle.service import subscriber_can_copy
 
 from mt5_connector.orders import MT5Order
 
@@ -148,6 +149,14 @@ class SubscriberBridge:
 
             }
 
+
+
+        if not subscriber_can_copy(db, subscriber.id):
+            return {
+                "status": "failed",
+                "message": "Subscription is not active",
+                "copy_order_id": copy_order.id,
+            }
 
 
         # --------------------------------------------------

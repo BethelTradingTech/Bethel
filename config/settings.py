@@ -3,11 +3,13 @@ Bethel Trading Technologies
 System Configuration
 """
 
+import os
+
 COMPANY_NAME = "Bethel Trading Technologies"
 
 VERSION = "1.0.0"
 
-ENVIRONMENT = "DEVELOPMENT"
+ENVIRONMENT = os.getenv("BETHEL_ENVIRONMENT", "DEVELOPMENT").upper()
 
 
 # Trading Risk Settings
