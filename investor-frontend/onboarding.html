@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,7 @@
     <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/app-icon.svg">
     <link rel="stylesheet" href="css/investor.css?v=6">
-    <link rel="stylesheet" href="css/onboarding.css?v=5">
+    <link rel="stylesheet" href="css/onboarding.css?v=10">
     <script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
 </head>
 <body>
@@ -21,15 +21,47 @@
         <img class="portal-logo" src="https://betheltradingtechnologies.com/assets/images/bethel-logo.png" alt="Bethel Trading Technologies logo">
         <div>
             <p class="eyebrow">Bethel Trading Technologies</p>
-            <h1>User Registration</h1>
-            <p>Create your account, then complete each requirement before copy trading is activated.</p>
+            <h1>Open your Bethel account</h1>
+            <p>Complete secure registration, verification, account linking, and compliance review before activation.</p>
         </div>
         <button id="subscriber-logout" type="button" hidden>Log out</button>
     </header>
 
+    <section class="fintech-progress" aria-label="Account activation progress">
+        <div class="progress-intro">
+            <div>
+                <span class="security-badge">Secure account setup</span>
+                <h2>Your activation journey</h2>
+                <p>Complete each stage in order. Your funds remain with your selected broker.</p>
+            </div>
+            <div class="progress-summary">
+                <strong>10 stages</strong>
+                <span>Registration to activation</span>
+            </div>
+        </div>
+        <div class="progress-track">
+            <div class="progress-item current"><span>1</span><strong>Account</strong><small>Create profile</small></div>
+            <div class="progress-item"><span>2</span><strong>Access</strong><small>Secure sign-in</small></div>
+            <div class="progress-item"><span>3</span><strong>Plan</strong><small>Select service</small></div>
+            <div class="progress-item"><span>4</span><strong>Identity</strong><small>KYC review</small></div>
+            <div class="progress-item"><span>5</span><strong>Broker</strong><small>Connect MT5</small></div>
+            <div class="progress-item"><span>6</span><strong>Legal</strong><small>Accept terms</small></div>
+            <div class="progress-item"><span>7</span><strong>Fees</strong><small>Profit share</small></div>
+            <div class="progress-item"><span>8</span><strong>Payment</strong><small>Confirm plan</small></div>
+            <div class="progress-item"><span>9</span><strong>Review</strong><small>Admin approval</small></div>
+            <div class="progress-item"><span>10</span><strong>Active</strong><small>Dashboard access</small></div>
+        </div>
+    </section>
+
+    <section class="trust-strip" aria-label="Platform safeguards">
+        <div><strong>Non-custodial</strong><span>Your broker holds your trading funds</span></div>
+        <div><strong>Identity protected</strong><span>KYC handled through secure verification</span></div>
+        <div><strong>Controlled activation</strong><span>No copy trading before final approval</span></div>
+    </section>
+
     <section id="registration-panel" class="panel onboarding-panel">
-        <h2>Create subscriber account</h2>
-        <p class="muted">New user? Register first, then sign in to complete your account setup.</p>
+        <div class="section-kicker">Step 1 of 10</div><h2>Create your secure account</h2>
+        <p class="muted">Enter your legal name and primary email address. You will use these credentials throughout verification and account management.</p>
         <form id="subscriber-registration-form">
             <label for="registration-name">Full name</label>
             <input id="registration-name" type="text" autocomplete="name" minlength="2" required>
@@ -45,17 +77,21 @@
 
             <label class="consent-check">
                 <input id="registration-consent" type="checkbox" required>
-                I confirm that the information provided is accurate and agree to continue to the legal and identity-verification steps.
+                I confirm that my information is accurate and consent to identity, compliance, and eligibility checks required for account activation.
             </label>
 
-            <button id="subscriber-registration-button" type="submit">Create account</button>
+            <button id="subscriber-registration-button" type="submit">Create secure account</button>
             <p id="subscriber-registration-message" class="form-message" role="alert"></p>
         </form>
+        <div class="account-safety">
+            <strong>Protect your account</strong>
+            <p>Use a unique password. Bethel will never ask you to send your password, broker password, or payment credentials by email or chat.</p>
+        </div>
         <p class="muted">Already registered? <button id="show-login" type="button" class="text-button">Sign in</button></p>
     </section>
     <section id="login-panel" class="panel onboarding-panel" hidden>
-        <h2>Subscriber sign in</h2>
-        <p class="muted">Use the subscriber email and password created for your account.</p>
+        <div class="section-kicker">Step 2 of 10</div><h2>Secure account access</h2>
+        <p class="muted">Sign in with your registered email and password to continue your activation journey.</p>
         <form id="subscriber-login-form">
             <label for="subscriber-email">Email</label>
             <input id="subscriber-email" type="email" autocomplete="username" required>
@@ -77,7 +113,7 @@
 
         <div class="onboarding-grid">
             <section class="panel onboarding-panel">
-                <div class="step-heading"><span>1</span><div><h2>Select subscription</h2><p>Choose the service plan for this account.</p></div></div>
+                <div class="step-heading"><span>3</span><div><h2>Select your service plan</h2><p>Choose the service plan for this account.</p></div></div>
                 <form id="subscription-form">
                     <label for="plan-select">Available plan</label>
                     <select id="plan-select" required><option value="">Loading plans...</option></select>
@@ -87,7 +123,7 @@
             </section>
 
             <section class="panel onboarding-panel">
-                <div class="step-heading"><span>2</span><div><h2>Connect MT5</h2><p>Link the trading account that remains under your control.</p></div></div>
+                <div class="step-heading"><span>5</span><div><h2>Connect your MT5 account</h2><p>Link the trading account that remains under your control.</p></div></div>
                 <form id="mt5-form">
                     <label for="mt5-broker">Broker</label>
                     <input id="mt5-broker" type="text" value="MT5" required>
@@ -101,14 +137,14 @@
             </section>
 
             <section class="panel onboarding-panel">
-                <div class="step-heading"><span>3</span><div><h2>Submit KYC</h2><p>Notify compliance that your identity documents are ready for review.</p></div></div>
+                <div class="step-heading"><span>4</span><div><h2>Verify your identity</h2><p>Notify compliance that your identity documents are ready for review.</p></div></div>
                 <button id="kyc-submit-button" type="button">Start identity verification</button>
                 <p id="kyc-message" class="form-message"></p>
                 <div id="sumsub-websdk-container"></div>
             </section>
 
             <section class="panel onboarding-panel">
-                <div class="step-heading"><span>4</span><div><h2>Submit payment</h2><p>Enter your payment reference for administrative verification.</p></div></div>
+                <div class="step-heading"><span>8</span><div><h2>Confirm subscription payment</h2><p>Enter your payment reference for administrative verification.</p></div></div>
                 <form id="payment-form">
                     <button id="stripe-pay-button" type="button">Pay securely by card</button>
                     <p id="stripe-payment-message" class="form-message"></p>
@@ -138,7 +174,7 @@
         </div>
 
         <section id="profit-share-panel" class="panel onboarding-panel">
-            <div class="step-heading"><span>5</span><div><h2>Profit-share agreement</h2><p>Review and accept the 20% performance fee before activation.</p></div></div>
+            <div class="step-heading"><span>7</span><div><h2>Review performance-fee terms</h2><p>Review and accept the 20% performance fee before activation.</p></div></div>
             <div class="profit-share-terms">
                 <p><strong>You retain 80% of eligible realized profit. Bethel receives 20%.</strong></p>
                 <p>Calculated monthly only on closed net profit above your high-water mark. Losses carry forward, recovered losses are not charged again, and no funds are withdrawn automatically.</p>
@@ -150,7 +186,7 @@
         </section>
 
         <section id="legal-consent-panel" class="panel onboarding-panel">
-            <div class="step-heading"><span>6</span><div><h2>Legal agreements</h2><p>Read and accept every current document before activation.</p></div></div>
+            <div class="step-heading"><span>6</span><div><h2>Review legal agreements</h2><p>Read and accept every current document before activation.</p></div></div>
             <div class="legal-template-warning">Working templates â€” final documents require Barbados legal review.</div>
             <div id="legal-documents">Loading legal documentsâ€¦</div>
             <label class="consent-check"><input id="legal-consent-checkbox" type="checkbox"> I have read and accept every document displayed above and agree to use an electronic signature.</label>
@@ -160,12 +196,12 @@
 
         <section class="panel onboarding-panel status-panel">
             <div class="status-panel-heading">
-                <div><h2>Registration status</h2><p class="muted">The dashboard unlocks after every required check is approved.</p></div>
+                <div><div class="section-kicker">Steps 9â€“10 of 10</div><h2>Compliance review and activation</h2><p class="muted">Your dashboard unlocks only after all required checks and administrative approval are complete.</p></div>
                 <button id="refresh-status" type="button">Refresh status</button>
             </div>
             <div id="status-cards" class="status-cards"></div>
             <p id="status-message" class="form-message"></p>
-            <a id="dashboard-link" class="dashboard-link" href="index.html" hidden>Open dashboard</a>
+            <a id="dashboard-link" class="dashboard-link" href="index.html" hidden>Enter secure dashboard</a>
         </section>
     </section>
 </main>
