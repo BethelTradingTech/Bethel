@@ -237,62 +237,33 @@ async function requestSumsubToken(){
         method:"POST",headers:subscriberHeaders(true),body:JSON.stringify({})
     });
 }
+
 function launchSumsubWebSdk(accessToken){
     if(typeof snsWebSdk==="undefined")throw new Error("Sumsub verification interface is unavailable.");
+
     const instance=snsWebSdk
-        .init(accessToken,async()=>{const refreshed=await requestSumsubToken();return refreshed.token;})
+        .init(accessToken,async()=>{
+            const refreshed=await requestSumsubToken();
+            return refreshed.token;
+        })
         .withConf({lang:"en",theme:"dark"})
         .withOptions({addViewportTag:false,adaptIframeHeight:true})
-        .on("idCheck.onError",error=>setMessage("kyc-message",error?.message||"KYC verification error","error"))
-        .onMessage((type)=>{
-            if(type==="idCheck.applicantStatus"||type==="idCheck.onApplicantSubmitted"){
-                setMessage("kyc-message","Identity verification submitted. Awaiting secure review.","success");
+        .on("idCheck.onError",error=>
+            setMessage("kyc-message",error?.message||"KYC verification error","error")
+        )
+        .onMessage(type=>{
+            if(type==="idCheck.applicantStatus"||
+               type==="idCheck.onApplicantSubmitted"){
+                setMessage(
+                    "kyc-message",
+                    "Identity verification submitted. Awaiting secure review.",
+                    "success"
+                );
                 refreshStatus();
             }
         })
         .build();
-    instance.launch("#sumsub-websdk-container");
-}
-async function requestSumsubToken(){
-    return apiRequest(`/kyc/${subscriberId()}/access-token`,{
-        method:"POST",headers:subscriberHeaders(true),body:JSON.stringify({})
-    });
-}
-function launchSumsubWebSdk(accessToken){
-    if(typeof snsWebSdk==="undefined")throw new Error("Sumsub verification interface is unavailable.");
-    const instance=snsWebSdk
-        .init(accessToken,async()=>{const refreshed=await requestSumsubToken();return refreshed.token;})
-        .withConf({lang:"en",theme:"dark"})
-        .withOptions({addViewportTag:false,adaptIframeHeight:true})
-        .on("idCheck.onError",error=>setMessage("kyc-message",error?.message||"KYC verification error","error"))
-        .onMessage((type)=>{
-            if(type==="idCheck.applicantStatus"||type==="idCheck.onApplicantSubmitted"){
-                setMessage("kyc-message","Identity verification submitted. Awaiting secure review.","success");
-                refreshStatus();
-            }
-        })
-        .build();
-    instance.launch("#sumsub-websdk-container");
-}
-async function requestSumsubToken(){
-    return apiRequest(`/kyc/${subscriberId()}/access-token`,{
-        method:"POST",headers:subscriberHeaders(true),body:JSON.stringify({})
-    });
-}
-function launchSumsubWebSdk(accessToken){
-    if(typeof snsWebSdk==="undefined")throw new Error("Sumsub verification interface is unavailable.");
-    const instance=snsWebSdk
-        .init(accessToken,async()=>{const refreshed=await requestSumsubToken();return refreshed.token;})
-        .withConf({lang:"en",theme:"dark"})
-        .withOptions({addViewportTag:false,adaptIframeHeight:true})
-        .on("idCheck.onError",error=>setMessage("kyc-message",error?.message||"KYC verification error","error"))
-        .onMessage((type)=>{
-            if(type==="idCheck.applicantStatus"||type==="idCheck.onApplicantSubmitted"){
-                setMessage("kyc-message","Identity verification submitted. Awaiting secure review.","success");
-                refreshStatus();
-            }
-        })
-        .build();
+
     instance.launch("#sumsub-websdk-container");
 }
 document.getElementById("kyc-submit-button").addEventListener("click",async event=>{
@@ -498,5 +469,6 @@ window.addEventListener("load",async()=>{
         await refreshStatus();
     }catch(error){setMessage("paypal-payment-message",error.message,"error");}
 });
+
 
 
