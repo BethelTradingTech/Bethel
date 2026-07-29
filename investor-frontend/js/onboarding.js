@@ -1,4 +1,4 @@
-const ONBOARDING_API =
+﻿const ONBOARDING_API =
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname.startsWith("192.168.")
@@ -79,7 +79,7 @@ async function loadPlans(){
             const option=document.createElement("option");
             option.value=plan.id??plan.plan_id;
             const price=plan.price??plan.monthly_price??plan.amount;
-            const priceText=price!==undefined&&price!==null?` â€” $${Number(price).toLocaleString("en-US")}`:"";
+            const priceText=price!==undefined&&price!==null?` Ã¢â‚¬â€ $${Number(price).toLocaleString("en-US")}`:"";
             option.textContent=`${plan.name||plan.plan_name||`Plan ${option.value}`}${priceText}`;
             select.appendChild(option);
         }
@@ -121,17 +121,70 @@ async function refreshStatus(){
     const id=subscriberId();
     if(!id)return;
     const button=document.getElementById("refresh-status");
+    const registrationForm=event.currentTarget;
     button.disabled=true;button.textContent="Refreshing...";
     try{
         renderStatus(await apiRequest(`/onboarding/${id}`,{headers:subscriberHeaders()}));
     }catch(error){setMessage("status-message",error.message,"error");}
     finally{button.disabled=false;button.textContent="Refresh status";}
 }
+function showRegistration(){
+    const registrationPanel=document.getElementById("registration-panel");
+    if(registrationPanel)registrationPanel.hidden=false;
+    document.getElementById("login-panel").hidden=true;
+    document.getElementById("workflow").hidden=true;
+    document.getElementById("subscriber-logout").hidden=true;
+}
+
+document.getElementById("show-registration")?.addEventListener("click",showRegistration);
+document.getElementById("show-login")?.addEventListener("click",showLogin);
+
+document.getElementById("subscriber-registration-form")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const button=document.getElementById("subscriber-registration-button");
+    const name=document.getElementById("registration-name").value.trim();
+    const email=document.getElementById("registration-email").value.trim().toLowerCase();
+    const password=document.getElementById("registration-password").value;
+    const confirmPassword=document.getElementById("registration-confirm-password").value;
+    const consent=document.getElementById("registration-consent").checked;
+
+    setMessage("subscriber-registration-message","");
+    if(name.length<2){setMessage("subscriber-registration-message","Enter your full name.","error");return;}
+    if(password.length<8){setMessage("subscriber-registration-message","Password must contain at least 8 characters.","error");return;}
+    if(password!==confirmPassword){setMessage("subscriber-registration-message","Passwords do not match.","error");return;}
+    if(!consent){setMessage("subscriber-registration-message","Confirm the registration declaration to continue.","error");return;}
+
+    const registrationForm=event.currentTarget;
+    button.disabled=true;
+    button.textContent="Creating account...";
+    try{
+        const response=await fetch(ONBOARDING_API+"/copytrading/auth/register",{
+            method:"POST",
+            headers:{"Accept":"application/json","Content-Type":"application/json"},
+            body:JSON.stringify({name,email,password})
+        });
+        let data={};
+        try{data=await response.json();}catch(_){}
+        if(!response.ok)throw new Error(data.detail||data.message||`Registration failed (${response.status})`);
+
+        document.getElementById("subscriber-email").value=email;
+        registrationForm.reset();
+        showLogin();
+        setMessage("subscriber-login-error","Account created successfully. Enter your password to sign in.","success");
+        document.getElementById("subscriber-password").focus();
+    }catch(error){
+        setMessage("subscriber-registration-message",error.message,"error");
+    }finally{
+        button.disabled=false;
+        button.textContent="Create account";
+    }
+});
 document.getElementById("subscriber-login-form").addEventListener("submit",async event=>{
     event.preventDefault();
     const button=document.getElementById("subscriber-login-button");
     const email=document.getElementById("subscriber-email").value.trim();
     const password=document.getElementById("subscriber-password").value;
+    const registrationForm=event.currentTarget;
     button.disabled=true;button.textContent="Signing in...";
     setMessage("subscriber-login-error","");
     try{
@@ -151,6 +204,7 @@ document.getElementById("subscription-form").addEventListener("submit",async eve
     event.preventDefault();
     const button=event.submitter;
     const planId=Number(document.getElementById("plan-select").value);
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("subscription-message","Saving subscription...");
     try{
         await apiRequest(`/onboarding/${subscriberId()}/subscription`,{
@@ -168,6 +222,7 @@ document.getElementById("mt5-form").addEventListener("submit",async event=>{
         login:document.getElementById("mt5-account").value.trim(),
         server:document.getElementById("mt5-server").value.trim()
     };
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("mt5-message","Connecting MT5...");
     try{
         await apiRequest(`/broker-accounts/link/${subscriberId()}`,{
@@ -242,6 +297,7 @@ function launchSumsubWebSdk(accessToken){
 }
 document.getElementById("kyc-submit-button").addEventListener("click",async event=>{
     const button=event.currentTarget;
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("kyc-message","Opening secure identity verification...");
     try{
         const data=await requestSumsubToken();
@@ -253,6 +309,7 @@ document.getElementById("kyc-submit-button").addEventListener("click",async even
 });
 document.getElementById("paypal-pay-button").addEventListener("click",async event=>{
     const button=event.currentTarget;
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("paypal-payment-message","Creating PayPal sandbox checkout...");
     try{
         const data=await apiRequest(`/payments/paypal/${subscriberId()}/order`,{
@@ -269,6 +326,7 @@ document.getElementById("paypal-pay-button").addEventListener("click",async even
 
 document.getElementById("wise-instructions-button").addEventListener("click",async event=>{
     const button=event.currentTarget;
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("wise-payment-message","Loading Wise transfer details...");
     try{
         const data=await apiRequest(`/payments/wise/${subscriberId()}/instructions`,{
@@ -286,6 +344,7 @@ document.getElementById("wise-submit-button").addEventListener("click",async eve
     const button=event.currentTarget;
     const reference=document.getElementById("wise-reference").value.trim();
     if(!reference){setMessage("wise-payment-message","Enter the Wise transfer reference.","error");return;}
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("wise-payment-message","Submitting Wise transfer...");
     try{
         await apiRequest(`/payments/wise/${subscriberId()}/submit`,{
@@ -301,6 +360,7 @@ document.getElementById("payment-form").addEventListener("submit",async event=>{
     event.preventDefault();
     const button=event.submitter;
     const reference=document.getElementById("payment-reference").value.trim();
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("payment-message","Submitting payment reference...");
     try{
         await apiRequest(`/onboarding/${subscriberId()}/payment/submit`,{
@@ -314,6 +374,7 @@ document.getElementById("payment-form").addEventListener("submit",async event=>{
 
 document.getElementById("stripe-pay-button").addEventListener("click",async event=>{
     const button=event.currentTarget;
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("stripe-payment-message","Creating secure card checkout...");
     try{
         const data=await apiRequest(`/payments/stripe/${subscriberId()}/checkout`,{
@@ -330,6 +391,7 @@ document.getElementById("stripe-pay-button").addEventListener("click",async even
 
 document.getElementById("binance-pay-button").addEventListener("click",async event=>{
     const button=event.currentTarget;
+    const registrationForm=event.currentTarget;
     button.disabled=true;setMessage("binance-payment-message","Creating secure USDT checkout...");
     try{
         const data=await apiRequest(`/payments/binance/${subscriberId()}/order`,{
@@ -362,7 +424,7 @@ async function loadLegalDocuments(){
    details.className="legal-document";
    const summary=window.document.createElement("summary");
    const accepted=statusById.get(Number(document.id))?.accepted;
-   summary.textContent=`${document.title} — ${document.version}${accepted?" ✓ Accepted":""}`;
+   summary.textContent=`${document.title} â€” ${document.version}${accepted?" âœ“ Accepted":""}`;
    const content=window.document.createElement("pre");
    content.textContent=document.content;
    details.append(summary,content);container.append(details);
@@ -417,7 +479,7 @@ document.getElementById("subscriber-logout").addEventListener("click",()=>{clear
 (async function(){
     if(subscriberToken()&&subscriberId()){
         showWorkflow();await Promise.all([loadPlans(),refreshStatus(),loadProfitShare(),loadLegalDocuments()]);
-    }else showLogin();
+    }else showRegistration();
 })();
 
 
@@ -436,3 +498,5 @@ window.addEventListener("load",async()=>{
         await refreshStatus();
     }catch(error){setMessage("paypal-payment-message",error.message,"error");}
 });
+
+
