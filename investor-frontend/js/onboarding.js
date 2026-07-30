@@ -449,34 +449,6 @@ document.getElementById("accept-profit-share").addEventListener("click",async ev
 
 document.getElementById("refresh-status").addEventListener("click",refreshStatus);
 document.getElementById("subscriber-logout").addEventListener("click",()=>{clearSubscriberSession();showLogin();});
-(async function(){
-    if(subscriberToken()&&subscriberId()){
-        showWorkflow();await Promise.all([loadPlans(),refreshStatus(),loadProfitShare(),loadLegalDocuments()]);
-    }else showRegistration();
-})();
-
-
-window.addEventListener("load",async()=>{
-    const params=new URLSearchParams(window.location.search);
-    if(params.get("payment")!=="paypal-success"||!subscriberToken()||!subscriberId())return;
-    const orderId=params.get("token")||sessionStorage.getItem("bethel_paypal_order");
-    if(!orderId)return;
-    setMessage("paypal-payment-message","Confirming PayPal payment...");
-    try{
-        await apiRequest(`/payments/paypal/${subscriberId()}/capture/${encodeURIComponent(orderId)}`,{
-            method:"POST",headers:subscriberHeaders(true),body:JSON.stringify({})
-        });
-        sessionStorage.removeItem("bethel_paypal_order");
-        setMessage("paypal-payment-message","PayPal payment confirmed.","success");
-        await refreshStatus();
-    }catch(error){setMessage("paypal-payment-message",error.message,"error");}
-});
-
-
-
-
-
-
 
 const REGISTRATION_STEPS=[
     {step:1,label:"Account",description:"Profile created",authenticated:false},
@@ -579,3 +551,33 @@ function updateRegistrationStepStates(source={}){
 
 document.getElementById("registration-settings-button")?.addEventListener("click",toggleRegistrationSettings);
 document.getElementById("close-registration-settings")?.addEventListener("click",closeRegistrationSettings);
+
+
+(async function(){
+    if(subscriberToken()&&subscriberId()){
+        showWorkflow();await Promise.all([loadPlans(),refreshStatus(),loadProfitShare(),loadLegalDocuments()]);
+    }else showRegistration();
+})();
+
+
+window.addEventListener("load",async()=>{
+    const params=new URLSearchParams(window.location.search);
+    if(params.get("payment")!=="paypal-success"||!subscriberToken()||!subscriberId())return;
+    const orderId=params.get("token")||sessionStorage.getItem("bethel_paypal_order");
+    if(!orderId)return;
+    setMessage("paypal-payment-message","Confirming PayPal payment...");
+    try{
+        await apiRequest(`/payments/paypal/${subscriberId()}/capture/${encodeURIComponent(orderId)}`,{
+            method:"POST",headers:subscriberHeaders(true),body:JSON.stringify({})
+        });
+        sessionStorage.removeItem("bethel_paypal_order");
+        setMessage("paypal-payment-message","PayPal payment confirmed.","success");
+        await refreshStatus();
+    }catch(error){setMessage("paypal-payment-message",error.message,"error");}
+});
+
+
+
+
+
+
