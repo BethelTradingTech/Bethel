@@ -1,0 +1,24 @@
+name: Registration Interface CI
+
+on:
+  push:
+    branches: [feature/registration-step-navigation]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  registration-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate registration JavaScript
+        run: node --check investor-frontend/js/onboarding.js
+      - name: Validate required navigation hooks
+        run: |
+          grep -q 'registration-settings-button' investor-frontend/onboarding.html
+          grep -q 'registration-step-menu' investor-frontend/onboarding.html
+          grep -q 'openRegistrationStep' investor-frontend/js/onboarding.js
+          grep -q 'data-registration-step="9"' investor-frontend/onboarding.html
