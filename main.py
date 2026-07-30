@@ -391,6 +391,10 @@ try:
     from api.subscription_lifecycle.routes import router as subscription_lifecycle_router
     app.include_router(subscription_lifecycle_router)
 
+    from api.fund_management import models as fund_management_models
+    from api.fund_management.routes import router as fund_management_router
+    app.include_router(fund_management_router)
+
     from api.profit_share import models as profit_share_models
     from api.profit_share.routes import router as profit_share_router
     app.include_router(profit_share_router)
@@ -618,4 +622,3 @@ if __name__ == "__main__":
         reload=False
 
     )
-
