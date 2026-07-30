@@ -12,7 +12,7 @@
     <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/app-icon.svg">
     <link rel="stylesheet" href="css/investor.css?v=6">
-    <link rel="stylesheet" href="css/onboarding.css?v=10">
+    <link rel="stylesheet" href="css/onboarding.css?v=11">
     <script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
 </head>
 <body>
@@ -24,7 +24,10 @@
             <h1>Open your Bethel account</h1>
             <p>Complete secure registration, verification, account linking, and compliance review before activation.</p>
         </div>
-        <button id="subscriber-logout" type="button" hidden>Log out</button>
+        <div class="registration-header-actions">
+            <button id="registration-settings-button" type="button" aria-expanded="false" aria-controls="registration-settings" hidden>Registration settings</button>
+            <button id="subscriber-logout" type="button" hidden>Log out</button>
+        </div>
     </header>
 
     <section class="fintech-progress" aria-label="Account activation progress">
@@ -52,6 +55,18 @@
             <div class="progress-item"><span>10</span><strong>Active</strong><small>Dashboard access</small></div>
         </div>
     </section>
+
+    <aside id="registration-settings" class="registration-settings" aria-label="Registration step navigation" hidden>
+        <div class="settings-heading">
+            <div>
+                <span class="section-kicker">Registration settings</span>
+                <h2>Navigate your registration</h2>
+                <p>Open any registration phase to review or complete it. Administrative approval remains read-only.</p>
+            </div>
+            <button id="close-registration-settings" type="button" class="secondary-button">Close</button>
+        </div>
+        <nav id="registration-step-menu" class="registration-step-menu" aria-label="Registration phases"></nav>
+    </aside>
 
     <section class="trust-strip" aria-label="Platform safeguards">
         <div><strong>Non-custodial</strong><span>Your broker holds your trading funds</span></div>
@@ -112,7 +127,7 @@
         </section>
 
         <div class="onboarding-grid">
-            <section class="panel onboarding-panel">
+            <section id="registration-step-3" class="panel onboarding-panel registration-step-panel" data-registration-step="3">
                 <div class="step-heading"><span>3</span><div><h2>Select your service plan</h2><p>Choose the service plan for this account.</p></div></div>
                 <form id="subscription-form">
                     <label for="plan-select">Available plan</label>
@@ -122,7 +137,7 @@
                 </form>
             </section>
 
-            <section class="panel onboarding-panel">
+            <section id="registration-step-5" class="panel onboarding-panel registration-step-panel" data-registration-step="5">
                 <div class="step-heading"><span>5</span><div><h2>Connect your MT5 account</h2><p>Link the trading account that remains under your control.</p></div></div>
                 <form id="mt5-form">
                     <label for="mt5-broker">Broker</label>
@@ -136,14 +151,14 @@
                 </form>
             </section>
 
-            <section class="panel onboarding-panel">
+            <section id="registration-step-4" class="panel onboarding-panel registration-step-panel" data-registration-step="4">
                 <div class="step-heading"><span>4</span><div><h2>Verify your identity</h2><p>Notify compliance that your identity documents are ready for review.</p></div></div>
                 <button id="kyc-submit-button" type="button">Start identity verification</button>
                 <p id="kyc-message" class="form-message"></p>
                 <div id="sumsub-websdk-container"></div>
             </section>
 
-            <section class="panel onboarding-panel">
+            <section id="registration-step-8" class="panel onboarding-panel registration-step-panel" data-registration-step="8">
                 <div class="step-heading"><span>8</span><div><h2>Confirm subscription payment</h2><p>Enter your payment reference for administrative verification.</p></div></div>
                 <form id="payment-form">
                     <button id="stripe-pay-button" type="button">Pay securely by card</button>
@@ -173,7 +188,7 @@
             </section>
         </div>
 
-        <section id="profit-share-panel" class="panel onboarding-panel">
+        <section id="profit-share-panel" class="panel onboarding-panel registration-step-panel" data-registration-step="7">
             <div class="step-heading"><span>7</span><div><h2>Review performance-fee terms</h2><p>Review and accept the 20% performance fee before activation.</p></div></div>
             <div class="profit-share-terms">
                 <p><strong>You retain 80% of eligible realized profit. Bethel receives 20%.</strong></p>
@@ -185,7 +200,7 @@
             <div id="profit-share-summary" class="profit-share-summary"></div>
         </section>
 
-        <section id="legal-consent-panel" class="panel onboarding-panel">
+        <section id="legal-consent-panel" class="panel onboarding-panel registration-step-panel" data-registration-step="6">
             <div class="step-heading"><span>6</span><div><h2>Review legal agreements</h2><p>Read and accept every current document before activation.</p></div></div>
             <div class="legal-template-warning">Working templates Ã¢â‚¬â€ final documents require Barbados legal review.</div>
             <div id="legal-documents">Loading legal documentsÃ¢â‚¬Â¦</div>
@@ -194,7 +209,7 @@
             <p id="legal-consent-message" class="form-message"></p>
         </section>
 
-        <section class="panel onboarding-panel status-panel">
+        <section id="registration-step-9" class="panel onboarding-panel status-panel registration-step-panel" data-registration-step="9">
             <div class="status-panel-heading">
                 <div><div class="section-kicker">Steps 9Ã¢â‚¬â€œ10 of 10</div><h2>Compliance review and activation</h2><p class="muted">Your dashboard unlocks only after all required checks and administrative approval are complete.</p></div>
                 <button id="refresh-status" type="button">Refresh status</button>
@@ -205,7 +220,7 @@
         </section>
     </section>
 </main>
-<script src="js/onboarding.js?v=14"></script>
+<script src="js/onboarding.js?v=15"></script>
 <script src="js/pwa.js?v=3"></script>
 </body>
 </html>
