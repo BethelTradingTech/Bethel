@@ -57,16 +57,24 @@ function pick(data,names,fallback="PENDING"){
     return fallback;
 }
 function showLogin(){
+    document.getElementById("registration-panel").hidden=true;
     document.getElementById("login-panel").hidden=false;
     document.getElementById("workflow").hidden=true;
     document.getElementById("subscriber-logout").hidden=true;
+    document.getElementById("registration-settings-button").hidden=true;
+    closeRegistrationSettings();
+    markProgressStep(2);
 }
 function showWorkflow(){
+    document.getElementById("registration-panel").hidden=true;
     document.getElementById("login-panel").hidden=true;
     document.getElementById("workflow").hidden=false;
     document.getElementById("subscriber-logout").hidden=false;
+    document.getElementById("registration-settings-button").hidden=false;
     document.getElementById("subscriber-id").textContent=subscriberId();
     document.getElementById("subscriber-name").textContent=localStorage.getItem(SUBSCRIBER_NAME_KEY)||"Subscriber";
+    initializeRegistrationNavigation();
+    openRegistrationStep(Number(sessionStorage.getItem("bethel_registration_step")||3),false);
 }
 async function loadPlans(){
     const select=document.getElementById("plan-select");
@@ -123,7 +131,9 @@ async function refreshStatus(){
     const button=document.getElementById("refresh-status");
     button.disabled=true;button.textContent="Refreshing...";
     try{
-        renderStatus(await apiRequest(`/onboarding/${id}`,{headers:subscriberHeaders()}));
+        const statusData=await apiRequest(`/onboarding/${id}`,{headers:subscriberHeaders()});
+        renderStatus(statusData);
+        updateRegistrationStepStates(statusData.onboarding||statusData.statuses||statusData);
     }catch(error){setMessage("status-message",error.message,"error");}
     finally{button.disabled=false;button.textContent="Refresh status";}
 }
@@ -133,6 +143,9 @@ function showRegistration(){
     document.getElementById("login-panel").hidden=true;
     document.getElementById("workflow").hidden=true;
     document.getElementById("subscriber-logout").hidden=true;
+    document.getElementById("registration-settings-button").hidden=true;
+    closeRegistrationSettings();
+    markProgressStep(1);
 }
 
 document.getElementById("show-registration")?.addEventListener("click",showRegistration);
@@ -463,3 +476,106 @@ window.addEventListener("load",async()=>{
 
 
 
+
+
+const REGISTRATION_STEPS=[
+    {step:1,label:"Account",description:"Profile created",authenticated:false},
+    {step:2,label:"Access",description:"Secure sign-in",authenticated:false},
+    {step:3,label:"Plan",description:"Select service plan",target:"registration-step-3"},
+    {step:4,label:"Identity",description:"Identity verification",target:"registration-step-4"},
+    {step:5,label:"Broker",description:"Connect MT5",target:"registration-step-5"},
+    {step:6,label:"Legal",description:"Accept agreements",target:"legal-consent-panel"},
+    {step:7,label:"Fees",description:"Profit-share terms",target:"profit-share-panel"},
+    {step:8,label:"Payment",description:"Confirm subscription",target:"registration-step-8"},
+    {step:9,label:"Review",description:"Compliance review",target:"registration-step-9"},
+    {step:10,label:"Active",description:"Dashboard access",target:"registration-step-9"}
+];
+let registrationNavigationReady=false;
+
+function markProgressStep(step){
+    document.querySelectorAll(".progress-item").forEach((item,index)=>{
+        item.classList.toggle("current",index+1===Number(step));
+        item.setAttribute("aria-current",index+1===Number(step)?"step":"false");
+    });
+}
+function closeRegistrationSettings(){
+    const panel=document.getElementById("registration-settings");
+    const button=document.getElementById("registration-settings-button");
+    if(panel)panel.hidden=true;
+    if(button)button.setAttribute("aria-expanded","false");
+}
+function toggleRegistrationSettings(){
+    const panel=document.getElementById("registration-settings");
+    const button=document.getElementById("registration-settings-button");
+    if(!panel||!button)return;
+    panel.hidden=!panel.hidden;
+    button.setAttribute("aria-expanded",String(!panel.hidden));
+    if(!panel.hidden)panel.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function openRegistrationStep(step,scroll=true){
+    const requested=Math.min(10,Math.max(3,Number(step)||3));
+    const definition=REGISTRATION_STEPS.find(item=>item.step===requested);
+    if(!definition?.target)return;
+    document.querySelectorAll(".registration-step-panel").forEach(panel=>panel.hidden=true);
+    const panel=document.getElementById(definition.target);
+    if(!panel)return;
+    panel.hidden=false;
+    panel.dataset.visibleRegistrationStep=String(requested);
+    sessionStorage.setItem("bethel_registration_step",String(requested));
+    markProgressStep(requested);
+    document.querySelectorAll(".registration-step-button").forEach(button=>{
+        const active=Number(button.dataset.step)===requested;
+        button.classList.toggle("active",active);
+        button.setAttribute("aria-current",active?"step":"false");
+    });
+    closeRegistrationSettings();
+    if(scroll)panel.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function initializeRegistrationNavigation(){
+    const menu=document.getElementById("registration-step-menu");
+    if(!menu||registrationNavigationReady)return;
+    registrationNavigationReady=true;
+    menu.replaceChildren();
+    REGISTRATION_STEPS.forEach(item=>{
+        const button=document.createElement("button");
+        button.type="button";
+        button.className="registration-step-button";
+        button.dataset.step=String(item.step);
+        button.innerHTML=`<span>${item.step}</span><strong>${item.label}</strong><small>${item.description}</small>`;
+        if(item.step<3){
+            button.disabled=true;
+            button.classList.add("complete");
+            button.title="Account creation and sign-in are complete for this session.";
+        }else{
+            button.addEventListener("click",()=>openRegistrationStep(item.step));
+        }
+        menu.appendChild(button);
+    });
+    document.querySelectorAll(".progress-item").forEach((item,index)=>{
+        const step=index+1;
+        if(step>=3){
+            item.tabIndex=0;
+            item.setAttribute("role","button");
+            item.addEventListener("click",()=>openRegistrationStep(step));
+            item.addEventListener("keydown",event=>{
+                if(event.key==="Enter"||event.key===" "){event.preventDefault();openRegistrationStep(step);}
+            });
+        }
+    });
+}
+function updateRegistrationStepStates(source={}){
+    const complete={
+        3:["ACTIVE","APPROVED","COMPLETE","PAID"].includes(pick(source,["subscription_status","subscription","subscription_state"])),
+        4:["APPROVED","COMPLETE","VERIFIED"].includes(pick(source,["kyc_status","kyc","identity_status"])),
+        5:["CONNECTED","COMPLETE","APPROVED"].includes(pick(source,["broker_status","mt5_status","broker","mt5"])),
+        8:["PAID","COMPLETE","APPROVED"].includes(pick(source,["payment_status","payment","billing_status"])),
+        9:["APPROVED","COMPLETE","ACTIVE"].includes(pick(source,["admin_status","admin_approval","approval_status"])),
+        10:["ACTIVE","ACTIVATED","COMPLETE","APPROVED"].includes(pick(source,["activation_status","copy_trading_status","status"]))
+    };
+    document.querySelectorAll(".registration-step-button").forEach(button=>{
+        if(complete[Number(button.dataset.step)])button.classList.add("complete");
+    });
+}
+
+document.getElementById("registration-settings-button")?.addEventListener("click",toggleRegistrationSettings);
+document.getElementById("close-registration-settings")?.addEventListener("click",closeRegistrationSettings);
