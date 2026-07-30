@@ -61,15 +61,15 @@
 
         .logo {
             margin-right: auto;
-            font-weight: 700;
-            font-size: 1.25rem;
-            color: var(--text-primary);
+            display: inline-flex;
+            align-items: center;
             text-decoration: none;
-            letter-spacing: -0.5px;
         }
 
-        .logo span {
-            color: var(--accent-color);
+        .logo img {
+            display: block;
+            width: clamp(190px, 22vw, 275px);
+            height: auto;
         }
 
         .nav-links {
@@ -495,7 +495,9 @@
 
     <header>
         <div class="nav-container">
-            <a href="#" class="logo">Bethel<span>Trading</span></a>
+            <a href="#" class="logo" aria-label="Bethel Trading Technologies home">
+                <img src="assets/images/bethel-logo.png?v=20260730" alt="Bethel Trading Technologies">
+            </a>
             <ul class="nav-links">
                 <li><a href="#about">About Us</a></li>
                 <li><a href="#services">Services</a></li>
@@ -507,7 +509,7 @@
     </header>
 
     <section class="hero">
-        <img src="assets/images/bethel-logo.png" alt="Bethel Trading-Tech Technologies" class="hero-logo">
+        <img src="assets/images/bethel-logo.png?v=20260730" alt="Bethel Trading Technologies" class="hero-logo">
         <span class="badge">Smart Trading Systems</span>
         <h1>Algorithmic Trading Technology for Modern Investors</h1>
         <p>Discipline-driven execution. Fully transparent algorithms. Rigorous institutional-grade risk management.</p>
@@ -633,7 +635,9 @@
     <footer>
         <div class="footer-content">
             <div class="footer-top">
-                <a href="#" class="logo">Bethel<span>Trading</span></a>
+                <a href="#" class="logo" aria-label="Bethel Trading Technologies home">
+                    <img src="assets/images/bethel-logo.png?v=20260730" alt="Bethel Trading Technologies">
+                </a>
                 <p style="font-size: 0.9rem; color: var(--text-secondary);">&copy; 2026 Bethel Trading Technologies. All rights reserved.</p>
             </div>
             <div class="disclaimer">
@@ -645,5 +649,4 @@
 <a href="https://api.betheltradingtechnologies.com/investor-frontend/onboarding.html" class="onboarding-float" aria-label="Open user registration">Register Now &rarr;</a>
 </body>
 </html>
-
 
