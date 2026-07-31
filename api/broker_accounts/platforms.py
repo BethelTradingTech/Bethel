@@ -37,7 +37,7 @@ PLATFORM_CAPABILITIES = {
     TradingPlatform.MT5: {
         "display_name": "MetaTrader 5",
         "authorization": "LOCAL_TERMINAL",
-        "live_execution": False,
+        "live_execution": True,
     },
     TradingPlatform.CTRADER: {
         "display_name": "cTrader",
