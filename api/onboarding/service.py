@@ -95,6 +95,12 @@ def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
         "legal_consent": all_current_accepted(db, onboarding.subscriber_id),
     }
 
+    broker_account = (
+        db.query(BrokerAccount)
+        .filter(BrokerAccount.subscriber_id == onboarding.subscriber_id)
+        .first()
+    )
+
     return {
         "subscriber_id": onboarding.subscriber_id,
         "subscription_lifecycle": lifecycle_snapshot(db, onboarding.subscriber_id),
@@ -104,6 +110,19 @@ def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
         "payment_status": onboarding.payment_status,
         "payment_reference": onboarding.payment_reference,
         "broker_status": onboarding.broker_status,
+        "broker_account": (
+            {
+                "id": broker_account.id,
+                "platform": broker_account.platform,
+                "broker": broker_account.broker,
+                "login": broker_account.login,
+                "server": broker_account.server,
+                "execution_mode": broker_account.execution_mode,
+                "live_authorized": broker_account.live_authorized,
+            }
+            if broker_account
+            else None
+        ),
         "admin_approval": onboarding.admin_approval,
         "copy_trading_status": onboarding.copy_trading_status,
         "rejection_reason": onboarding.rejection_reason,
