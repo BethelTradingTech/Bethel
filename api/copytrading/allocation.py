@@ -25,6 +25,7 @@ from api.copytrading.models import (
 )
 from datetime import datetime
 from api.subscription_lifecycle.service import sweep_subscriptions
+from api.copytrading.volume_policy import calculate_subscriber_volume
 
 
 class AllocationEngine:
@@ -82,9 +83,10 @@ class AllocationEngine:
 
         for subscriber in subscribers:
 
-            volume = AllocationEngine.calculate_volume(
+            volume = calculate_subscriber_volume(
+                db,
                 master.volume,
-                subscriber
+                subscriber.id,
             )
 
             order = CopyOrder(
