@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 
 from api.database import Base
 
@@ -26,7 +26,10 @@ class BrokerAccount(Base):
 
     status = Column(String(32), default="PENDING_AUTHORIZATION", index=True)
     connection_method = Column(String(32), default="LOCAL_TERMINAL")
-    execution_mode = Column(String(16), default="PAPER")
+    execution_mode = Column(String(16), nullable=False, default="PAPER")
+    live_authorized = Column(Boolean, nullable=False, default=False, index=True)
+    live_authorized_at = Column(DateTime, nullable=True)
+    live_authorized_by = Column(String(255), nullable=True)
 
     currency = Column(String(12), default="USD")
     leverage = Column(Integer, default=100)
