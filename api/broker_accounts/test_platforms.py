@@ -11,7 +11,7 @@ def test_platform_aliases():
     assert normalize_platform("match-trader") == TradingPlatform.MATCH_TRADER
 
 
-def test_all_platforms_remain_paper_only():
+def test_platform_capabilities_are_explicit():
     capabilities = platform_capabilities()
     assert {item["platform"] for item in capabilities} == {
         "MT4",
@@ -20,4 +20,10 @@ def test_all_platforms_remain_paper_only():
         "MATCH_TRADER",
     }
     assert all(item["mode"] == "PAPER" for item in capabilities)
-    assert all(item["live_execution"] is False for item in capabilities)
+    live = {item["platform"]: item["live_execution"] for item in capabilities}
+    assert live == {
+        "MT4": False,
+        "MT5": True,
+        "CTRADER": False,
+        "MATCH_TRADER": False,
+    }
