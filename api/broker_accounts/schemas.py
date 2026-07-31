@@ -13,7 +13,7 @@ class BrokerAccountLinkRequest(BaseModel):
     login: str = Field(..., min_length=1, max_length=100)
     server: str = Field(..., min_length=2, max_length=255)
     account_type: Literal["STANDARD", "CENT"] = "STANDARD"
-    starting_capital_usd: Optional[float] = Field(default=None, gt=0)
+    starting_capital_usd: float = Field(..., gt=0)
 
     @field_validator("starting_capital_usd")
     @classmethod
