@@ -14,6 +14,9 @@ def ensure_multiplatform_columns(engine):
         "connection_method": "VARCHAR(32) NOT NULL DEFAULT 'LOCAL_TERMINAL'",
         "execution_mode": "VARCHAR(16) NOT NULL DEFAULT 'PAPER'",
         "last_verified_at": "DATETIME",
+        "live_authorized": "BOOLEAN NOT NULL DEFAULT 0",
+        "live_authorized_at": "DATETIME",
+        "live_authorized_by": "VARCHAR(255)",
     }
 
     with engine.begin() as connection:
