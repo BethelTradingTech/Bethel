@@ -73,6 +73,20 @@ def _prepare_connection(data: BrokerAccountLinkRequest):
     platform = data.platform
     capability = PLATFORM_CAPABILITIES[platform]
 
+    if data.starting_capital_usd < 1000 and data.account_type != "CENT":
+        raise HTTPException(
+            status_code=422,
+            detail="Starting capital below 1000 USD must use the Cent account pathway",
+        )
+    if data.account_type == "CENT" and platform not in {
+        TradingPlatform.MT4,
+        TradingPlatform.MT5,
+    }:
+        raise HTTPException(
+            status_code=422,
+            detail="Cent accounts are currently supported only on MT4 and MT5",
+        )
+
     if platform == TradingPlatform.MT5:
         result = _verify_mt5_terminal(data)
     else:
