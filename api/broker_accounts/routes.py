@@ -51,12 +51,21 @@ def _verify_mt5_terminal(data: BrokerAccountLinkRequest):
             detail="Submitted MT5 server does not match the connected terminal server",
         )
 
+    currency = str(getattr(account, "currency", None) or "USD")
+    cent_currency = currency.upper() in {"USC", "USCENT", "USCENTS", "CENT"}
+    if data.account_type == "CENT" and not cent_currency:
+        raise HTTPException(
+            status_code=409,
+            detail="Connected MT5 account does not report a supported cent currency",
+        )
+
     return {
         "status": "CONNECTED",
         "server": actual_server or data.server,
-        "currency": getattr(account, "currency", None) or "USD",
+        "currency": currency,
         "leverage": int(getattr(account, "leverage", 0) or 0),
         "last_verified_at": datetime.utcnow(),
+        "capital_verified": data.account_type == "STANDARD" or cent_currency,
     }
 
 
@@ -76,6 +85,7 @@ def _prepare_connection(data: BrokerAccountLinkRequest):
             "currency": "USD",
             "leverage": 0,
             "last_verified_at": None,
+            "capital_verified": False,
         }
 
     return {
@@ -118,6 +128,9 @@ def _save_account(db: Session, subscriber_id: int, data: BrokerAccountLinkReques
     account.platform = platform
     account.broker = data.broker
     account.server = prepared["server"]
+    account.account_type = data.account_type
+    account.starting_capital_usd = data.starting_capital_usd
+    account.capital_verified = prepared["capital_verified"]
     account.status = prepared["status"]
     account.connection_method = prepared["connection_method"]
     account.execution_mode = prepared["execution_mode"]
@@ -201,6 +214,15 @@ def set_live_access(
             raise HTTPException(
                 status_code=409,
                 detail="MT5 account must be verified and connected",
+            )
+        if account.account_type == "CENT" and (
+            account.starting_capital_usd is None
+            or account.starting_capital_usd >= 1000
+            or not account.capital_verified
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Cent account capital and broker denomination must be verified",
             )
         if not subscriber_can_copy(db, account.subscriber_id):
             raise HTTPException(
