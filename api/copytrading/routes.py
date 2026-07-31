@@ -73,7 +73,8 @@ router = APIRouter(
 )
 def create_subscriber(
     subscriber: SubscriberCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     new_subscriber = models.CopySubscriber(
@@ -335,7 +336,8 @@ def bridge_execute(
     "/orders"
 )
 def list_copy_orders(
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     orders=(
@@ -351,7 +353,7 @@ def list_copy_orders(
 
         "status":"success",
 
-        "mode":"PAPER",
+        "mode":EXECUTION_MODE,
 
         "total_orders":len(orders),
 
