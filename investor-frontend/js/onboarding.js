@@ -227,21 +227,43 @@ document.getElementById("subscription-form").addEventListener("submit",async eve
     }catch(error){setMessage("subscription-message",error.message,"error");}
     finally{button.disabled=false;}
 });
-document.getElementById("mt5-form").addEventListener("submit",async event=>{
+const PLATFORM_NAMES={MT4:"MetaTrader 4",MT5:"MetaTrader 5",CTRADER:"cTrader",MATCH_TRADER:"Match-Trader"};
+function updateTradingPlatformForm(){
+    const platform=document.getElementById("trading-platform")?.value||"MT5";
+    const name=PLATFORM_NAMES[platform]||platform;
+    document.getElementById("trading-account-label").textContent=`${name} account number or ID`;
+    document.getElementById("trading-server-label").textContent=
+        platform==="CTRADER"?"cTrader broker environment":
+        platform==="MATCH_TRADER"?"Match-Trader broker URL or environment":
+        `${name} server`;
+}
+document.getElementById("trading-platform")?.addEventListener("change",updateTradingPlatformForm);
+updateTradingPlatformForm();
+document.getElementById("trading-account-form").addEventListener("submit",async event=>{
     event.preventDefault();
     const button=event.submitter;
+    const platform=document.getElementById("trading-platform").value;
+    const platformName=PLATFORM_NAMES[platform]||platform;
     const payload={
-        broker:document.getElementById("mt5-broker").value.trim(),
-        login:document.getElementById("mt5-account").value.trim(),
-        server:document.getElementById("mt5-server").value.trim()
+        platform,
+        broker:document.getElementById("trading-broker").value.trim(),
+        login:document.getElementById("trading-account").value.trim(),
+        server:document.getElementById("trading-server").value.trim()
     };
-    button.disabled=true;setMessage("mt5-message","Connecting MT5...");
+    button.disabled=true;setMessage("trading-account-message",`Linking ${platformName} account...`);
     try{
-        await apiRequest(`/broker-accounts/link/${subscriberId()}`,{
+        const account=await apiRequest(`/broker-accounts/link/${subscriberId()}`,{
             method:"POST",headers:subscriberHeaders(true),body:JSON.stringify(payload)
         });
-        setMessage("mt5-message","MT5 account verified and connected.","success");await refreshStatus();
-    }catch(error){setMessage("mt5-message",error.message,"error");}
+        const pending=account.status==="PENDING_AUTHORIZATION";
+        setMessage(
+            "trading-account-message",
+            pending?`${platformName} account saved. Secure platform authorization is still required.`:
+                `${platformName} account verified and connected.`,
+            pending?"":"success"
+        );
+        await refreshStatus();
+    }catch(error){setMessage("trading-account-message",error.message,"error");}
     finally{button.disabled=false;}
 });
 async function requestSumsubToken(){
