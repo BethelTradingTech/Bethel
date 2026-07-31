@@ -1,6 +1,6 @@
 """API schemas for multi-platform subscriber broker-account linking."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -28,6 +28,11 @@ class BrokerAccountCreate(BrokerAccountLinkRequest):
     subscriber_id: int
 
 
+class LiveAccessRequest(BaseModel):
+    enabled: bool
+    confirmation: Literal["ENABLE LIVE MT5", "DISABLE LIVE MT5"]
+
+
 class BrokerAccountResponse(BaseModel):
     id: int
     subscriber_id: int
@@ -38,6 +43,7 @@ class BrokerAccountResponse(BaseModel):
     status: str
     connection_method: str
     execution_mode: str
+    live_authorized: bool = False
     currency: Optional[str] = None
     leverage: Optional[int] = None
 
