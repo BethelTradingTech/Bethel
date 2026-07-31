@@ -12,6 +12,16 @@ class BrokerAccountLinkRequest(BaseModel):
     broker: str = Field(..., min_length=2, max_length=100)
     login: str = Field(..., min_length=1, max_length=100)
     server: str = Field(..., min_length=2, max_length=255)
+    account_type: Literal["STANDARD", "CENT"] = "STANDARD"
+    starting_capital_usd: Optional[float] = Field(default=None, gt=0)
+
+    @field_validator("starting_capital_usd")
+    @classmethod
+    def validate_starting_capital(cls, value, info):
+        account_type = str(info.data.get("account_type", "STANDARD")).upper()
+        if account_type == "CENT" and (value is None or value >= 1000):
+            raise ValueError("Cent accounts require starting capital below 1000 USD")
+        return value
 
     @field_validator("platform", mode="before")
     @classmethod
@@ -40,6 +50,9 @@ class BrokerAccountResponse(BaseModel):
     broker: str
     login: str
     server: str
+    account_type: str
+    starting_capital_usd: Optional[float] = None
+    capital_verified: bool = False
     status: str
     connection_method: str
     execution_mode: str
