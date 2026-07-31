@@ -1,55 +1,44 @@
-﻿"""
-Bethel Trading Technologies
+"""API schemas for multi-platform subscriber broker-account linking."""
 
-Broker Account Schemas
-
-Purpose:
-    API validation for subscriber MT5 account linking.
-"""
-
-from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-class BrokerAccountCreate(BaseModel):
-
-    subscriber_id: int
-
-    broker: str = "MT5"
-
-    login: str
-
-    server: str
-
+from api.broker_accounts.platforms import TradingPlatform, normalize_platform
 
 
 class BrokerAccountLinkRequest(BaseModel):
+    platform: TradingPlatform = TradingPlatform.MT5
+    broker: str = Field(..., min_length=2, max_length=100)
+    login: str = Field(..., min_length=1, max_length=100)
+    server: str = Field(..., min_length=2, max_length=255)
 
-    broker: str = "MT5"
+    @field_validator("platform", mode="before")
+    @classmethod
+    def validate_platform(cls, value):
+        return normalize_platform(value)
 
-    login: str
+    @field_validator("broker", "login", "server")
+    @classmethod
+    def strip_values(cls, value):
+        return str(value).strip()
 
-    server: str
+
+class BrokerAccountCreate(BrokerAccountLinkRequest):
+    subscriber_id: int
 
 
 class BrokerAccountResponse(BaseModel):
-
     id: int
-
     subscriber_id: int
-
+    platform: str
     broker: str
-
     login: str
-
     server: str
-
     status: str
-
+    connection_method: str
+    execution_mode: str
     currency: Optional[str] = None
-
     leverage: Optional[int] = None
 
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
