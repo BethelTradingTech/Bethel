@@ -36,7 +36,7 @@ async function renderSubscribers(rows){
   if(o.error)return `<tr><td><strong>${escapeHtml(r.name)}</strong><br><small>${escapeHtml(r.email)}</small></td><td colspan="5">${escapeHtml(o.error)}</td><td><button class="review-action" data-action="refresh" data-id="${r.id}">Retry</button></td></tr>`;
   const paymentReference=o.payment_reference?`<small>${escapeHtml(o.payment_reference)}</small>`:"";
   const account=o.broker_account||null;
-  const accountDetails=account?`<br><small>${escapeHtml(account.platform)} · ${escapeHtml(account.broker)} · ${escapeHtml(account.login)}</small><br>${stateBadge(account.live_authorized?"LIVE AUTHORIZED":"PAPER ONLY")}`:"";
+  const accountDetails=account?`<br><small>${escapeHtml(account.platform)} · ${escapeHtml(account.account_type||"STANDARD")} · ${escapeHtml(account.broker)} · ${escapeHtml(account.login)}</small><br><small>Starting capital: ${Number(account.starting_capital_usd||0).toFixed(2)} · ${account.capital_verified?"Verified":"Not verified"}</small><br>${stateBadge(account.live_authorized?"LIVE AUTHORIZED":"PAPER ONLY")}`:"";
   return `<tr>
    <td><strong>${escapeHtml(r.name)}</strong><br><small>ID ${r.id} - ${escapeHtml(r.email)}</small></td>
    <td>${stateBadge(o.subscription_status)}</td>
