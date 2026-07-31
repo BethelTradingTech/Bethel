@@ -33,3 +33,19 @@ def calculate_copy_volume(
         volume = max(MIN_COPY_VOLUME, volume)
 
     return float(volume.quantize(MIN_COPY_VOLUME, rounding=ROUND_HALF_UP))
+
+
+def calculate_subscriber_volume(db, master_volume: float, subscriber_id: int) -> float:
+    from api.broker_accounts.models import BrokerAccount
+
+    account = db.query(BrokerAccount).filter(
+        BrokerAccount.subscriber_id == subscriber_id
+    ).first()
+    if account is None:
+        return calculate_copy_volume(master_volume)
+
+    return calculate_copy_volume(
+        master_volume,
+        account_type=account.account_type,
+        starting_capital_usd=account.starting_capital_usd,
+    )
