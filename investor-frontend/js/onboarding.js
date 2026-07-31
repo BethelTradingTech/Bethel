@@ -237,8 +237,26 @@ function updateTradingPlatformForm(){
         platform==="MATCH_TRADER"?"Match-Trader broker URL or environment":
         `${name} server`;
 }
-document.getElementById("trading-platform")?.addEventListener("change",updateTradingPlatformForm);
+function updateAccountPathway(){
+    const capital=Number(document.getElementById("starting-capital")?.value||0);
+    const accountType=document.getElementById("trading-account-type");
+    if(capital>0){
+        accountType.value=capital<1000?"CENT":"STANDARD";
+    }
+    const isCent=accountType.value==="CENT";
+    const platform=document.getElementById("trading-platform").value;
+    const supported=platform==="MT4"||platform==="MT5";
+    setMessage(
+        "trading-account-message",
+        isCent&&!supported?"Cent accounts below USD 1,000 currently require MT4 or MT5.":"",
+        isCent&&!supported?"error":""
+    );
+}
+document.getElementById("trading-platform")?.addEventListener("change",()=>{updateTradingPlatformForm();updateAccountPathway();});
+document.getElementById("starting-capital")?.addEventListener("input",updateAccountPathway);
+document.getElementById("trading-account-type")?.addEventListener("change",updateAccountPathway);
 updateTradingPlatformForm();
+updateAccountPathway();
 document.getElementById("trading-account-form").addEventListener("submit",async event=>{
     event.preventDefault();
     const button=event.submitter;
@@ -248,7 +266,9 @@ document.getElementById("trading-account-form").addEventListener("submit",async 
         platform,
         broker:document.getElementById("trading-broker").value.trim(),
         login:document.getElementById("trading-account").value.trim(),
-        server:document.getElementById("trading-server").value.trim()
+        server:document.getElementById("trading-server").value.trim(),
+        account_type:document.getElementById("trading-account-type").value,
+        starting_capital_usd:Number(document.getElementById("starting-capital").value)
     };
     button.disabled=true;setMessage("trading-account-message",`Linking ${platformName} account...`);
     try{
@@ -259,7 +279,7 @@ document.getElementById("trading-account-form").addEventListener("submit",async 
         setMessage(
             "trading-account-message",
             pending?`${platformName} account saved. Secure platform authorization is still required.`:
-                `${platformName} account verified and connected.`,
+                `${platformName} ${account.account_type==="CENT"?"cent ":""}account verified and connected.`,
             pending?"":"success"
         );
         await refreshStatus();
@@ -478,7 +498,7 @@ document.getElementById("subscriber-logout").addEventListener("click",()=>{clear
 const REGISTRATION_STEPS=[
     {step:3,displayStep:1,label:"Plan",description:"Select service plan",target:"registration-step-3"},
     {step:4,displayStep:2,label:"Identity",description:"Identity verification",target:"registration-step-4"},
-    {step:5,displayStep:3,label:"Broker",description:"Connect MT5",target:"registration-step-5"},
+    {step:5,displayStep:3,label:"Broker",description:"Link standard or cent account",target:"registration-step-5"},
     {step:6,displayStep:4,label:"Legal",description:"Accept agreements",target:"legal-consent-panel"},
     {step:7,displayStep:5,label:"Fees",description:"Profit-share terms",target:"profit-share-panel"},
     {step:8,displayStep:6,label:"Payment",description:"Confirm subscription",target:"registration-step-8"},
