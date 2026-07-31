@@ -117,6 +117,9 @@ def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
                 "broker": broker_account.broker,
                 "login": broker_account.login,
                 "server": broker_account.server,
+                "account_type": broker_account.account_type,
+                "starting_capital_usd": broker_account.starting_capital_usd,
+                "capital_verified": broker_account.capital_verified,
                 "execution_mode": broker_account.execution_mode,
                 "live_authorized": broker_account.live_authorized,
             }
