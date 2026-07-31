@@ -17,6 +17,9 @@ def ensure_multiplatform_columns(engine):
         "live_authorized": "BOOLEAN NOT NULL DEFAULT 0",
         "live_authorized_at": "DATETIME",
         "live_authorized_by": "VARCHAR(255)",
+        "account_type": "VARCHAR(16) NOT NULL DEFAULT 'STANDARD'",
+        "starting_capital_usd": "FLOAT",
+        "capital_verified": "BOOLEAN NOT NULL DEFAULT 0",
     }
 
     with engine.begin() as connection:
