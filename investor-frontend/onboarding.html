@@ -148,6 +148,14 @@
                         <option value="CTRADER">cTrader</option>
                         <option value="MATCH_TRADER">Match-Trader</option>
                     </select>
+                    <label for="starting-capital">Starting trading capital (USD equivalent)</label>
+                    <input id="starting-capital" type="number" min="1" step="0.01" placeholder="Example: 500" required>
+                    <label for="trading-account-type">Account pathway</label>
+                    <select id="trading-account-type" required>
+                        <option value="STANDARD">Standard account — USD 1,000 or more</option>
+                        <option value="CENT">Cent account — below USD 1,000</option>
+                    </select>
+                    <p id="cent-account-guidance" class="muted">Accounts below USD 1,000 are automatically assigned to the MT4/MT5 Cent Account pathway.</p>
                     <label for="trading-broker">Broker name</label>
                     <input id="trading-broker" type="text" placeholder="Example: HF Markets" required>
                     <label id="trading-account-label" for="trading-account">Account number</label>
@@ -229,7 +237,7 @@
         </section>
     </section>
 </main>
-<script src="js/onboarding.js?v=17"></script>
+<script src="js/onboarding.js?v=18"></script>
 <script src="js/pwa.js?v=3"></script>
 </body>
 </html>
