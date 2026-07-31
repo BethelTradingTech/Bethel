@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 
 from api.database import Base
 
@@ -23,6 +23,9 @@ class BrokerAccount(Base):
     platform = Column(String(32), nullable=False, default="MT5", index=True)
     login = Column(String(100), unique=True, nullable=False)
     server = Column(String(255), nullable=False)
+    account_type = Column(String(16), nullable=False, default="STANDARD", index=True)
+    starting_capital_usd = Column(Float, nullable=True)
+    capital_verified = Column(Boolean, nullable=False, default=False)
 
     status = Column(String(32), default="PENDING_AUTHORIZATION", index=True)
     connection_method = Column(String(32), default="LOCAL_TERMINAL")
