@@ -53,6 +53,7 @@ from api.copytrading.sync_engine import TradeSyncEngine
 from api.copytrading.allocation import AllocationEngine
 from api.copytrading.subscriber_bridge import SubscriberBridge
 from api.subscription_lifecycle.service import sweep_subscriptions
+from config.execution import EXECUTION_MODE
 
 
 
@@ -72,7 +73,8 @@ router = APIRouter(
 )
 def create_subscriber(
     subscriber: SubscriberCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     new_subscriber = models.CopySubscriber(
@@ -136,7 +138,8 @@ def list_subscribers(
 )
 def receive_master_trade(
     trade: MasterTradeCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
 
@@ -224,7 +227,8 @@ def receive_master_trade(
     "/sync/{master_trade_id}"
 )
 def sync_master_trade(
-    master_trade_id:int
+    master_trade_id:int,
+    _admin=Depends(require_admin),
 ):
 
     db=SessionLocal()
@@ -253,7 +257,8 @@ def sync_master_trade(
 )
 def sync_open_trade(
     master_ticket:int,
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     master_trade=(
@@ -309,22 +314,14 @@ def sync_open_trade(
     "/bridge-execute"
 )
 def bridge_execute(
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    _admin=Depends(require_admin),
 ):
-
     results=SubscriberBridge.process_orders(db)
-
-
     return {
-
-        "status":"success",
-
-        "mode":"PAPER",
-
-        "executed":results,
-
-        "count":len(results)
-
+        "status": "success",
+        "mode": EXECUTION_MODE,
+        **results,
     }
 
 
@@ -339,7 +336,8 @@ def bridge_execute(
     "/orders"
 )
 def list_copy_orders(
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    _admin=Depends(require_admin),
 ):
 
     orders=(
@@ -355,7 +353,7 @@ def list_copy_orders(
 
         "status":"success",
 
-        "mode":"PAPER",
+        "mode":EXECUTION_MODE,
 
         "total_orders":len(orders),
 

@@ -44,7 +44,18 @@ def refresh_broker_status(db: Session, onboarding: ClientOnboarding):
         )
         .first()
     )
-    onboarding.broker_status = "CONNECTED" if account else "NOT_CONNECTED"
+    eligible = bool(
+        account
+        and (
+            account.account_type != "CENT"
+            or (
+                account.capital_verified
+                and account.starting_capital_usd is not None
+                and account.starting_capital_usd < 1000
+            )
+        )
+    )
+    onboarding.broker_status = "CONNECTED" if eligible else "NOT_CONNECTED"
 
 
 def recompute_activation(db: Session, onboarding: ClientOnboarding):
@@ -95,6 +106,12 @@ def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
         "legal_consent": all_current_accepted(db, onboarding.subscriber_id),
     }
 
+    broker_account = (
+        db.query(BrokerAccount)
+        .filter(BrokerAccount.subscriber_id == onboarding.subscriber_id)
+        .first()
+    )
+
     return {
         "subscriber_id": onboarding.subscriber_id,
         "subscription_lifecycle": lifecycle_snapshot(db, onboarding.subscriber_id),
@@ -104,6 +121,22 @@ def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
         "payment_status": onboarding.payment_status,
         "payment_reference": onboarding.payment_reference,
         "broker_status": onboarding.broker_status,
+        "broker_account": (
+            {
+                "id": broker_account.id,
+                "platform": broker_account.platform,
+                "broker": broker_account.broker,
+                "login": broker_account.login,
+                "server": broker_account.server,
+                "account_type": broker_account.account_type,
+                "starting_capital_usd": broker_account.starting_capital_usd,
+                "capital_verified": broker_account.capital_verified,
+                "execution_mode": broker_account.execution_mode,
+                "live_authorized": broker_account.live_authorized,
+            }
+            if broker_account
+            else None
+        ),
         "admin_approval": onboarding.admin_approval,
         "copy_trading_status": onboarding.copy_trading_status,
         "rejection_reason": onboarding.rejection_reason,

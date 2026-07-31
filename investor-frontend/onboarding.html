@@ -48,7 +48,7 @@
         <div class="progress-track">
             <div class="progress-item current"><span>1</span><strong>Plan</strong><small>Select service</small></div>
             <div class="progress-item"><span>2</span><strong>Identity</strong><small>KYC review</small></div>
-            <div class="progress-item"><span>3</span><strong>Broker</strong><small>Connect MT5</small></div>
+            <div class="progress-item"><span>3</span><strong>Broker</strong><small>Link trading account</small></div>
             <div class="progress-item"><span>4</span><strong>Legal</strong><small>Accept terms</small></div>
             <div class="progress-item"><span>5</span><strong>Fees</strong><small>Profit share</small></div>
             <div class="progress-item"><span>6</span><strong>Payment</strong><small>Confirm plan</small></div>
@@ -139,16 +139,32 @@
             </section>
 
             <section id="registration-step-5" class="panel onboarding-panel registration-step-panel" data-registration-step="5">
-                <div class="step-heading"><span>3</span><div><h2>Connect your MT5 account</h2><p>Link the trading account that remains under your control.</p></div></div>
-                <form id="mt5-form">
-                    <label for="mt5-broker">Broker</label>
-                    <input id="mt5-broker" type="text" value="MT5" required>
-                    <label for="mt5-account">MT5 account number</label>
-                    <input id="mt5-account" type="text" inputmode="numeric" required>
-                    <label for="mt5-server">MT5 server</label>
-                    <input id="mt5-server" type="text" placeholder="Example: HFMarketsGlobal-Demo" required>
-                    <button type="submit">Verify and connect MT5</button>
-                    <p id="mt5-message" class="form-message"></p>
+                <div class="step-heading"><span>3</span><div><h2>Link your trading account</h2><p>Choose your platform and link the broker account that remains under your control.</p></div></div>
+                <form id="trading-account-form">
+                    <label for="trading-platform">Trading platform</label>
+                    <select id="trading-platform" required>
+                        <option value="MT5">MetaTrader 5</option>
+                        <option value="MT4">MetaTrader 4</option>
+                        <option value="CTRADER">cTrader</option>
+                        <option value="MATCH_TRADER">Match-Trader</option>
+                    </select>
+                    <label for="starting-capital">Starting trading capital (USD equivalent)</label>
+                    <input id="starting-capital" type="number" min="1" step="0.01" placeholder="Example: 500" required>
+                    <label for="trading-account-type">Account pathway</label>
+                    <select id="trading-account-type" required>
+                        <option value="STANDARD">Standard account — USD 1,000 or more</option>
+                        <option value="CENT">Cent account — below USD 1,000</option>
+                    </select>
+                    <p id="cent-account-guidance" class="muted">Accounts below USD 1,000 are automatically assigned to the MT4/MT5 Cent Account pathway.</p>
+                    <label for="trading-broker">Broker name</label>
+                    <input id="trading-broker" type="text" placeholder="Example: HF Markets" required>
+                    <label id="trading-account-label" for="trading-account">Account number</label>
+                    <input id="trading-account" type="text" autocomplete="off" required>
+                    <label id="trading-server-label" for="trading-server">Broker server or environment</label>
+                    <input id="trading-server" type="text" placeholder="Example: HFMarketsGlobal-Demo" required>
+                    <button id="trading-account-submit" type="submit">Link trading account</button>
+                    <p id="trading-account-message" class="form-message"></p>
+                    <p class="muted">Bethel never asks for or stores your broker password. MT4, cTrader, and Match-Trader remain pending until their secure bridge, OAuth, or broker API authorization is completed.</p>
                 </form>
             </section>
 
@@ -221,7 +237,7 @@
         </section>
     </section>
 </main>
-<script src="js/onboarding.js?v=16"></script>
+<script src="js/onboarding.js?v=18"></script>
 <script src="js/pwa.js?v=3"></script>
 </body>
 </html>

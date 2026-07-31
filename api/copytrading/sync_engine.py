@@ -22,6 +22,7 @@ from datetime import datetime
 
 from api.copytrading import models
 from api.subscription_lifecycle.service import sweep_subscriptions
+from api.copytrading.volume_policy import calculate_subscriber_volume
 
 
 
@@ -100,9 +101,10 @@ class TradeSyncEngine:
             # IMPORTANT:
             # COPY EXACT MASTER LOT SIZE
 
-            volume = round(
+            volume = calculate_subscriber_volume(
+                db,
                 master_trade.volume,
-                2
+                subscriber.id,
             )
 
 

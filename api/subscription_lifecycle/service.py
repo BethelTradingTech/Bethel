@@ -180,6 +180,9 @@ def lifecycle_snapshot(db: Session, subscriber_id: int):
 
 
 def subscriber_can_copy(db: Session, subscriber_id: int) -> bool:
+    from api.legal.service import all_current_accepted
+    from api.profit_share.service import profit_share_accepted
+
     onboarding = (
         db.query(ClientOnboarding)
         .filter(ClientOnboarding.subscriber_id == subscriber_id)
@@ -196,6 +199,9 @@ def subscriber_can_copy(db: Session, subscriber_id: int) -> bool:
         and onboarding.payment_status == "PAID"
         and onboarding.broker_status == "CONNECTED"
         and onboarding.admin_approval == "APPROVED"
+        and onboarding.copy_trading_status == "ACTIVE"
+        and profit_share_accepted(db, subscriber_id)
+        and all_current_accepted(db, subscriber_id)
     )
 
 

@@ -361,6 +361,7 @@ try:
 
     from api.onboarding.routes import router as client_onboarding_router
     from api.database import Base as ApiBase, engine as api_engine
+    from api.broker_accounts.migrations import ensure_multiplatform_columns
 
     app.include_router(client_onboarding_router)
 
@@ -417,6 +418,7 @@ try:
     app.add_middleware(ProductionSecurityMiddleware)
 
     ApiBase.metadata.create_all(bind=api_engine)
+    ensure_multiplatform_columns(api_engine)
 
     print("âœ“ Client Onboarding Workflow Loaded")
 
