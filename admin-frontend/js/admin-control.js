@@ -35,12 +35,14 @@ async function renderSubscribers(rows){
  $("#subscribers-table").innerHTML=results.map(({subscriber:r,onboarding:o})=>{
   if(o.error)return `<tr><td><strong>${escapeHtml(r.name)}</strong><br><small>${escapeHtml(r.email)}</small></td><td colspan="5">${escapeHtml(o.error)}</td><td><button class="review-action" data-action="refresh" data-id="${r.id}">Retry</button></td></tr>`;
   const paymentReference=o.payment_reference?`<small>${escapeHtml(o.payment_reference)}</small>`:"";
+  const account=o.broker_account||null;
+  const accountDetails=account?`<br><small>${escapeHtml(account.platform)} · ${escapeHtml(account.broker)} · ${escapeHtml(account.login)}</small><br>${stateBadge(account.live_authorized?"LIVE AUTHORIZED":"PAPER ONLY")}`:"";
   return `<tr>
    <td><strong>${escapeHtml(r.name)}</strong><br><small>ID ${r.id} - ${escapeHtml(r.email)}</small></td>
    <td>${stateBadge(o.subscription_status)}</td>
    <td>${stateBadge(o.kyc_status)}</td>
    <td>${stateBadge(o.payment_status)}${paymentReference}</td>
-   <td>${stateBadge(o.broker_status)}</td>
+   <td>${stateBadge(o.broker_status)}${accountDetails}</td>
    <td>${stateBadge(o.admin_approval)}<br>${stateBadge(o.copy_trading_status)}</td>
    <td><div class="review-actions">
     <button data-action="setup-invite" data-id="${r.id}">Create Setup Link</button>\n    <button data-action="kyc-approve" data-id="${r.id}" ${o.kyc_status!=="PENDING"?"disabled":""}>Approve KYC</button>
@@ -49,6 +51,8 @@ async function renderSubscribers(rows){
     <button data-action="broker-refresh" data-id="${r.id}">Verify MT5</button>
     <button data-action="approval-approve" data-id="${r.id}" ${o.admin_approval==="APPROVED"?"disabled":""}>Approve Activation</button>
     <button data-action="approval-reject" data-id="${r.id}">Reject</button>
+    <button data-action="live-enable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account||account.platform!=="MT5"||o.copy_trading_status!=="ACTIVE"||account.live_authorized?"disabled":""}>Enable Live MT5</button>
+    <button class="danger-button" data-action="live-disable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account?.live_authorized?"disabled":""}>Emergency Stop</button>
    </div></td>
   </tr>`;
  }).join("")||'<tr><td colspan="7">No subscribers found.</td></tr>';
@@ -89,9 +93,20 @@ async function handleReviewAction(button){
  }else if(action==="approval-reject"){
   const reason=prompt("Reason for rejecting activation:");if(!reason)return;
   endpoint=`/onboarding/${id}/approval`;payload={decision:"REJECTED",reason};
+ }else if(action==="live-enable"){
+  const accountId=button.dataset.accountId;
+  if(!accountId){setStatus("Verified MT5 account is required",true);return}
+  const confirmation=prompt("Live trading can create real gains and losses. Type ENABLE LIVE MT5 exactly:");
+  if(confirmation!=="ENABLE LIVE MT5"){setStatus("Live activation cancelled",true);return}
+  endpoint=`/broker-accounts/${accountId}/live-access`;payload={enabled:true,confirmation};
+ }else if(action==="live-disable"){
+  const accountId=button.dataset.accountId;
+  if(!accountId)return;
+  if(!confirm(`Stop live trading for subscriber ${id} immediately?`))return;
+  endpoint=`/broker-accounts/${accountId}/live-access`;payload={enabled:false,confirmation:"DISABLE LIVE MT5"};
  }else{return}
  button.disabled=true;
- try{await apiPost(endpoint,payload);setStatus("Subscriber review updated");await loadOverview()}
+ try{await apiPost(endpoint,payload);setStatus(action.startsWith("live-")?"Live-access control updated":"Subscriber review updated");await loadOverview()}
  catch(error){setStatus(typeof error.message==="string"?error.message:JSON.stringify(error.message),true);button.disabled=false}
 }
 
