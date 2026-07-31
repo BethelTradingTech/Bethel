@@ -23,6 +23,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from api.copytrading import models
+from api.copytrading.volume_policy import calculate_subscriber_volume
 
 
 
@@ -107,10 +108,10 @@ class CopyTradingService:
         # Copy exact master volume
         # --------------------------------------------------
 
-        copied_volume = CopyTradingService.calculate_volume(
-
-            master_trade.volume
-
+        copied_volume = calculate_subscriber_volume(
+            db,
+            master_trade.volume,
+            subscriber.id,
         )
 
 
