@@ -44,7 +44,18 @@ def refresh_broker_status(db: Session, onboarding: ClientOnboarding):
         )
         .first()
     )
-    onboarding.broker_status = "CONNECTED" if account else "NOT_CONNECTED"
+    eligible = bool(
+        account
+        and (
+            account.account_type != "CENT"
+            or (
+                account.capital_verified
+                and account.starting_capital_usd is not None
+                and account.starting_capital_usd < 1000
+            )
+        )
+    )
+    onboarding.broker_status = "CONNECTED" if eligible else "NOT_CONNECTED"
 
 
 def recompute_activation(db: Session, onboarding: ClientOnboarding):
