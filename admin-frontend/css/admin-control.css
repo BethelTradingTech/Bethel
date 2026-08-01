@@ -45,3 +45,7 @@
 
 /* backup-security-v1 */
 .operations-table{min-width:1150px}.operations-table td{vertical-align:top;max-width:330px;overflow-wrap:anywhere}.operations-table code{font-size:11px}
+
+
+/* multi-platform-admin-switcher-v1 */
+.platform-switcher{display:grid;gap:7px;margin:0 2px 18px;padding:12px;background:#091322;border:1px solid var(--line);border-radius:10px}.platform-switcher>span{color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.platform-option{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:13px;font-weight:700}.platform-option:hover,.platform-option.active{background:#17243a;color:#fff}.platform-option.active{border-left:3px solid var(--accent)}.platform-portal-link{border-color:#0f766e;background:rgba(16,185,129,.08)}.platform-portal-link strong,.platform-portal-link small{display:block}.platform-portal-link small{margin-top:5px;color:var(--muted)}
