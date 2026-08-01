@@ -12,6 +12,11 @@
     <div class="brand">
       <img class="admin-brand-logo" src="https://betheltradingtechnologies.com/assets/images/bethel-logo.png?v=20260730" alt="Bethel Trading Technologies">
       <small>Management Control</small>
+      <div class="platform-switcher" aria-label="Platform switcher">
+        <span>Operating platform</span>
+        <a class="platform-option active" href="/admin-frontend/" aria-current="page">Bethel Admin</a>
+        <a class="platform-option" href="https://trust-remit-app.onrender.com/?interface=admin">Trust &amp; Remit Admin <span aria-hidden="true">↗</span></a>
+      </div>
     </div>
     <nav>
       <button class="nav-item active" data-view="overview">▦ <span>Overview</span></button>
@@ -32,7 +37,8 @@
       <button class="nav-item" data-view="settings">⚙ <span>System Settings</span></button>
     </nav>
     <div class="sidebar-footer">
-      <a href="https://betheltradingtechnologies.com" target="_blank">Open public website ↗</a>
+      <a href="https://trust-remit-app.onrender.com/?interface=admin">Switch to Trust &amp; Remit Admin ↗</a>
+      <a href="https://betheltradingtechnologies.com" target="_blank" rel="noopener noreferrer">Open public website ↗</a>
       <a href="/investor-frontend/" target="_blank">Open investor portal ↗</a>
       <button id="logout-button">Log out</button>
     </div>
@@ -60,7 +66,8 @@
           <button data-go="subscribers">Manage subscribers</button><button data-go="payments">Review payments</button><button data-go="subscriptions">Manage subscriptions</button><button data-go="mt5">Review MT5</button>
           <button data-go="api">Inspect API routes</button><button data-go="settings">System settings</button>
         </div></article>
-        <article class="panel"><h2>Portal Links</h2>
+        <article class="panel"><h2>Platform &amp; Portal Links</h2>
+          <a class="portal-link platform-portal-link" href="https://trust-remit-app.onrender.com/?interface=admin"><strong>Trust &amp; Remit Admin</strong><small>Switch to remittance operations</small></a>
           <a class="portal-link" href="https://betheltradingtechnologies.com" target="_blank">Public Website</a>
           <a class="portal-link" href="/investor-frontend/" target="_blank">Investor Portal</a>
           <a class="portal-link" href="/admin-frontend/" target="_blank">Admin Control</a>
