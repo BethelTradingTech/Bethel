@@ -31,22 +31,22 @@ _ALIASES = {
 PLATFORM_CAPABILITIES = {
     TradingPlatform.MT4: {
         "display_name": "MetaTrader 4",
-        "authorization": "BRIDGE_AGENT",
+        "authorization": "READ_ONLY_BRIDGE",
         "live_execution": False,
     },
     TradingPlatform.MT5: {
         "display_name": "MetaTrader 5",
-        "authorization": "LOCAL_TERMINAL",
-        "live_execution": True,
+        "authorization": "READ_ONLY_TERMINAL",
+        "live_execution": False,
     },
     TradingPlatform.CTRADER: {
         "display_name": "cTrader",
-        "authorization": "OAUTH",
+        "authorization": "READ_ONLY_OAUTH",
         "live_execution": False,
     },
     TradingPlatform.MATCH_TRADER: {
         "display_name": "Match-Trader",
-        "authorization": "BROKER_API",
+        "authorization": "READ_ONLY_BROKER_API",
         "live_execution": False,
     },
 }
