@@ -464,7 +464,6 @@ except Exception as e:
 try:
 
     from api.routes.public_investor import router as investor_router
-    from api.routes.investor import router as investor_status_router
     from api.auth.routes.investor_login import router as investor_auth_router
     from api.investors.routes.dashboard import router as investor_dashboard_router
     from api.investors.routes.admin import router as admin_investors_router
@@ -473,14 +472,6 @@ try:
     app.include_router(
 
         investor_router,
-
-        tags=["Investor"]
-
-    )
-
-    app.include_router(
-
-        investor_status_router,
 
         tags=["Investor"]
 
@@ -497,6 +488,15 @@ try:
 except Exception as e:
 
     print("Investor API Load Error:", e)
+
+# Direct terminal status is available only on the Windows MT5 host. Keeping it
+# separate ensures investor authentication and database dashboards still load
+# in the Render Linux service.
+try:
+    from api.routes.investor import router as investor_status_router
+    app.include_router(investor_status_router, tags=["Investor MT5 Local"])
+except Exception as e:
+    print("Local Investor MT5 Status Load Error:", e)
 
 
 
@@ -569,8 +569,11 @@ def startup_event():
     finally:
         startup_db.close()
 
-    ensure_scheduled_backup()
-    start_operations_scheduler()
+    # Render Postgres provides managed backups. The in-process backup worker is
+    # only for the legacy local SQLite installation.
+    if os.getenv("DATABASE_URL", "").startswith("sqlite") or not os.getenv("DATABASE_URL"):
+        ensure_scheduled_backup()
+        start_operations_scheduler()
 
     print("=" * 40)
 
