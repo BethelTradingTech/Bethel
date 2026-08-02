@@ -10,6 +10,7 @@ Handles:
 
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, EmailStr, Field
 
 from api.database import SessionLocal
 
@@ -38,19 +39,18 @@ router = APIRouter(
 
 
 
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=256)
+
+
 # ======================================
 # LOGIN ENDPOINT
 # ======================================
 
 
 @router.post("/login")
-def login(
-
-    email: str,
-
-    password: str
-
-):
+def login(data: LoginRequest):
 
 
     db = SessionLocal()
@@ -64,7 +64,7 @@ def login(
 
         user = db.query(User).filter(
 
-            User.email == email
+            User.email == str(data.email).strip().casefold()
 
         ).first()
 
@@ -97,7 +97,7 @@ def login(
 
         password_valid = verify_password(
 
-            password,
+            data.password,
 
             user.password_hash
 
