@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from api.auth.models.investor_user import InvestorUser
 from api.auth.rate_limit import check_login_allowed, clear_login_failures, record_login_failure
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/investor/auth", tags=["Investor Authentication"])
 
 
 class InvestorLoginRequest(BaseModel):
-    email: EmailStr
+    email: str = Field(min_length=5, max_length=255)
     password: str = Field(min_length=12, max_length=256)
 
 
