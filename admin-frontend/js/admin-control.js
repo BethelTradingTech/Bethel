@@ -9,13 +9,21 @@ function setStatus(t,error=false){$("#save-status").textContent=t;$("#save-statu
 function fillForm(form,data){Object.entries(data||{}).forEach(([k,v])=>{const el=form.elements[k];if(!el)return;if(el.type==="checkbox")el.checked=!!v;else el.value=v??""})}
 function formData(form){const out={};[...form.elements].forEach(el=>{if(!el.name)return;out[el.name]=el.type==="checkbox"?el.checked:el.value});return out}
 async function loadOverview(){
- const [health,account,positions,subscribers,copy,performance]=await Promise.allSettled([apiGet("/health"),apiGet("/mt5/account"),apiGet("/mt5/positions"),apiGet("/copytrading/subscribers"),apiGet("/copytrading/dashboard"),apiGet("/performance/analytics")]);
+ const [health,account,positions,subscribers,copy,performance,connector]=await Promise.allSettled([apiGet("/health"),apiGet("/mt5/account"),apiGet("/mt5/positions"),apiGet("/copytrading/subscribers"),apiGet("/copytrading/dashboard"),apiGet("/performance/analytics"),apiGet("/connector/v1/status")]);
  $("#system-health").textContent=health.status==="fulfilled"?"ONLINE":"OFFLINE";
- const a=account.status==="fulfilled"?account.value:{};$("#mt5-status").textContent=a.status||a.connection_status||"CONNECTED";$("#balance").textContent=money(a.balance);$("#equity").textContent=money(a.equity);
+ const c=connector.status==="fulfilled"?connector.value:{status:"OFFLINE",connectors:[]};renderConnectorStatus(c);
+ const live=c.connectors?.[0];const a=live||(account.status==="fulfilled"?account.value:{});$("#mt5-status").textContent=c.status||a.status||a.connection_status||"OFFLINE";$("#balance").textContent=money(a.balance);$("#equity").textContent=money(a.equity);
  const p=positions.status==="fulfilled"?(Array.isArray(positions.value)?positions.value:(positions.value.positions||[])):[];$("#position-count").textContent=p.length;
  const s=subscribers.status==="fulfilled"?(Array.isArray(subscribers.value)?subscribers.value:(subscribers.value.subscribers||[])):[];$("#subscriber-count").textContent=s.length;
  await renderSubscribers(s);renderPositions(p);renderDetails("#mt5-details",a);if(copy.status==="fulfilled")renderDetails("#copy-details",copy.value);if(performance.status==="fulfilled")renderDetails("#performance-details",performance.value);
  try{const inv=await apiGet("/admin/investors");renderInvestors(inv.investors||inv||[])}catch(e){$("#investors-table").innerHTML='<tr><td colspan="5">Investor API unavailable</td></tr>'}
+}
+function renderConnectorStatus(data){
+ const badge=$("#connector-badge"),target=$("#connector-details"),item=data.connectors?.[0];
+ const status=data.status||"OFFLINE";badge.textContent=status;badge.className="connector-badge status-"+status.toLowerCase();
+ if(!item){target.innerHTML='<p class="notice">No signed connector snapshot has been received.</p>';return}
+ const rows=[["Account",item.account_number],["Server",item.server],["Mode",item.account_mode],["Last seen",new Date(item.last_seen).toLocaleString()],["Balance",money(item.balance)],["Equity",money(item.equity)],["Floating P/L",money(item.floating_profit)],["Execution","READ ONLY"]];
+ target.innerHTML=rows.map(([label,value])=>`<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
 }
 async function loadAnalytics(){
  const target=$("#performance-details");
