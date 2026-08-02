@@ -22,10 +22,13 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
     error.innerText = "";
 
     try {
-        const query = new URLSearchParams({ email, password });
-        const response = await fetch(API_BASE + "/auth/login?" + query, {
+        const response = await fetch(API_BASE + "/auth/login", {
             method: "POST",
-            headers: { "Accept": "application/json" }
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ email, password })
         });
 
         const data = await response.json();
@@ -34,7 +37,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
             throw new Error(data.detail || "Unable to sign in");
         }
 
-        if (data.user?.role !== "admin") {
+        if (!["admin", "super_admin"].includes(data.user?.role)) {
             throw new Error("This account does not have admin access");
         }
 
