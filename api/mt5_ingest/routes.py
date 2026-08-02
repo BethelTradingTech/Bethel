@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from api.database import SessionLocal
 from api.auth.dependency import require_admin
 from api.models import EquitySnapshot
-from api.mt5_ingest.models import ConnectorNonce, ConnectorPosition, ConnectorStatus
+from api.mt5_ingest.models import ConnectorDeal, ConnectorNonce, ConnectorPosition, ConnectorStatus
 
 
 router = APIRouter(prefix="/connector/v1", tags=["Read-only MT5 connector"])
@@ -38,6 +38,21 @@ class OpenPosition(BaseModel):
     opened_at: datetime | None = None
 
 
+class ClosedDeal(BaseModel):
+    deal_ticket: str = Field(min_length=1, max_length=40)
+    position_id: str = Field(min_length=1, max_length=40)
+    order_id: str = Field(min_length=1, max_length=40)
+    symbol: str = Field(min_length=1, max_length=32)
+    deal_type: str = Field(pattern="^(BUY|SELL)$")
+    volume: float = Field(gt=0, allow_inf_nan=False)
+    price: float = Field(gt=0, allow_inf_nan=False)
+    profit: float = Field(allow_inf_nan=False, default=0)
+    commission: float = Field(allow_inf_nan=False, default=0)
+    swap: float = Field(allow_inf_nan=False, default=0)
+    fee: float = Field(allow_inf_nan=False, default=0)
+    closed_at: datetime
+
+
 class Snapshot(BaseModel):
     account_number: str = Field(min_length=5, max_length=32)
     server: str = Field(min_length=2, max_length=120)
@@ -48,6 +63,7 @@ class Snapshot(BaseModel):
     observed_at: datetime
     mode: str = Field(pattern="^(DEMO|LIVE)$")
     positions: list[OpenPosition] = Field(default_factory=list, max_length=1000)
+    closed_deals: list[ClosedDeal] = Field(default_factory=list, max_length=5000)
 
 
 def _verify(request: Request, body: bytes) -> tuple[str, str]:
@@ -152,6 +168,34 @@ async def ingest_snapshot(request: Request):
                 opened_at=opened_at,
                 observed_at=observed.astimezone(timezone.utc).replace(tzinfo=None),
             ))
+        if payload.closed_deals:
+            tickets = [deal.deal_ticket for deal in payload.closed_deals]
+            existing = {row[0] for row in db.query(ConnectorDeal.deal_ticket).filter(
+                ConnectorDeal.connector_id == connector_id,
+                ConnectorDeal.deal_ticket.in_(tickets),
+            ).all()}
+            for deal in payload.closed_deals:
+                if deal.deal_ticket in existing:
+                    continue
+                closed_at = deal.closed_at
+                if closed_at.tzinfo is None:
+                    closed_at = closed_at.replace(tzinfo=timezone.utc)
+                db.add(ConnectorDeal(
+                    connector_id=connector_id,
+                    account_number=payload.account_number,
+                    deal_ticket=deal.deal_ticket,
+                    position_id=deal.position_id,
+                    order_id=deal.order_id,
+                    symbol=deal.symbol,
+                    deal_type=deal.deal_type,
+                    volume=deal.volume,
+                    price=deal.price,
+                    profit=deal.profit,
+                    commission=deal.commission,
+                    swap=deal.swap,
+                    fee=deal.fee,
+                    closed_at=closed_at.astimezone(timezone.utc).replace(tzinfo=None),
+                ))
         db.commit()
     except IntegrityError:
         db.rollback()
