@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from api.database import SessionLocal
 from api.auth.dependency import require_admin
 from api.models import EquitySnapshot
-from api.mt5_ingest.models import ConnectorNonce, ConnectorStatus
+from api.mt5_ingest.models import ConnectorNonce, ConnectorPosition, ConnectorStatus
 
 
 router = APIRouter(prefix="/connector/v1", tags=["Read-only MT5 connector"])
@@ -22,6 +22,20 @@ MAX_CLOCK_SKEW_SECONDS = 300
 
 def _utc_now_naive():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class OpenPosition(BaseModel):
+    ticket: str = Field(min_length=1, max_length=40)
+    symbol: str = Field(min_length=1, max_length=32)
+    direction: str = Field(pattern="^(BUY|SELL)$")
+    volume: float = Field(gt=0, allow_inf_nan=False)
+    open_price: float = Field(gt=0, allow_inf_nan=False)
+    current_price: float = Field(gt=0, allow_inf_nan=False)
+    stop_loss: float = Field(ge=0, allow_inf_nan=False, default=0)
+    take_profit: float = Field(ge=0, allow_inf_nan=False, default=0)
+    profit: float = Field(allow_inf_nan=False, default=0)
+    swap: float = Field(allow_inf_nan=False, default=0)
+    opened_at: datetime | None = None
 
 
 class Snapshot(BaseModel):
@@ -33,6 +47,7 @@ class Snapshot(BaseModel):
     floating_profit: float = Field(allow_inf_nan=False)
     observed_at: datetime
     mode: str = Field(pattern="^(DEMO|LIVE)$")
+    positions: list[OpenPosition] = Field(default_factory=list, max_length=1000)
 
 
 def _verify(request: Request, body: bytes) -> tuple[str, str]:
@@ -113,6 +128,30 @@ async def ingest_snapshot(request: Request):
         status.floating_profit = payload.floating_profit
         status.observed_at = observed.astimezone(timezone.utc).replace(tzinfo=None)
         status.received_at = _utc_now_naive()
+        db.query(ConnectorPosition).filter(
+            ConnectorPosition.connector_id == connector_id
+        ).delete(synchronize_session=False)
+        for position in payload.positions:
+            opened_at = position.opened_at
+            if opened_at is not None:
+                if opened_at.tzinfo is None:
+                    opened_at = opened_at.replace(tzinfo=timezone.utc)
+                opened_at = opened_at.astimezone(timezone.utc).replace(tzinfo=None)
+            db.add(ConnectorPosition(
+                connector_id=connector_id,
+                ticket=position.ticket,
+                symbol=position.symbol,
+                direction=position.direction,
+                volume=position.volume,
+                open_price=position.open_price,
+                current_price=position.current_price,
+                stop_loss=position.stop_loss,
+                take_profit=position.take_profit,
+                profit=position.profit,
+                swap=position.swap,
+                opened_at=opened_at,
+                observed_at=observed.astimezone(timezone.utc).replace(tzinfo=None),
+            ))
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -131,6 +170,9 @@ def connector_status(_admin=Depends(require_admin)):
         connectors = []
         for item in statuses:
             age_seconds = max(0, int((now - item.received_at).total_seconds()))
+            positions = db.query(ConnectorPosition).filter(
+                ConnectorPosition.connector_id == item.connector_id
+            ).order_by(ConnectorPosition.symbol, ConnectorPosition.ticket).all()
             connectors.append({
                 "connector_id": item.connector_id,
                 "connection_status": "ONLINE" if age_seconds <= 150 else "STALE",
@@ -144,6 +186,20 @@ def connector_status(_admin=Depends(require_admin)):
                 "balance": round(float(item.balance), 2),
                 "equity": round(float(item.equity), 2),
                 "floating_profit": round(float(item.floating_profit), 2),
+                "open_position_count": len(positions),
+                "open_positions": [{
+                    "ticket": position.ticket,
+                    "symbol": position.symbol,
+                    "direction": position.direction,
+                    "volume": position.volume,
+                    "open_price": position.open_price,
+                    "current_price": position.current_price,
+                    "stop_loss": position.stop_loss,
+                    "take_profit": position.take_profit,
+                    "profit": round(float(position.profit), 2),
+                    "swap": round(float(position.swap), 2),
+                    "opened_at": position.opened_at.isoformat() + "Z" if position.opened_at else None,
+                } for position in positions],
             })
         return {"status": connectors[0]["connection_status"] if connectors else "OFFLINE", "read_only": True, "connectors": connectors}
     finally:
