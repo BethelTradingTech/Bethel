@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bethel Management Control</title>
-<link rel="stylesheet" href="css/admin-control.css?v=20260802-responsive2">
+<link rel="stylesheet" href="css/admin-control.css?v=20260802-connector1">
 </head>
 <body>
 <div class="app-shell">
@@ -61,6 +61,10 @@
         <article class="metric"><small>Equity</small><strong id="equity">—</strong></article>
       </div>
       <div class="panel-grid">
+        <article class="panel connector-panel">
+          <div class="section-heading"><div><h2>Owner MT5 Connector</h2><p>Signed, read-only telemetry from the Windows master terminal.</p></div><span id="connector-badge" class="connector-badge">Checking…</span></div>
+          <div id="connector-details" class="connector-details"><p>Loading connector status…</p></div>
+        </article>
         <article class="panel"><h2>Quick Management</h2><div class="quick-grid">
           <button data-go="website">Edit public website</button><button data-go="investors">Manage investors</button>
           <button data-go="subscribers">Manage subscribers</button><button data-go="payments">Review payments</button><button data-go="subscriptions">Manage subscriptions</button><button data-go="mt5">Review MT5</button>
@@ -202,7 +206,7 @@
 </div>
 <div id="overlay" class="overlay"></div>
 <script src="js/auth.js?v=20260802-superadmin1"></script>
-<script src="js/api.js?v=20260802-render1"></script>
-<script src="js/admin-control.js?v=20260802-analytics1"></script>
+<script src="js/api.js?v=20260802-connector1"></script>
+<script src="js/admin-control.js?v=20260802-connector1"></script>
 </body>
 </html>
