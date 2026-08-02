@@ -1,5 +1,5 @@
 """Run on Windows beside MT5. Sends telemetry only; contains no order functions."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib, hmac, json, logging, os, secrets, time
 
 import MetaTrader5 as mt5
@@ -10,13 +10,16 @@ API = os.getenv("BETHEL_API_URL", "https://bethel-api.onrender.com").rstrip("/")
 SECRET = os.getenv("MT5_CONNECTOR_SECRET", "")
 CONNECTOR_ID = os.getenv("MT5_CONNECTOR_ID", "owner-laptop-1")
 INTERVAL = max(int(os.getenv("MT5_SNAPSHOT_INTERVAL", "60")), 30)
+HISTORY_INTERVAL = max(int(os.getenv("MT5_HISTORY_INTERVAL", "900")), 300)
 LOG_PATH = os.getenv("BETHEL_CONNECTOR_LOG", "")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=[logging.StreamHandler()] + ([logging.FileHandler(LOG_PATH, encoding="utf-8")] if LOG_PATH else []))
 logger = logging.getLogger("bethel.mt5.connector")
 session = requests.Session()
+last_history_sync = 0.0
 
 
 def snapshot():
+    global last_history_sync
     if len(SECRET) < 64:
         raise RuntimeError("MT5_CONNECTOR_SECRET must contain at least 64 characters")
     if not mt5.initialize():
@@ -41,12 +44,35 @@ def snapshot():
         "swap": position.swap,
         "opened_at": datetime.fromtimestamp(position.time, timezone.utc).isoformat(),
     } for position in open_positions]
+    closed_deals = []
+    now_timestamp = time.time()
+    if now_timestamp - last_history_sync >= HISTORY_INTERVAL:
+        history = mt5.history_deals_get(datetime.now(timezone.utc) - timedelta(days=8), datetime.now(timezone.utc))
+        if history is None:
+            raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
+        exit_entries = {mt5.DEAL_ENTRY_OUT, mt5.DEAL_ENTRY_OUT_BY, mt5.DEAL_ENTRY_INOUT}
+        closed_deals = [{
+            "deal_ticket": str(deal.ticket),
+            "position_id": str(deal.position_id),
+            "order_id": str(deal.order),
+            "symbol": deal.symbol,
+            "deal_type": "BUY" if deal.type == mt5.DEAL_TYPE_BUY else "SELL",
+            "volume": deal.volume,
+            "price": deal.price,
+            "profit": deal.profit,
+            "commission": deal.commission,
+            "swap": deal.swap,
+            "fee": getattr(deal, "fee", 0.0),
+            "closed_at": datetime.fromtimestamp(deal.time, timezone.utc).isoformat(),
+        } for deal in history if deal.entry in exit_entries and deal.symbol and deal.volume > 0]
+        last_history_sync = now_timestamp
     return {
         "account_number": str(account.login), "server": account.server,
         "currency": account.currency, "balance": account.balance,
         "equity": account.equity, "floating_profit": account.profit,
         "observed_at": datetime.now(timezone.utc).isoformat(), "mode": mode,
         "positions": positions,
+        "closed_deals": closed_deals,
     }
 
 
