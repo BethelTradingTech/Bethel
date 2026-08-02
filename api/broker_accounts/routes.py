@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from api.auth.dependency import require_admin, require_subscriber_or_admin
@@ -20,10 +21,19 @@ from api.broker_accounts.schemas import (
 )
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
+from api.onboarding.models import ClientOnboarding
+from api.subscription_lifecycle.models import SubscriptionAudit, SubscriptionLifecycle
 from api.subscription_lifecycle.service import subscriber_can_copy
 
 
 router = APIRouter(prefix="/broker-accounts", tags=["Broker Accounts"])
+
+OWNER_BROKER_LOGIN = "49617874"
+OWNER_BROKER_SERVER = "HFMGLOBALMARKETS-DEMO"
+
+
+class ArchiveTestSubscribersRequest(BaseModel):
+    confirmation: str = Field(min_length=20, max_length=100)
 
 
 def _verify_mt5_terminal(data: BrokerAccountLinkRequest):
@@ -165,6 +175,100 @@ def _save_account(db: Session, subscriber_id: int, data: BrokerAccountLinkReques
     db.commit()
     db.refresh(account)
     return account
+
+
+
+
+@router.post("/admin/archive-test-subscribers")
+def archive_test_subscribers(
+    data: ArchiveTestSubscribersRequest,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+):
+    """Archive test subscribers while retaining financial and security audit history."""
+    expected = f"ARCHIVE TEST SUBSCRIBERS KEEP {OWNER_BROKER_LOGIN}"
+    if data.confirmation != expected:
+        raise HTTPException(status_code=422, detail=f"Confirmation must be: {expected}")
+
+    owner_account = db.query(BrokerAccount).filter(
+        BrokerAccount.login == OWNER_BROKER_LOGIN
+    ).first()
+    if owner_account is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Owner broker account must be linked before test accounts can be archived",
+        )
+    if owner_account.server.casefold() != OWNER_BROKER_SERVER.casefold():
+        raise HTTPException(
+            status_code=409,
+            detail="Owner broker server does not match the protected demo account",
+        )
+
+    keep_subscriber_id = owner_account.subscriber_id
+    archived_subscribers = 0
+    archived_accounts = 0
+    administrator = str(admin.get("email") or admin.get("sub") or "admin")
+
+    subscribers = db.query(CopySubscriber).filter(
+        CopySubscriber.id != keep_subscriber_id
+    ).all()
+    for subscriber in subscribers:
+        if subscriber.status == "ARCHIVED":
+            continue
+        subscriber.status = "ARCHIVED"
+        subscriber.synchronized = False
+        archived_subscribers += 1
+
+        accounts = db.query(BrokerAccount).filter(
+            BrokerAccount.subscriber_id == subscriber.id
+        ).all()
+        for account in accounts:
+            account.status = "ARCHIVED"
+            account.execution_mode = "PAPER"
+            account.live_authorized = False
+            account.live_authorized_at = None
+            account.live_authorized_by = None
+            archived_accounts += 1
+
+        onboarding = db.query(ClientOnboarding).filter(
+            ClientOnboarding.subscriber_id == subscriber.id
+        ).first()
+        if onboarding is not None:
+            onboarding.subscription_status = "SUSPENDED"
+            onboarding.copy_trading_status = "INACTIVE"
+            onboarding.admin_approval = "ARCHIVED"
+
+        lifecycle = db.query(SubscriptionLifecycle).filter(
+            SubscriptionLifecycle.subscriber_id == subscriber.id
+        ).first()
+        if lifecycle is not None:
+            previous = lifecycle.status
+            lifecycle.status = "SUSPENDED"
+            lifecycle.manual_suspended = True
+            lifecycle.suspended_at = datetime.utcnow()
+            db.add(SubscriptionAudit(
+                subscriber_id=subscriber.id,
+                action="ARCHIVE_TEST",
+                previous_status=previous,
+                new_status="SUSPENDED",
+                reference=lifecycle.last_payment_reference,
+                administrator=administrator,
+            ))
+
+    owner_account.execution_mode = "PAPER"
+    owner_account.live_authorized = False
+    owner_account.live_authorized_at = None
+    owner_account.live_authorized_by = None
+    db.commit()
+    return {
+        "status": "success",
+        "protected_broker_login": OWNER_BROKER_LOGIN,
+        "protected_server": OWNER_BROKER_SERVER,
+        "protected_subscriber_id": keep_subscriber_id,
+        "archived_subscribers": archived_subscribers,
+        "archived_broker_accounts": archived_accounts,
+        "owner_execution_mode": "PAPER",
+    }
 
 
 @router.get("/platforms")
