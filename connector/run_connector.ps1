@@ -9,7 +9,8 @@ $connector = Join-Path $PSScriptRoot "mt5_readonly_connector.py"
 if (-not (Test-Path $secretFile)) { throw "Encrypted connector secret is missing. Run install_connector_task.ps1." }
 if (-not (Test-Path $python)) { throw "Bethel virtual environment is missing: $python" }
 
-$secureSecret = Get-Content $secretFile -Raw | ConvertTo-SecureString
+$encryptedSecret = (Get-Content $secretFile -Raw).Trim()
+$secureSecret = ConvertTo-SecureString $encryptedSecret
 $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSecret)
 try {
     $env:MT5_CONNECTOR_SECRET = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
