@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,11 +7,16 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from api.auth.dependency import require_admin, require_subscriber_or_admin
+from api.broker_accounts.models import BrokerAccount
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
-from api.onboarding.models import ClientOnboarding
+from api.onboarding.models import ClientOnboarding, SubscriptionPlan
 from api.onboarding.service import recompute_activation
-from api.subscription_lifecycle.models import SubscriptionAudit, SubscriptionLifecycle
+from api.subscription_lifecycle.models import (
+    PromoRedemption,
+    SubscriptionAudit,
+    SubscriptionLifecycle,
+)
 from api.subscription_lifecycle.service import (
     enforce_subscription_state,
     lifecycle_snapshot,
@@ -20,6 +27,11 @@ from api.subscription_lifecycle.service import (
 
 router = APIRouter(tags=["Subscription Lifecycle"])
 
+OWNER_PROMO_HASH = "df60c674c078b16d3ccbbf808e0f2a449f3765af6f9376b6850cec6b984682d9"
+OWNER_PROMO_BROKER_LOGIN = "49617874"
+OWNER_PROMO_VALUE_USD = 100.0
+OWNER_PROMO_EXPIRES_AT = datetime(2027, 12, 31, 23, 59, 59)
+
 
 class RenewalRequest(BaseModel):
     reference: str = Field(min_length=4, max_length=150)
@@ -27,6 +39,94 @@ class RenewalRequest(BaseModel):
 
 class SuspensionRequest(BaseModel):
     suspended: bool
+
+
+class PromoApplyRequest(BaseModel):
+    code: str = Field(min_length=8, max_length=80)
+
+
+
+
+@router.post("/subscriptions/{subscriber_id}/promo/apply")
+def apply_owner_promo(
+    subscriber_id: int,
+    data: PromoApplyRequest,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    """Apply the single-use, broker-bound owner subscription promotion."""
+    supplied_hash = hashlib.sha256(data.code.strip().encode("utf-8")).hexdigest()
+    if not hmac.compare_digest(supplied_hash, OWNER_PROMO_HASH):
+        raise HTTPException(status_code=404, detail="Promotion code is invalid")
+    if datetime.utcnow() > OWNER_PROMO_EXPIRES_AT:
+        raise HTTPException(status_code=410, detail="Promotion code has expired")
+
+    account = db.query(BrokerAccount).filter(
+        BrokerAccount.subscriber_id == subscriber_id,
+        BrokerAccount.login == OWNER_PROMO_BROKER_LOGIN,
+    ).first()
+    if account is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Promotion is restricted to the verified owner broker account",
+        )
+
+    existing = db.query(PromoRedemption).filter(
+        PromoRedemption.code_hash == OWNER_PROMO_HASH
+    ).first()
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Promotion code has already been used")
+
+    onboarding = db.query(ClientOnboarding).filter(
+        ClientOnboarding.subscriber_id == subscriber_id
+    ).first()
+    if onboarding is None or onboarding.plan_id is None:
+        raise HTTPException(status_code=404, detail="Select a subscription plan first")
+
+    plan = db.query(SubscriptionPlan).filter(
+        SubscriptionPlan.id == onboarding.plan_id
+    ).first()
+    if plan is None or plan.currency.upper() != "USD":
+        raise HTTPException(status_code=409, detail="A USD subscription plan is required")
+    if abs(float(plan.price) - OWNER_PROMO_VALUE_USD) > 0.001:
+        raise HTTPException(
+            status_code=409,
+            detail="Owner promotion applies only to the 100 USD subscription",
+        )
+
+    reference = f"PROMO-OWNER100-{subscriber_id}-{int(datetime.utcnow().timestamp())}"
+    onboarding.payment_status = "PAID"
+    onboarding.payment_reference = reference
+    onboarding.payment_confirmed_at = datetime.utcnow()
+    db.add(PromoRedemption(
+        code_hash=OWNER_PROMO_HASH,
+        subscriber_id=subscriber_id,
+        broker_login=OWNER_PROMO_BROKER_LOGIN,
+        original_amount_usd=float(plan.price),
+        discount_amount_usd=OWNER_PROMO_VALUE_USD,
+        final_amount_usd=0.0,
+        payment_reference=reference,
+    ))
+    lifecycle = start_or_renew(
+        db,
+        onboarding,
+        administrator="OWNER_PROMO",
+        force=False,
+    )
+    if lifecycle is None:
+        raise HTTPException(status_code=409, detail="Unable to activate subscription")
+    recompute_activation(db, onboarding)
+    db.commit()
+    return {
+        "status": "success",
+        "subscriber_id": subscriber_id,
+        "promotion": "OWNER100",
+        "original_amount_usd": float(plan.price),
+        "discount_amount_usd": OWNER_PROMO_VALUE_USD,
+        "amount_due_usd": 0.0,
+        "payment_reference": reference,
+        "subscription": lifecycle_snapshot(db, subscriber_id),
+    }
 
 
 @router.get("/subscriptions/{subscriber_id}")
