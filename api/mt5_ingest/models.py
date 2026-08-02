@@ -32,3 +32,22 @@ class ConnectorStatus(Base):
     floating_profit = Column(Float, nullable=False, default=0)
     observed_at = Column(DateTime, nullable=False)
     received_at = Column(DateTime, default=utc_now, nullable=False, index=True)
+
+
+class ConnectorPosition(Base):
+    __tablename__ = "connector_positions"
+
+    id = Column(Integer, primary_key=True)
+    connector_id = Column(String(100), nullable=False, index=True)
+    ticket = Column(String(40), nullable=False, index=True)
+    symbol = Column(String(32), nullable=False, index=True)
+    direction = Column(String(8), nullable=False)
+    volume = Column(Float, nullable=False)
+    open_price = Column(Float, nullable=False)
+    current_price = Column(Float, nullable=False)
+    stop_loss = Column(Float, nullable=False, default=0)
+    take_profit = Column(Float, nullable=False, default=0)
+    profit = Column(Float, nullable=False, default=0)
+    swap = Column(Float, nullable=False, default=0)
+    opened_at = Column(DateTime, nullable=True)
+    observed_at = Column(DateTime, nullable=False, index=True)
