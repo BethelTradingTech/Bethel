@@ -30,6 +30,7 @@ router = APIRouter(prefix="/broker-accounts", tags=["Broker Accounts"])
 
 MASTER_BROKER_LOGIN = "49617874"
 OWNER_SUBSCRIBER_LOGIN = "49224282"
+OWNER_SUBSCRIBER_SERVER = "HFMGLOBALMARKETS-DEMO"
 
 
 class ArchiveTestSubscribersRequest(BaseModel):
@@ -204,6 +205,17 @@ def archive_test_subscribers(
             status_code=409,
             detail="Owner broker account must be linked before test accounts can be archived",
         )
+    if owner_account.server.casefold() != OWNER_SUBSCRIBER_SERVER.casefold():
+        raise HTTPException(
+            status_code=409,
+            detail="Protected subscriber server does not match HFMGLOBALMARKETS-DEMO",
+        )
+    if "hfm" not in owner_account.broker.casefold() and "hfmarkets" not in owner_account.broker.casefold():
+        raise HTTPException(
+            status_code=409,
+            detail="Protected subscriber account must be linked to HFM",
+        )
+
     keep_subscriber_id = owner_account.subscriber_id
     archived_subscribers = 0
     archived_accounts = 0
