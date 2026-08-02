@@ -1,21 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-router = APIRouter(
-    prefix="/accounts",
-    tags=["Trading Accounts"]
-)
+from api.auth.dependency import require_admin
+
+
+router = APIRouter(prefix="/accounts", tags=["Trading Accounts"])
 
 
 @router.get("/")
-def get_accounts():
-
-    return {
-        "accounts": [
-            {
-                "id": 1,
-                "broker": "Demo Broker",
-                "account_number": "123456",
-                "status": "connected"
-            }
-        ]
-    }
+def get_accounts(_admin=Depends(require_admin)):
+    """Legacy endpoint retained without fabricated account data."""
+    return {"accounts": [], "source": "broker-accounts"}
