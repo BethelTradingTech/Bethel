@@ -9,8 +9,9 @@ import re
 import sys
 
 from api.auth.models.user import User
+from api.auth.models.super_admin_profile import SuperAdminProfile
 from api.auth.services.security import hash_password
-from api.database import SessionLocal
+from api.database import Base, SessionLocal, engine
 
 
 def valid_password(password: str) -> bool:
@@ -29,6 +30,12 @@ def main() -> int:
         print("Enter a valid email address.")
         return 1
 
+    mobile = input("Mobile number in international format (example +12465551234): ").strip()
+    mobile = "".join(char for char in mobile if char.isdigit() or char == "+")
+    if not re.fullmatch(r"\+[1-9]\d{7,14}", mobile):
+        print("Use international E.164 format beginning with + and country code.")
+        return 1
+
     password = getpass("Create password (14+ characters): ")
     if not valid_password(password):
         print("Use 14+ characters with uppercase, lowercase, number, and symbol.")
@@ -42,6 +49,7 @@ def main() -> int:
         print("Cancelled.")
         return 1
 
+    Base.metadata.create_all(bind=engine, tables=[SuperAdminProfile.__table__])
     db = SessionLocal()
     try:
         for other in db.query(User).filter(User.role == "super_admin").all():
@@ -56,8 +64,29 @@ def main() -> int:
         user.password_hash = hash_password(password)
         user.role = "super_admin"
         user.active = True
+        db.flush()
+
+        duplicate_mobile = db.query(SuperAdminProfile).filter(
+            SuperAdminProfile.mobile_number == mobile,
+            SuperAdminProfile.user_id != user.id,
+        ).first()
+        if duplicate_mobile is not None:
+            print("That mobile number already belongs to another account.")
+            db.rollback()
+            return 1
+
+        profile = db.query(SuperAdminProfile).filter(
+            SuperAdminProfile.user_id == user.id
+        ).first()
+        if profile is None:
+            profile = SuperAdminProfile(user_id=user.id, mobile_number=mobile)
+            db.add(profile)
+        else:
+            profile.mobile_number = mobile
+        profile.mobile_verified = False
         db.commit()
-        print(f"Super Admin ready: {email}")
+        print(f"Super Admin ready: {email} / {mobile}")
+        print("Mobile verification status: pending OTP provider configuration.")
         print("All other Super Admin accounts were reduced to regular admin.")
         return 0
     except Exception:
