@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from api.database import Base
 from api.models import EquitySnapshot
-from api.mt5_ingest.models import ConnectorNonce, ConnectorPosition, ConnectorStatus
+from api.mt5_ingest.models import ConnectorDeal, ConnectorNonce, ConnectorPosition, ConnectorStatus
 from api.mt5_ingest import routes
 
 
@@ -30,7 +30,7 @@ def setup_module():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__, ConnectorStatus.__table__, ConnectorPosition.__table__])
+    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__, ConnectorStatus.__table__, ConnectorPosition.__table__, ConnectorDeal.__table__])
     routes.SessionLocal = sessionmaker(bind=engine)
 
 
@@ -59,6 +59,12 @@ def signed_request(monkeypatch, payload=None, nonce="abcdefghijklmnopqrstuvwxyz1
             "take_profit": 1.12, "profit": 10.0, "swap": 0.0,
             "opened_at": datetime.now(timezone.utc).isoformat(),
         }],
+        "closed_deals": [{
+            "deal_ticket": "654321", "position_id": "555", "order_id": "777",
+            "symbol": "EURUSD", "deal_type": "SELL", "volume": 0.1, "price": 1.101,
+            "profit": 10.0, "commission": -0.5, "swap": -0.1, "fee": 0,
+            "closed_at": datetime.now(timezone.utc).isoformat(),
+        }],
     }
     body = json.dumps(payload, separators=(",", ":")).encode()
     timestamp = str(int(time.time()))
@@ -84,6 +90,12 @@ def test_valid_signed_snapshot_is_accepted(monkeypatch):
     assert status.json()["connectors"][0]["read_only"] is True
     assert status.json()["connectors"][0]["open_position_count"] == 1
     assert status.json()["connectors"][0]["open_positions"][0]["ticket"] == "123456"
+    assert signed_request(monkeypatch, nonce="dedupe-deal-ticket-abcdefghijklmnop").status_code == 202
+    db = routes.SessionLocal()
+    try:
+        assert db.query(ConnectorDeal).filter(ConnectorDeal.deal_ticket == "654321").count() == 1
+    finally:
+        db.close()
 
 
 def test_replayed_nonce_is_rejected(monkeypatch):
