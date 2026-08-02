@@ -412,6 +412,11 @@ try:
     from api.operations.audit import SecurityAuditMiddleware
     from api.operations.routes import router as operations_router
     app.include_router(operations_router)
+    from api.mt5_ingest import models as mt5_ingest_models
+    from api.mt5_ingest.routes import router as mt5_ingest_router
+    app.include_router(mt5_ingest_router)
+    from api.media.routes import router as media_router
+    app.include_router(media_router)
     app.add_middleware(SecurityAuditMiddleware)
 
     from api.production_security import ProductionSecurityMiddleware
