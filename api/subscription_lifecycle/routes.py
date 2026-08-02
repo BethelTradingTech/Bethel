@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,8 +29,7 @@ from api.subscription_lifecycle.service import (
 router = APIRouter(tags=["Subscription Lifecycle"])
 
 OWNER_PROMO_HASH = "3d149428f278eeea00cdd462d5c1532f4341ec6643ff47a339359e6680743e30"
-OWNER_PROMO_BROKER_LOGIN = "49224282"
-OWNER_PROMO_BROKER_SERVER = "HFMGLOBALMARKETS-DEMO"
+OWNER_PROMO_ADMIN_SUBJECT = os.getenv("OWNER_PROMO_ADMIN_SUBJECT", "").strip().casefold()
 OWNER_PROMO_VALUE_USD = 100.0
 OWNER_PROMO_EXPIRES_AT = datetime(2027, 12, 31, 23, 59, 59)
 
@@ -53,41 +53,51 @@ def apply_owner_promo(
     subscriber_id: int,
     data: PromoApplyRequest,
     db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
+    admin: dict = Depends(require_admin),
 ):
-    """Apply the single-use, broker-bound owner subscription promotion."""
+    """Apply the reusable owner promotion once to each owner-controlled account."""
     supplied_hash = hashlib.sha256(data.code.strip().encode("utf-8")).hexdigest()
     if not hmac.compare_digest(supplied_hash, OWNER_PROMO_HASH):
         raise HTTPException(status_code=404, detail="Promotion code is invalid")
     if datetime.utcnow() > OWNER_PROMO_EXPIRES_AT:
         raise HTTPException(status_code=410, detail="Promotion code has expired")
 
+    admin_identity = str(admin.get("email") or admin.get("sub") or "").strip().casefold()
+    if not OWNER_PROMO_ADMIN_SUBJECT:
+        raise HTTPException(
+            status_code=503,
+            detail="Owner promotion identity is not configured",
+        )
+    if not admin_identity or not hmac.compare_digest(
+        admin_identity,
+        OWNER_PROMO_ADMIN_SUBJECT,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Promotion is restricted to the verified platform owner",
+        )
+
     account = db.query(BrokerAccount).filter(
         BrokerAccount.subscriber_id == subscriber_id,
-        BrokerAccount.login == OWNER_PROMO_BROKER_LOGIN,
+        BrokerAccount.status != "ARCHIVED",
     ).first()
     if account is None:
         raise HTTPException(
             status_code=403,
-            detail="Promotion is restricted to the verified owner broker account",
+            detail="Link and verify the owner-controlled follower account first",
         )
 
-    if account.server.casefold() != OWNER_PROMO_BROKER_SERVER.casefold():
-        raise HTTPException(
-            status_code=403,
-            detail="Promotion is restricted to the owner HFM demo account",
-        )
-    if "hfm" not in account.broker.casefold() and "hfmarkets" not in account.broker.casefold():
-        raise HTTPException(
-            status_code=403,
-            detail="Promotion is restricted to the owner HFM account",
-        )
-
+    redemption_hash = hashlib.sha256(
+        f"{OWNER_PROMO_HASH}:{subscriber_id}".encode("utf-8")
+    ).hexdigest()
     existing = db.query(PromoRedemption).filter(
-        PromoRedemption.code_hash == OWNER_PROMO_HASH
+        PromoRedemption.code_hash == redemption_hash
     ).first()
     if existing is not None:
-        raise HTTPException(status_code=409, detail="Promotion code has already been used")
+        raise HTTPException(
+            status_code=409,
+            detail="Owner promotion has already been used for this subscriber account",
+        )
 
     onboarding = db.query(ClientOnboarding).filter(
         ClientOnboarding.subscriber_id == subscriber_id
@@ -111,9 +121,9 @@ def apply_owner_promo(
     onboarding.payment_reference = reference
     onboarding.payment_confirmed_at = datetime.utcnow()
     db.add(PromoRedemption(
-        code_hash=OWNER_PROMO_HASH,
+        code_hash=redemption_hash,
         subscriber_id=subscriber_id,
-        broker_login=OWNER_PROMO_BROKER_LOGIN,
+        broker_login=account.login,
         original_amount_usd=float(plan.price),
         discount_amount_usd=OWNER_PROMO_VALUE_USD,
         final_amount_usd=0.0,
@@ -122,7 +132,7 @@ def apply_owner_promo(
     lifecycle = start_or_renew(
         db,
         onboarding,
-        administrator="OWNER_PROMO",
+        administrator=f"OWNER_PROMO:{admin_identity}",
         force=False,
     )
     if lifecycle is None:
@@ -132,6 +142,7 @@ def apply_owner_promo(
     return {
         "status": "success",
         "subscriber_id": subscriber_id,
+        "broker_login": account.login,
         "promotion": "OWNER100",
         "original_amount_usd": float(plan.price),
         "discount_amount_usd": OWNER_PROMO_VALUE_USD,
