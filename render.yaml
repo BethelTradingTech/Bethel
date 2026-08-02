@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: bethel-api
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: BETHEL_ENVIRONMENT
+        value: PRODUCTION
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bethel-db
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: SUBSCRIBER_JWT_SECRET_KEY
+        generateValue: true
+
+databases:
+  - name: bethel-db
+    plan: basic-256mb
+    databaseName: bethel
+    user: bethel_admin
