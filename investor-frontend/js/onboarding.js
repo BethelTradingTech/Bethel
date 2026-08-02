@@ -3,7 +3,10 @@
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname.startsWith("192.168.")
         ? `${window.location.protocol}//${window.location.hostname}:8000`
-        : "https://api.betheltradingtechnologies.com";
+        : window.location.hostname === "bethel-api.onrender.com" ||
+          window.location.hostname === "api.betheltradingtechnologies.com"
+            ? window.location.origin
+            : "https://api.betheltradingtechnologies.com";
 
 const SUBSCRIBER_TOKEN_KEY = "bethel_subscriber_access_token";
 const SUBSCRIBER_ID_KEY = "bethel_subscriber_id";
@@ -631,7 +634,6 @@ window.addEventListener("load",async()=>{
         await refreshStatus();
     }catch(error){setMessage("paypal-payment-message",error.message,"error");}
 });
-
 
 
 
