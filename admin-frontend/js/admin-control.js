@@ -13,7 +13,7 @@ async function loadOverview(){
  $("#system-health").textContent=health.status==="fulfilled"?"ONLINE":"OFFLINE";
  const c=connector.status==="fulfilled"?connector.value:{status:"OFFLINE",connectors:[]};renderConnectorStatus(c);
  const live=c.connectors?.[0];const a=live||(account.status==="fulfilled"?account.value:{});$("#mt5-status").textContent=c.status||a.status||a.connection_status||"OFFLINE";$("#balance").textContent=money(a.balance);$("#equity").textContent=money(a.equity);
- const p=positions.status==="fulfilled"?(Array.isArray(positions.value)?positions.value:(positions.value.positions||[])):[];$("#position-count").textContent=p.length;
+ const p=live?.open_positions||(positions.status==="fulfilled"?(Array.isArray(positions.value)?positions.value:(positions.value.positions||[])):[]);$("#position-count").textContent=p.length;
  const s=subscribers.status==="fulfilled"?(Array.isArray(subscribers.value)?subscribers.value:(subscribers.value.subscribers||[])):[];$("#subscriber-count").textContent=s.length;
  await renderSubscribers(s);renderPositions(p);renderDetails("#mt5-details",a);if(copy.status==="fulfilled")renderDetails("#copy-details",copy.value);if(performance.status==="fulfilled")renderDetails("#performance-details",performance.value);
  try{const inv=await apiGet("/admin/investors");renderInvestors(inv.investors||inv||[])}catch(e){$("#investors-table").innerHTML='<tr><td colspan="5">Investor API unavailable</td></tr>'}
