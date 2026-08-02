@@ -10,6 +10,7 @@ Institutional Quant Trading Platform
 # ==========================
 
 from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -91,6 +92,28 @@ app = FastAPI(
     description="Institutional Algorithmic Trading & Investor Portal",
     version="1.0"
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://static.sumsub.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https://betheltradingtechnologies.com; "
+        "connect-src 'self' https://api.betheltradingtechnologies.com https://*.sumsub.com; "
+        "frame-src https://*.sumsub.com; "
+        "object-src 'none'; base-uri 'self'; form-action 'self'"
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ==========================
