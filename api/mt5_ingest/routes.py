@@ -6,17 +6,22 @@ import os
 import re
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 
 from api.database import SessionLocal
+from api.auth.dependency import require_admin
 from api.models import EquitySnapshot
-from api.mt5_ingest.models import ConnectorNonce
+from api.mt5_ingest.models import ConnectorNonce, ConnectorStatus
 
 
 router = APIRouter(prefix="/connector/v1", tags=["Read-only MT5 connector"])
 MAX_CLOCK_SKEW_SECONDS = 300
+
+
+def _utc_now_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Snapshot(BaseModel):
@@ -82,7 +87,7 @@ async def ingest_snapshot(request: Request):
     db = SessionLocal()
     try:
         db.query(ConnectorNonce).filter(
-            ConnectorNonce.received_at < datetime.utcnow() - timedelta(days=1)
+            ConnectorNonce.received_at < _utc_now_naive() - timedelta(days=1)
         ).delete(synchronize_session=False)
         db.add(ConnectorNonce(connector_id=connector_id, nonce=nonce))
         db.flush()
@@ -93,6 +98,21 @@ async def ingest_snapshot(request: Request):
             profit=payload.floating_profit,
             timestamp=observed.astimezone(timezone.utc).replace(tzinfo=None),
         ))
+        status = db.query(ConnectorStatus).filter(
+            ConnectorStatus.connector_id == connector_id
+        ).first()
+        if status is None:
+            status = ConnectorStatus(connector_id=connector_id)
+            db.add(status)
+        status.account_number = payload.account_number
+        status.server = payload.server
+        status.currency = payload.currency
+        status.mode = payload.mode
+        status.balance = payload.balance
+        status.equity = payload.equity
+        status.floating_profit = payload.floating_profit
+        status.observed_at = observed.astimezone(timezone.utc).replace(tzinfo=None)
+        status.received_at = _utc_now_naive()
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -100,3 +120,31 @@ async def ingest_snapshot(request: Request):
     finally:
         db.close()
     return {"status": "accepted", "read_only": True}
+
+
+@router.get("/status")
+def connector_status(_admin=Depends(require_admin)):
+    db = SessionLocal()
+    try:
+        statuses = db.query(ConnectorStatus).order_by(ConnectorStatus.received_at.desc()).all()
+        now = _utc_now_naive()
+        connectors = []
+        for item in statuses:
+            age_seconds = max(0, int((now - item.received_at).total_seconds()))
+            connectors.append({
+                "connector_id": item.connector_id,
+                "connection_status": "ONLINE" if age_seconds <= 150 else "STALE",
+                "read_only": True,
+                "last_seen": item.received_at.isoformat() + "Z",
+                "age_seconds": age_seconds,
+                "account_number": item.account_number,
+                "server": item.server,
+                "currency": item.currency,
+                "account_mode": item.mode,
+                "balance": round(float(item.balance), 2),
+                "equity": round(float(item.equity), 2),
+                "floating_profit": round(float(item.floating_profit), 2),
+            })
+        return {"status": connectors[0]["connection_status"] if connectors else "OFFLINE", "read_only": True, "connectors": connectors}
+    finally:
+        db.close()
