@@ -331,6 +331,26 @@ document.getElementById("kyc-submit-button").addEventListener("click",async even
     }catch(error){setMessage("kyc-message",error.message,"error");}
     finally{button.disabled=false;}
 });
+document.getElementById("promo-apply-button").addEventListener("click",async event=>{
+    const button=event.currentTarget;
+    const code=document.getElementById("promo-code").value.trim();
+    if(!code){setMessage("promo-message","Enter your promotion code.","error");return;}
+    button.disabled=true;setMessage("promo-message","Validating secure promotion...");
+    try{
+        const data=await apiRequest(`/subscriptions/${subscriberId()}/promo/apply`,{
+            method:"POST",headers:subscriberHeaders(true),body:JSON.stringify({code})
+        });
+        document.getElementById("promo-code").value="";
+        setMessage(
+            "promo-message",
+            `Promotion applied. Original: ${data.original_amount_usd.toFixed(2)}; discount: ${data.discount_amount_usd.toFixed(2)}; amount due: ${data.amount_due_usd.toFixed(2)}.`,
+            "success"
+        );
+        await refreshStatus();
+    }catch(error){setMessage("promo-message",error.message,"error");}
+    finally{button.disabled=false;}
+});
+
 document.getElementById("paypal-pay-button").addEventListener("click",async event=>{
     const button=event.currentTarget;
     button.disabled=true;setMessage("paypal-payment-message","Creating PayPal sandbox checkout...");
