@@ -7,10 +7,11 @@ from stored equity snapshots.
 """
 
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 
 from api.database import SessionLocal
+from api.auth.dependency import require_admin
 
 from api.models import EquitySnapshot
 
@@ -44,7 +45,8 @@ router = APIRouter(
 @router.get("/equity-history")
 def equity_history(
 
-    request: Request
+    request: Request,
+    _admin=Depends(require_admin),
 
 ):
 
@@ -152,7 +154,7 @@ def equity_history(
 # ==========================
 
 @router.get("/analytics")
-def analytics(request: Request):
+def analytics(request: Request, _admin=Depends(require_admin)):
 
     data = get_performance_analytics()
 
@@ -167,7 +169,7 @@ def analytics(request: Request):
 # ==========================
 
 @router.get("/daily")
-def daily_performance(request: Request):
+def daily_performance(request: Request, _admin=Depends(require_admin)):
 
     return get_daily_performance()
 
@@ -177,7 +179,7 @@ def daily_performance(request: Request):
 # ==========================
 
 @router.get("/monthly")
-def monthly_performance(request: Request):
+def monthly_performance(request: Request, _admin=Depends(require_admin)):
 
     return get_monthly_performance()
 
@@ -187,6 +189,6 @@ def monthly_performance(request: Request):
 # ==========================
 
 @router.get("/trades")
-def trade_performance(request: Request):
+def trade_performance(request: Request, _admin=Depends(require_admin)):
 
     return get_trade_performance()
