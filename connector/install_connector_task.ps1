@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Force -Path $taskRoot | Out-Null
 $secret = Read-Host "Paste MT5_CONNECTOR_SECRET (input is hidden)" -AsSecureString
 $encrypted = ConvertFrom-SecureString $secret
 if ($encrypted.Length -lt 64) { throw "The connector secret was not captured correctly." }
-Set-Content -Path $secretFile -Value $encrypted -Encoding UTF8
+Set-Content -Path $secretFile -Value $encrypted -Encoding UTF8 -NoNewline
 
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$runner`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
