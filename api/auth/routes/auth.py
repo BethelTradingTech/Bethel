@@ -10,11 +10,12 @@ Handles:
 
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from api.database import SessionLocal
 
 from api.auth.models.user import User
+from api.auth.models.super_admin_profile import SuperAdminProfile
 
 from api.auth.services.security import verify_password
 
@@ -40,7 +41,7 @@ router = APIRouter(
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    identifier: str = Field(min_length=5, max_length=255)
     password: str = Field(min_length=12, max_length=256)
 
 
@@ -60,13 +61,27 @@ def login(data: LoginRequest):
     try:
 
 
-        # Find user
-
-        user = db.query(User).filter(
-
-            User.email == str(data.email).strip().casefold()
-
-        ).first()
+        # Find the real database-backed account by email or E.164 mobile.
+        identifier = data.identifier.strip().casefold()
+        profile = None
+        if identifier.startswith("+"):
+            normalized_mobile = "".join(
+                char for char in identifier if char.isdigit() or char == "+"
+            )
+            profile = db.query(SuperAdminProfile).filter(
+                SuperAdminProfile.mobile_number == normalized_mobile
+            ).first()
+            user = (
+                db.query(User).filter(User.id == profile.user_id).first()
+                if profile is not None
+                else None
+            )
+        else:
+            user = db.query(User).filter(User.email == identifier).first()
+            if user is not None and user.role == "super_admin":
+                profile = db.query(SuperAdminProfile).filter(
+                    SuperAdminProfile.user_id == user.id
+                ).first()
 
 
 
@@ -158,7 +173,9 @@ def login(data: LoginRequest):
 
                 "email": user.email,
 
-                "role": user.role
+                "role": user.role,
+                "mobile_number": profile.mobile_number if profile else None,
+                "mobile_verified": bool(profile.mobile_verified) if profile else False
 
             }
 
