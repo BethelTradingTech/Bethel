@@ -1,5 +1,6 @@
 """Create honest, branded weekly MP4s from authenticated server analytics."""
 from datetime import datetime
+from getpass import getpass
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,6 @@ import requests
 
 
 API = os.getenv("BETHEL_API_URL", "https://bethel-api.onrender.com").rstrip("/")
-TOKEN = os.getenv("BETHEL_ADMIN_TOKEN", "")
 OUTPUT = Path(os.getenv("BETHEL_MEDIA_OUTPUT", "weekly-media"))
 FPS, SECONDS = 24, 7
 FORMATS = {"vertical": (1080, 1920), "square": (1080, 1080), "landscape": (1920, 1080)}
@@ -28,10 +28,38 @@ def font(size, bold=False):
     return ImageFont.load_default()
 
 
+def get_admin_token():
+    token = os.getenv("BETHEL_ADMIN_TOKEN", "").strip()
+    if token:
+        return token
+
+    print("Sign in to Bethel to create the protected weekly report.")
+    identifier = input("Admin email or mobile number: ").strip()
+    password = getpass("Admin password (hidden): ")
+    response = requests.post(
+        API + "/auth/login",
+        json={"identifier": identifier, "password": password},
+        timeout=30,
+    )
+    password = ""
+    if not response.ok:
+        try:
+            detail = response.json().get("detail", "Login failed")
+        except ValueError:
+            detail = "Login failed"
+        raise RuntimeError(detail)
+    result = response.json()
+    if result.get("user", {}).get("role") not in {"admin", "super_admin"}:
+        raise RuntimeError("This account does not have admin access")
+    token = result.get("access_token", "")
+    if not token:
+        raise RuntimeError("The server did not return an access token")
+    return token
+
+
 def get_report():
-    if not TOKEN:
-        raise RuntimeError("Set BETHEL_ADMIN_TOKEN to a current admin access token")
-    response = requests.get(API + "/media/weekly-report", headers={"Authorization": f"Bearer {TOKEN}"}, timeout=30)
+    token = get_admin_token()
+    response = requests.get(API + "/media/weekly-report", headers={"Authorization": f"Bearer {token}"}, timeout=30)
     response.raise_for_status()
     report = response.json()
     if report.get("status") != "verified":
