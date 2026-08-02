@@ -3,7 +3,10 @@ const INVESTOR_API =
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname.startsWith("192.168.")
         ? `${window.location.protocol}//${window.location.hostname}:8000`
-        : "https://api.betheltradingtechnologies.com";
+        : window.location.hostname === "bethel-api.onrender.com" ||
+          window.location.hostname === "api.betheltradingtechnologies.com"
+            ? window.location.origin
+            : "https://api.betheltradingtechnologies.com";
 
 
 if(getInvestorSession()){
