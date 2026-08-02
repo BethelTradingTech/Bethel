@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
 
 from api.database import Base
 
@@ -38,3 +38,19 @@ class SubscriptionAudit(Base):
     reference = Column(String(150), nullable=True)
     administrator = Column(String(255), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PromoRedemption(Base):
+    """Immutable audit record for a redeemed subscription promotion."""
+
+    __tablename__ = "promo_redemptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code_hash = Column(String(64), nullable=False, unique=True, index=True)
+    subscriber_id = Column(Integer, nullable=False, index=True)
+    broker_login = Column(String(100), nullable=False, index=True)
+    original_amount_usd = Column(Float, nullable=False)
+    discount_amount_usd = Column(Float, nullable=False)
+    final_amount_usd = Column(Float, nullable=False)
+    payment_reference = Column(String(150), nullable=False, unique=True)
+    redeemed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
