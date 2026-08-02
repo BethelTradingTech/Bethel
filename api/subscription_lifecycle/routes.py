@@ -29,6 +29,7 @@ router = APIRouter(tags=["Subscription Lifecycle"])
 
 OWNER_PROMO_HASH = "3d149428f278eeea00cdd462d5c1532f4341ec6643ff47a339359e6680743e30"
 OWNER_PROMO_BROKER_LOGIN = "49224282"
+OWNER_PROMO_BROKER_SERVER = "HFMGLOBALMARKETS-DEMO"
 OWNER_PROMO_VALUE_USD = 100.0
 OWNER_PROMO_EXPIRES_AT = datetime(2027, 12, 31, 23, 59, 59)
 
@@ -69,6 +70,17 @@ def apply_owner_promo(
         raise HTTPException(
             status_code=403,
             detail="Promotion is restricted to the verified owner broker account",
+        )
+
+    if account.server.casefold() != OWNER_PROMO_BROKER_SERVER.casefold():
+        raise HTTPException(
+            status_code=403,
+            detail="Promotion is restricted to the owner HFM demo account",
+        )
+    if "hfm" not in account.broker.casefold() and "hfmarkets" not in account.broker.casefold():
+        raise HTTPException(
+            status_code=403,
+            detail="Promotion is restricted to the owner HFM account",
         )
 
     existing = db.query(PromoRedemption).filter(
