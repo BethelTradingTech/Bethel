@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from api.database import get_db
+from api.auth.dependency import require_admin
 
 from api.copytrading import models
 
@@ -44,7 +45,8 @@ router = APIRouter(
 @router.get("/dashboard")
 def copytrading_dashboard(
 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
 
 ):
 
