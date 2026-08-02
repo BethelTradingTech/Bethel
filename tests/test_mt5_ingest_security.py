@@ -2,7 +2,11 @@ from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
+import os
 import time
+
+os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-" + "x" * 64)
+os.environ.setdefault("SUBSCRIBER_JWT_SECRET_KEY", "test-subscriber-secret-" + "y" * 64)
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -12,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from api.database import Base
 from api.models import EquitySnapshot
-from api.mt5_ingest.models import ConnectorNonce
+from api.mt5_ingest.models import ConnectorNonce, ConnectorStatus
 from api.mt5_ingest import routes
 
 
@@ -26,12 +30,13 @@ def setup_module():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__])
+    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__, ConnectorStatus.__table__])
     routes.SessionLocal = sessionmaker(bind=engine)
 
 
 app = FastAPI()
 app.include_router(routes.router)
+app.dependency_overrides[routes.require_admin] = lambda: {"role": "super_admin"}
 client = TestClient(app)
 
 
@@ -67,6 +72,10 @@ def test_valid_signed_snapshot_is_accepted(monkeypatch):
     response = signed_request(monkeypatch)
     assert response.status_code == 202
     assert response.json() == {"status": "accepted", "read_only": True}
+    status = client.get("/connector/v1/status")
+    assert status.status_code == 200
+    assert status.json()["connectors"][0]["account_number"] == ACCOUNT
+    assert status.json()["connectors"][0]["read_only"] is True
 
 
 def test_replayed_nonce_is_rejected(monkeypatch):
