@@ -21,6 +21,13 @@ class SubscriberBridge:
 
     @staticmethod
     def execute_copy_order(db: Session, copy_order):
+        existing = db.query(models.CopyExecutionLog).filter(
+            models.CopyExecutionLog.copy_order_id == copy_order.id,
+            models.CopyExecutionLog.status == "monitored",
+        ).first()
+        if existing:
+            return {"status": "skipped", "reason": "already_monitored"}
+
         subscriber = db.query(models.CopySubscriber).filter(
             models.CopySubscriber.id == copy_order.subscriber_id
         ).first()
