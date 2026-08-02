@@ -28,8 +28,8 @@ from api.subscription_lifecycle.service import subscriber_can_copy
 
 router = APIRouter(prefix="/broker-accounts", tags=["Broker Accounts"])
 
-OWNER_BROKER_LOGIN = "49617874"
-OWNER_BROKER_SERVER = "HFMGLOBALMARKETS-DEMO"
+MASTER_BROKER_LOGIN = "49617874"
+OWNER_SUBSCRIBER_LOGIN = "49224282"
 
 
 class ArchiveTestSubscribersRequest(BaseModel):
@@ -120,6 +120,12 @@ def _prepare_connection(data: BrokerAccountLinkRequest):
 
 
 def _save_account(db: Session, subscriber_id: int, data: BrokerAccountLinkRequest):
+    if data.login == MASTER_BROKER_LOGIN:
+        raise HTTPException(
+            status_code=409,
+            detail="The master trading account cannot be linked as a subscriber",
+        )
+
     subscriber = db.query(CopySubscriber).filter(
         CopySubscriber.id == subscriber_id
     ).first()
@@ -186,24 +192,18 @@ def archive_test_subscribers(
     admin: dict = Depends(require_admin),
 ):
     """Archive test subscribers while retaining financial and security audit history."""
-    expected = f"ARCHIVE TEST SUBSCRIBERS KEEP {OWNER_BROKER_LOGIN}"
+    expected = f"ARCHIVE TEST SUBSCRIBERS KEEP {OWNER_SUBSCRIBER_LOGIN}"
     if data.confirmation != expected:
         raise HTTPException(status_code=422, detail=f"Confirmation must be: {expected}")
 
     owner_account = db.query(BrokerAccount).filter(
-        BrokerAccount.login == OWNER_BROKER_LOGIN
+        BrokerAccount.login == OWNER_SUBSCRIBER_LOGIN
     ).first()
     if owner_account is None:
         raise HTTPException(
             status_code=409,
             detail="Owner broker account must be linked before test accounts can be archived",
         )
-    if owner_account.server.casefold() != OWNER_BROKER_SERVER.casefold():
-        raise HTTPException(
-            status_code=409,
-            detail="Owner broker server does not match the protected demo account",
-        )
-
     keep_subscriber_id = owner_account.subscriber_id
     archived_subscribers = 0
     archived_accounts = 0
@@ -262,8 +262,8 @@ def archive_test_subscribers(
     db.commit()
     return {
         "status": "success",
-        "protected_broker_login": OWNER_BROKER_LOGIN,
-        "protected_server": OWNER_BROKER_SERVER,
+        "protected_broker_login": OWNER_SUBSCRIBER_LOGIN,
+        "protected_server": owner_account.server,
         "protected_subscriber_id": keep_subscriber_id,
         "archived_subscribers": archived_subscribers,
         "archived_broker_accounts": archived_accounts,
