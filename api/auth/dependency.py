@@ -99,7 +99,9 @@ def check_auth(request: Request):
 
     try:
 
-        decode_token(token)
+        payload = decode_token(token)
+        if payload.get("role") not in ADMIN_ROLES:
+            return RedirectResponse("/login")
 
 
     except JWTError:
@@ -110,3 +112,19 @@ def check_auth(request: Request):
 
 
     return None
+
+
+def require_investor_or_admin(request: Request, investor_id: int):
+    """Allow administrators or the investor who owns the requested record."""
+    token = _get_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if payload.get("role") in ADMIN_ROLES:
+        return payload
+    if payload.get("role") != "investor" or payload.get("investor_id") != investor_id:
+        raise HTTPException(status_code=403, detail="Investor access denied")
+    return payload
