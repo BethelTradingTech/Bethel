@@ -14,7 +14,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
 
     const button = document.getElementById("login-button");
     const error = document.getElementById("login-error");
-    const email = document.getElementById("email").value.trim();
+    const identifier = document.getElementById("identifier").value.trim();
     const password = document.getElementById("password").value;
 
     button.disabled = true;
@@ -28,7 +28,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
                 "Accept": "application/json",
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ identifier, password })
         });
 
         const data = await response.json();
