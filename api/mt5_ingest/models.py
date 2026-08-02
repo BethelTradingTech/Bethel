@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, Integer, String
+from sqlalchemy import Column, DateTime, Float, Integer, String, UniqueConstraint
 
 from api.database import Base
 
@@ -51,3 +51,25 @@ class ConnectorPosition(Base):
     swap = Column(Float, nullable=False, default=0)
     opened_at = Column(DateTime, nullable=True)
     observed_at = Column(DateTime, nullable=False, index=True)
+
+
+class ConnectorDeal(Base):
+    __tablename__ = "connector_deals"
+    __table_args__ = (UniqueConstraint("connector_id", "deal_ticket", name="uq_connector_deal_ticket"),)
+
+    id = Column(Integer, primary_key=True)
+    connector_id = Column(String(100), nullable=False, index=True)
+    account_number = Column(String(32), nullable=False, index=True)
+    deal_ticket = Column(String(40), nullable=False, index=True)
+    position_id = Column(String(40), nullable=False, index=True)
+    order_id = Column(String(40), nullable=False)
+    symbol = Column(String(32), nullable=False, index=True)
+    deal_type = Column(String(8), nullable=False)
+    volume = Column(Float, nullable=False)
+    price = Column(Float, nullable=False)
+    profit = Column(Float, nullable=False, default=0)
+    commission = Column(Float, nullable=False, default=0)
+    swap = Column(Float, nullable=False, default=0)
+    fee = Column(Float, nullable=False, default=0)
+    closed_at = Column(DateTime, nullable=False, index=True)
+    received_at = Column(DateTime, default=utc_now, nullable=False)
