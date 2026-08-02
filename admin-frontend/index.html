@@ -188,7 +188,7 @@
 
     <section id="view-api" class="view"><article class="panel"><div class="section-heading"><div><h2>API and Route Status</h2><p>Live inspection of published FastAPI routes.</p></div><button id="load-routes" type="button">Reload routes</button></div><input id="route-search" class="search" placeholder="Filter routes…"><div class="table-wrap"><table><thead><tr><th>Method</th><th>Path</th><th>Name</th><th>Status</th></tr></thead><tbody id="routes-table"></tbody></table></div></article></section>
 
-    <section id="view-security" class="view"><article class="panel"><h2>Admin Users & Security</h2><p>Current session is protected with a bearer token. Administrative API calls require an authenticated user whose JWT role is <strong>admin</strong>.</p><div class="security-card"><strong>Recommended controls</strong><p>Rotate the production JWT secret, enable strong passwords, add audit logging, and use least-privilege administrator accounts.</p></div></article></section>
+    <section id="view-security" class="view"><article class="panel"><h2>Admin Users & Security</h2><p>Current session is protected with a bearer token. Administrative API calls require an authenticated <strong>admin</strong> or <strong>super_admin</strong>. Owner-only actions require <strong>super_admin</strong>.</p><div class="security-card"><strong>Recommended controls</strong><p>Rotate the production JWT secret, enable strong passwords, add audit logging, and use least-privilege administrator accounts.</p></div></article></section>
 
     <section id="view-settings" class="view"><form id="system-form" class="panel form-panel"><div class="section-heading"><div><h2>System Settings</h2><p>Operational switches and portal addresses.</p></div><button type="submit">Save system settings</button></div><div class="form-grid">
       <label>Environment<input name="environment" readonly></label>
@@ -203,6 +203,6 @@
 <div id="overlay" class="overlay"></div>
 <script src="js/auth.js?v=20260726d"></script>
 <script src="js/api.js?v=20260726d"></script>
-<script src="js/admin-control.js?v=20260731-live1"></script>
+<script src="js/admin-control.js?v=20260802-auth1"></script>
 </body>
 </html>
