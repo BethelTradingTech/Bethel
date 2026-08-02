@@ -21,7 +21,6 @@ def weekly_report(days: int = Query(7, ge=1, le=31), _admin=Depends(require_admi
             return {"status": "insufficient_data", "period_days": days}
         start, end = points[0], points[-1]
         trades = db.query(Trade).filter(
-            Trade.account_number == end.account_number,
             Trade.status == "CLOSED",
             Trade.closed_at >= cutoff,
         ).all()
