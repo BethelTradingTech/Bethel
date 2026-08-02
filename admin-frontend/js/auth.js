@@ -147,48 +147,12 @@ function isAuthenticated(){
 
     }
 
-    if(payload.role !== "admin"){
+    if(!["admin", "super_admin"].includes(payload.role)){
 
         localStorage.removeItem(TOKEN_KEY);
         return false;
 
     }
-
-    if(payload.role !== "admin"){
-
-        localStorage.removeItem(TOKEN_KEY);
-        return false;
-
-    }
-
-    if(payload.role !== "admin"){
-
-        localStorage.removeItem(TOKEN_KEY);
-        return false;
-
-    }
-
-    if(payload.role !== "admin"){
-
-        localStorage.removeItem(TOKEN_KEY);
-        return false;
-
-    }
-
-    if(payload.role !== "admin"){
-
-        localStorage.removeItem(TOKEN_KEY);
-        return false;
-
-    }
-
-    if(payload.role !== "admin"){
-
-        localStorage.removeItem(TOKEN_KEY);
-        return false;
-
-    }
-
 
 
     if(payload.exp){
