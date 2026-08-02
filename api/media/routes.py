@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Query
 
 from api.auth.dependency import require_admin
 from api.database import SessionLocal
-from api.models import EquitySnapshot, Trade
+from api.models import EquitySnapshot
+from api.mt5_ingest.models import ConnectorDeal
 
 
 router = APIRouter(prefix="/media", tags=["Verified performance media"])
@@ -20,13 +21,14 @@ def weekly_report(days: int = Query(7, ge=1, le=31), _admin=Depends(require_admi
         if not points:
             return {"status": "insufficient_data", "period_days": days}
         start, end = points[0], points[-1]
-        trades = db.query(Trade).filter(
-            Trade.status == "CLOSED",
-            Trade.closed_at >= cutoff,
-        ).all()
+        deals = db.query(ConnectorDeal).filter(ConnectorDeal.closed_at >= cutoff).all()
+        trade_results = {}
+        for deal in deals:
+            trade_results.setdefault(deal.position_id, 0.0)
+            trade_results[deal.position_id] += float(deal.profit or 0) + float(deal.commission or 0) + float(deal.swap or 0) + float(deal.fee or 0)
         pnl = end.equity - start.equity
         return_pct = (pnl / start.equity * 100) if start.equity else 0
-        wins = sum(1 for trade in trades if float(trade.profit or 0) > 0)
+        wins = sum(1 for result in trade_results.values() if result > 0)
         peak = float(points[0].equity)
         max_dd = 0.0
         for point in points:
@@ -42,8 +44,9 @@ def weekly_report(days: int = Query(7, ge=1, le=31), _admin=Depends(require_admi
             "ending_equity": round(float(end.equity), 2),
             "weekly_pnl": round(pnl, 2),
             "weekly_return_percent": round(return_pct, 2),
-            "closed_trades": len(trades),
-            "win_rate_percent": round((wins / len(trades) * 100) if trades else 0, 2),
+            "closed_trades": len(trade_results),
+            "realized_net_profit": round(sum(trade_results.values()), 2),
+            "win_rate_percent": round((wins / len(trade_results) * 100) if trade_results else 0, 2),
             "maximum_drawdown_percent": round(max_dd, 2),
             "profitable": pnl > 0,
             "disclosure": "Past performance does not guarantee future results.",
