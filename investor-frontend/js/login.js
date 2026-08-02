@@ -26,12 +26,15 @@ document.getElementById("login-form").addEventListener(
         error.textContent = "";
 
         try {
-            const query = new URLSearchParams({email, password});
             const response = await fetch(
-                INVESTOR_API + "/investor/auth/login?" + query,
+                INVESTOR_API + "/investor/auth/login",
                 {
                     method: "POST",
-                    headers: {"Accept": "application/json"}
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({email, password})
                 }
             );
             const data = await response.json();
