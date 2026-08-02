@@ -1,13 +1,12 @@
 import hashlib
 import hmac
-import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from api.auth.dependency import require_admin, require_subscriber_or_admin
+from api.auth.dependency import require_admin, require_subscriber_or_admin, require_super_admin
 from api.broker_accounts.models import BrokerAccount
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
@@ -29,7 +28,6 @@ from api.subscription_lifecycle.service import (
 router = APIRouter(tags=["Subscription Lifecycle"])
 
 OWNER_PROMO_HASH = "3d149428f278eeea00cdd462d5c1532f4341ec6643ff47a339359e6680743e30"
-OWNER_PROMO_ADMIN_SUBJECT = os.getenv("OWNER_PROMO_ADMIN_SUBJECT", "").strip().casefold()
 OWNER_PROMO_VALUE_USD = 100.0
 OWNER_PROMO_EXPIRES_AT = datetime(2027, 12, 31, 23, 59, 59)
 
@@ -53,7 +51,7 @@ def apply_owner_promo(
     subscriber_id: int,
     data: PromoApplyRequest,
     db: Session = Depends(get_db),
-    admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_super_admin),
 ):
     """Apply the reusable owner promotion once to each owner-controlled account."""
     supplied_hash = hashlib.sha256(data.code.strip().encode("utf-8")).hexdigest()
@@ -62,20 +60,7 @@ def apply_owner_promo(
     if datetime.utcnow() > OWNER_PROMO_EXPIRES_AT:
         raise HTTPException(status_code=410, detail="Promotion code has expired")
 
-    admin_identity = str(admin.get("email") or admin.get("sub") or "").strip().casefold()
-    if not OWNER_PROMO_ADMIN_SUBJECT:
-        raise HTTPException(
-            status_code=503,
-            detail="Owner promotion identity is not configured",
-        )
-    if not admin_identity or not hmac.compare_digest(
-        admin_identity,
-        OWNER_PROMO_ADMIN_SUBJECT,
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Promotion is restricted to the verified platform owner",
-        )
+    admin_identity = str(admin.get("email") or admin.get("sub") or "super_admin").strip().casefold()
 
     account = db.query(BrokerAccount).filter(
         BrokerAccount.subscriber_id == subscriber_id,
