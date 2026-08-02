@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from api.database import Base
 from api.models import EquitySnapshot
-from api.mt5_ingest.models import ConnectorNonce, ConnectorStatus
+from api.mt5_ingest.models import ConnectorNonce, ConnectorPosition, ConnectorStatus
 from api.mt5_ingest import routes
 
 
@@ -30,7 +30,7 @@ def setup_module():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__, ConnectorStatus.__table__])
+    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__, ConnectorStatus.__table__, ConnectorPosition.__table__])
     routes.SessionLocal = sessionmaker(bind=engine)
 
 
@@ -53,6 +53,12 @@ def signed_request(monkeypatch, payload=None, nonce="abcdefghijklmnopqrstuvwxyz1
         "floating_profit": 25,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "mode": "DEMO",
+        "positions": [{
+            "ticket": "123456", "symbol": "EURUSD", "direction": "BUY", "volume": 0.1,
+            "open_price": 1.1, "current_price": 1.101, "stop_loss": 1.09,
+            "take_profit": 1.12, "profit": 10.0, "swap": 0.0,
+            "opened_at": datetime.now(timezone.utc).isoformat(),
+        }],
     }
     body = json.dumps(payload, separators=(",", ":")).encode()
     timestamp = str(int(time.time()))
@@ -76,6 +82,8 @@ def test_valid_signed_snapshot_is_accepted(monkeypatch):
     assert status.status_code == 200
     assert status.json()["connectors"][0]["account_number"] == ACCOUNT
     assert status.json()["connectors"][0]["read_only"] is True
+    assert status.json()["connectors"][0]["open_position_count"] == 1
+    assert status.json()["connectors"][0]["open_positions"][0]["ticket"] == "123456"
 
 
 def test_replayed_nonce_is_rejected(monkeypatch):
