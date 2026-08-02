@@ -9,7 +9,7 @@ Handles:
 """
 
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from api.database import SessionLocal
@@ -20,6 +20,7 @@ from api.auth.models.super_admin_profile import SuperAdminProfile
 from api.auth.services.security import verify_password
 
 from api.auth.services.jwt import create_token
+from api.auth.rate_limit import check_login_allowed, clear_login_failures, record_login_failure
 
 
 
@@ -51,9 +52,10 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-def login(data: LoginRequest):
+def login(data: LoginRequest, request: Request, response: Response):
 
 
+    check_login_allowed(request, data.identifier)
     db = SessionLocal()
 
 
@@ -87,7 +89,7 @@ def login(data: LoginRequest):
 
         if not user:
 
-
+            record_login_failure(request, data.identifier)
             raise HTTPException(
 
                 status_code=401,
@@ -98,6 +100,7 @@ def login(data: LoginRequest):
 
         if not user.active:
 
+            record_login_failure(request, data.identifier)
             raise HTTPException(
 
                 status_code=403,
@@ -122,7 +125,7 @@ def login(data: LoginRequest):
 
         if not password_valid:
 
-
+            record_login_failure(request, data.identifier)
             raise HTTPException(
 
                 status_code=401,
@@ -150,6 +153,17 @@ def login(data: LoginRequest):
         )
 
 
+
+        clear_login_failures(request, data.identifier)
+        response.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=8 * 60 * 60,
+            path="/",
+        )
 
         return {
 
