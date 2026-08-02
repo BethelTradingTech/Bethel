@@ -319,55 +319,22 @@ def get_subscriber_broker_account(
     return account or {"status": "not_found"}
 
 
-@router.post("/{account_id}/live-access", response_model=BrokerAccountResponse)
+@router.post("/{account_id}/live-access")
 def set_live_access(
     account_id: int,
     data: LiveAccessRequest,
     db: Session = Depends(get_db),
-    admin=Depends(require_admin),
+    _admin=Depends(require_admin),
 ):
     account = db.query(BrokerAccount).filter(BrokerAccount.id == account_id).first()
     if account is None:
         raise HTTPException(status_code=404, detail="Broker account not found")
-
-    expected = "ENABLE LIVE MT5" if data.enabled else "DISABLE LIVE MT5"
-    if data.confirmation != expected:
-        raise HTTPException(status_code=422, detail=f"Confirmation must be: {expected}")
-
-    if data.enabled:
-        if account.platform != TradingPlatform.MT5.value:
-            raise HTTPException(
-                status_code=409,
-                detail="Live access is currently available only for MT5 accounts",
-            )
-        if account.status != "CONNECTED":
-            raise HTTPException(
-                status_code=409,
-                detail="MT5 account must be verified and connected",
-            )
-        if account.account_type == "CENT" and (
-            account.starting_capital_usd is None
-            or account.starting_capital_usd >= 1000
-            or not account.capital_verified
-        ):
-            raise HTTPException(
-                status_code=409,
-                detail="Cent account capital and broker denomination must be verified",
-            )
-        if not subscriber_can_copy(db, account.subscriber_id):
-            raise HTTPException(
-                status_code=409,
-                detail="Subscriber has not completed every activation requirement",
-            )
-
-    account.live_authorized = data.enabled
-    account.execution_mode = "LIVE" if data.enabled else "PAPER"
-    account.live_authorized_at = datetime.utcnow() if data.enabled else None
-    account.live_authorized_by = (
-        str(admin.get("email") or admin.get("sub") or "admin")
-        if data.enabled
-        else None
-    )
+    account.live_authorized = False
+    account.execution_mode = "PAPER"
+    account.live_authorized_at = None
+    account.live_authorized_by = None
     db.commit()
-    db.refresh(account)
-    return account
+    raise HTTPException(
+        status_code=409,
+        detail="Bethel is read-only. Trades are executed exclusively by authorized EAs in MT5.",
+    )
