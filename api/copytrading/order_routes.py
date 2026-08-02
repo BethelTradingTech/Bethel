@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from api.database import get_db
+from api.auth.dependency import require_investor_or_admin
 from api.copytrading.models import CopyOrder, CopySubscriber
 
 router = APIRouter(prefix="/copytrading", tags=["Copy Trading"])
 
 @router.get("/investors/{investor_id}/orders")
-def get_investor_copy_orders(investor_id: int, db: Session = Depends(get_db)):
+def get_investor_copy_orders(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_investor_or_admin),
+):
     # Strict lookup mapping investor_id to their copy subscriber record
     subscriber = db.query(CopySubscriber).filter(
         CopySubscriber.investor_id == investor_id
