@@ -20,6 +20,9 @@ def _get_token(request: Request):
     return token
 
 
+ADMIN_ROLES = {"admin", "super_admin"}
+
+
 def require_admin(request: Request):
     token = _get_token(request)
 
@@ -31,9 +34,22 @@ def require_admin(request: Request):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    if payload.get("role") != "admin":
+    if payload.get("role") not in ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    return payload
+
+
+def require_super_admin(request: Request):
+    token = _get_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if payload.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Super Admin access required")
     return payload
 
 
@@ -45,7 +61,7 @@ def require_subscriber_or_admin(request: Request, subscriber_id: int):
 
     try:
         admin_payload = decode_token(token)
-        if admin_payload.get("role") == "admin":
+        if admin_payload.get("role") in ADMIN_ROLES:
             return admin_payload
     except JWTError:
         pass
