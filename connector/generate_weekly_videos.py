@@ -1,5 +1,5 @@
 """Create honest, branded weekly MP4s from authenticated server analytics."""
-from datetime import datetime
+from datetime import datetime, timezone
 from getpass import getpass
 import json
 import os
@@ -106,8 +106,12 @@ def frame(report, size, progress):
 
 def write_video(report, name, size):
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    path = OUTPUT / f"bethel-weekly-{name}-{datetime.utcnow():%Y-%m-%d}.mp4"
-    writer = imageio_ffmpeg.write_frames(str(path), size, fps=FPS, codec="libx264", pix_fmt_in="rgb24", output_params=["-pix_fmt", "yuv420p", "-movflags", "+faststart", "-crf", "20"])
+    path = OUTPUT / f"bethel-weekly-{name}-{datetime.now(timezone.utc):%Y-%m-%d}.mp4"
+    writer = imageio_ffmpeg.write_frames(
+        str(path), size, fps=FPS, codec="libx264", pix_fmt_in="rgb24",
+        pix_fmt_out="yuv420p", macro_block_size=1,
+        output_params=["-movflags", "+faststart", "-crf", "20"],
+    )
     writer.send(None)
     try:
         total = FPS * SECONDS
