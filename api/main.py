@@ -152,6 +152,18 @@ app.mount(
     name="static"
 )
 
+app.mount(
+    "/admin-frontend",
+    StaticFiles(directory="admin-frontend", html=True),
+    name="admin-frontend",
+)
+
+app.mount(
+    "/investor-frontend",
+    StaticFiles(directory="investor-frontend", html=True),
+    name="investor-frontend",
+)
+
 
 # ==========================
 # TEMPLATE ENGINE
