@@ -18,6 +18,12 @@ services:
         generateValue: true
       - key: SUBSCRIBER_JWT_SECRET_KEY
         generateValue: true
+      - key: MT5_CONNECTOR_SECRET
+        sync: false
+      - key: MASTER_MT5_ACCOUNTS
+        value: "49617874"
+      - key: MASTER_ACCOUNT_MODE
+        value: DEMO
 
 databases:
   - name: bethel-db
