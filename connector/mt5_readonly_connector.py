@@ -25,11 +25,28 @@ def snapshot():
     if account is None:
         raise RuntimeError("MT5 account is unavailable")
     mode = "DEMO" if "demo" in account.server.casefold() else "LIVE"
+    open_positions = mt5.positions_get()
+    if open_positions is None:
+        raise RuntimeError(f"MT5 positions unavailable: {mt5.last_error()}")
+    positions = [{
+        "ticket": str(position.ticket),
+        "symbol": position.symbol,
+        "direction": "BUY" if position.type == mt5.POSITION_TYPE_BUY else "SELL",
+        "volume": position.volume,
+        "open_price": position.price_open,
+        "current_price": position.price_current,
+        "stop_loss": position.sl,
+        "take_profit": position.tp,
+        "profit": position.profit,
+        "swap": position.swap,
+        "opened_at": datetime.fromtimestamp(position.time, timezone.utc).isoformat(),
+    } for position in open_positions]
     return {
         "account_number": str(account.login), "server": account.server,
         "currency": account.currency, "balance": account.balance,
         "equity": account.equity, "floating_profit": account.profit,
         "observed_at": datetime.now(timezone.utc).isoformat(), "mode": mode,
+        "positions": positions,
     }
 
 
