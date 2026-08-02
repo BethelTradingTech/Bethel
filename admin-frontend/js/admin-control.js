@@ -19,8 +19,9 @@ async function loadOverview(){
  try{const inv=await apiGet("/admin/investors");renderInvestors(inv.investors||inv||[])}catch(e){$("#investors-table").innerHTML='<tr><td colspan="5">Investor API unavailable</td></tr>'}
 }
 function renderConnectorStatus(data){
- const badge=$("#connector-badge"),target=$("#connector-details"),item=data.connectors?.[0];
+ const badge=$("#connector-badge"),target=$("#connector-details"),alert=$("#connector-alert"),item=data.connectors?.[0];
  const status=data.status||"OFFLINE";badge.textContent=status;badge.className="connector-badge status-"+status.toLowerCase();
+ alert.hidden=status==="ONLINE";alert.textContent=status==="STALE"?"Warning: MT5 connector data is stale. Check the laptop, internet connection and MT5 terminal.":"Critical: MT5 connector is offline. Performance and positions are not updating.";
  if(!item){target.innerHTML='<p class="notice">No signed connector snapshot has been received.</p>';return}
  const rows=[["Account",item.account_number],["Server",item.server],["Mode",item.account_mode],["Last seen",new Date(item.last_seen).toLocaleString()],["Balance",money(item.balance)],["Equity",money(item.equity)],["Floating P/L",money(item.floating_profit)],["Execution","READ ONLY"]];
  target.innerHTML=rows.map(([label,value])=>`<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
@@ -329,3 +330,4 @@ async function loadRoutes(){try{const data=await apiGet("/admin/control/routes")
 function renderRoutes(rows){$("#routes-table").innerHTML=rows.map(r=>`<tr><td>${r.methods.join(", ")}</td><td>${r.path}</td><td>${r.name}</td><td>ONLINE</td></tr>`).join("")}
 $("#route-search").oninput=e=>{const q=e.target.value.toLowerCase();renderRoutes((window.routeRows||[]).filter(r=>(r.path+" "+r.name+" "+r.methods.join(" ")).toLowerCase().includes(q)))}
 $("#load-routes").onclick=loadRoutes;$("#refresh-button").onclick=()=>{loadOverview();loadSettings()};loadOverview();loadSettings();
+setInterval(()=>{if($("#view-overview").classList.contains("active"))loadOverview()},60000);
