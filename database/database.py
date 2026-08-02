@@ -3,20 +3,21 @@ Bethel Trading Technologies
 Database Engine
 """
 
-from sqlalchemy import create_engine
+import os
+
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 
 DATABASE_NAME = "bethel_trading.db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATABASE_NAME}")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 
-DATABASE_URL = f"sqlite:///{DATABASE_NAME}"
-
-
-engine = create_engine(
-    DATABASE_URL,
-    echo=False
-)
+engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 
 
 SessionLocal = sessionmaker(
@@ -38,5 +39,9 @@ def get_database():
 
 
 def database_status():
-
-    return "Database Engine Online"
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return "Database Engine Online"
+    except Exception:
+        return "Database Engine Unavailable"
