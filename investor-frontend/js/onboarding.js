@@ -168,7 +168,8 @@ document.getElementById("subscriber-registration-form")?.addEventListener("submi
 
     setMessage("subscriber-registration-message","");
     if(name.length<2){setMessage("subscriber-registration-message","Enter your full name.","error");return;}
-    if(password.length<8){setMessage("subscriber-registration-message","Password must contain at least 8 characters.","error");return;}
+    if(password.length<12){setMessage("subscriber-registration-message","Password must contain at least 12 characters.","error");return;}
+    if(!/[a-z]/.test(password)||!/[A-Z]/.test(password)||!/[0-9]/.test(password)||!/[^A-Za-z0-9]/.test(password)){setMessage("subscriber-registration-message","Password must include uppercase, lowercase, a number and a special character.","error");return;}
     if(password!==confirmPassword){setMessage("subscriber-registration-message","Passwords do not match.","error");return;}
     if(!consent){setMessage("subscriber-registration-message","Confirm the registration declaration to continue.","error");return;}
 
@@ -634,7 +635,6 @@ window.addEventListener("load",async()=>{
         await refreshStatus();
     }catch(error){setMessage("paypal-payment-message",error.message,"error");}
 });
-
 
 
 
