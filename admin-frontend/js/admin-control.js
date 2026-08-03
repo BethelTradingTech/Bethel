@@ -2,7 +2,7 @@ if(typeof requireAuthentication==="function"&&!requireAuthentication()){throw ne
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=v=>new Intl.NumberFormat("en-BB",{style:"currency",currency:"BBD"}).format(Number(v||0));
 const titles={overview:"Overview",website:"Website Management",investors:"Investor Management",subscribers:"Subscriber Management",operations:"Backup & Security",operations:"Backup & Security",notifications:"Notifications",legal:"Legal Consent",profitshare:"20% Profit Split",subscriptions:"Subscription Lifecycle",payments:"Payment Reconciliation",mt5:"MT5 Accounts",copytrading:"Copy Trading",analytics:"Performance & Analytics",api:"API & Routes",security:"Security",settings:"System Settings"};
-function showView(name){$$(".view").forEach(x=>x.classList.remove("active"));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.view===name));$("#view-"+name).classList.add("active");$("#page-title").textContent=titles[name];closeMenu();if(name==="api")loadRoutes();if(name==="payments")loadPayments();if(name==="subscriptions")loadSubscriptions();if(name==="profitshare")loadProfitShareAdmin();if(name==="legal")loadLegalAdmin();if(name==="notifications")loadNotifications();if(name==="operations")loadOperations();if(name==="analytics")loadAnalytics()}
+function showView(name){$$(".view").forEach(x=>x.classList.remove("active"));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.view===name));$("#view-"+name).classList.add("active");$("#page-title").textContent=titles[name];closeMenu();if(name==="api")loadRoutes();if(name==="payments")loadPayments();if(name==="subscriptions")loadSubscriptions();if(name==="profitshare")loadProfitShareAdmin();if(name==="legal")loadLegalAdmin();if(name==="notifications")loadNotifications();if(name==="operations")loadOperations();if(name==="analytics")loadAnalytics();if(name==="copytrading")loadCopyHub()}
 function openMenu(){$("#sidebar").classList.add("open");$("#overlay").classList.add("show")}function closeMenu(){$("#sidebar").classList.remove("open");$("#overlay").classList.remove("show")}
 $$(".nav-item").forEach(b=>b.onclick=()=>showView(b.dataset.view));$$("[data-go]").forEach(b=>b.onclick=()=>showView(b.dataset.go));$("#menu-button").onclick=openMenu;$("#overlay").onclick=closeMenu;$("#logout-button").onclick=()=>typeof logout==="function"?logout():localStorage.clear();
 function setStatus(t,error=false){$("#save-status").textContent=t;$("#save-status").style.color=error?"#ef4444":"#10b981";setTimeout(()=>$("#save-status").textContent="",3500)}
@@ -36,6 +36,44 @@ async function loadAnalytics(){
   target.innerHTML=`<p class="notice">${escapeHtml(error.message||"Performance analytics unavailable")}</p>`;
  }
 }
+
+async function loadCopyHub(){
+ const table=$("#copyhub-table");if(!table)return;
+ try{
+  const data=await apiGet("/copyhub/v1/admin/status");window.copyHubState=data;
+  $("#copyhub-master").textContent=`Master ${data.master_account}`;
+  $("#copyhub-global-state").textContent=data.globally_paused?"PAUSED":"RUNNING";
+  $("#copyhub-global-state").className=`review-state ${data.globally_paused?"state-rejected":"state-approved"}`;
+  $("#copyhub-global-toggle").textContent=data.globally_paused?"Resume all copying":"Emergency pause";
+  table.innerHTML=(data.receivers||[]).map(row=>{
+   const heartbeat=row.last_heartbeat_at?new Date(row.last_heartbeat_at+"Z"):null;
+   const online=heartbeat&&(Date.now()-heartbeat.getTime())<90000;
+   return `<tr><td>${escapeHtml(row.receiver_id)}</td><td><strong>${escapeHtml(row.account_number)}</strong></td><td>${stateBadge(row.environment)}</td><td>${escapeHtml(row.currency_unit)} · ${row.is_cent_account?"CENT":"STANDARD"}</td><td>${stateBadge(online?"ONLINE":"OFFLINE")}<br><small>${heartbeat?heartbeat.toLocaleString():"Never connected"}</small></td><td>${stateBadge(row.active?"ACTIVE":"INACTIVE")} ${stateBadge(row.paused?"PAUSED":"ENABLED")}</td><td><div class="review-actions"><button data-copyhub-action="${row.active?"deactivate":"activate"}" data-receiver="${escapeHtml(row.receiver_id)}" data-account="${escapeHtml(row.account_number)}" ${!online&&!row.active?"disabled":""}>${row.active?"Deactivate":"Activate"}</button><button data-copyhub-action="${row.paused?"resume":"pause"}" data-receiver="${escapeHtml(row.receiver_id)}">${row.paused?"Resume":"Pause"}</button></div></td></tr>`;
+  }).join("")||'<tr><td colspan="7">No copier receivers have been provisioned.</td></tr>';
+  $$('[data-copyhub-action]').forEach(button=>button.onclick=()=>handleCopyHubAction(button));
+ }catch(error){table.innerHTML=`<tr><td colspan="7">${escapeHtml(error.message)}</td></tr>`}
+}
+
+async function handleCopyHubAction(button){
+ const action=button.dataset.copyhubAction,receiver=button.dataset.receiver,account=button.dataset.account;
+ button.disabled=true;
+ try{
+  if(action==="activate"||action==="deactivate"){
+   const active=action==="activate",confirmation=`${active?"ACTIVATE":"DEACTIVATE"} RECEIVER ${account}`;
+   if(prompt(`Type exactly: ${confirmation}`)!==confirmation)return;
+   await apiPatch(`/copyhub/v1/admin/receivers/${encodeURIComponent(receiver)}/activation`,{active,confirmation});
+  }else await apiPatch(`/copyhub/v1/admin/receivers/${encodeURIComponent(receiver)}/pause`,{paused:action==="pause"});
+  await loadCopyHub();
+ }catch(error){setStatus(error.message,true)}finally{button.disabled=false}
+}
+
+$("#reload-copyhub").onclick=loadCopyHub;
+$("#copyhub-global-toggle").onclick=async()=>{
+ const paused=!window.copyHubState?.globally_paused;
+ if(paused&&!confirm("Emergency-pause copying for every subscriber?"))return;
+ if(!paused&&prompt("Type RESUME ALL COPYING")!=="RESUME ALL COPYING")return;
+ try{await apiPatch("/copyhub/v1/admin/global-pause",{paused});await loadCopyHub()}catch(error){setStatus(error.message,true)}
+};
 function renderDetails(selector,obj){const el=$(selector);if(!el)return;el.innerHTML=Object.entries(obj||{}).filter(([,v])=>typeof v!=="object").slice(0,20).map(([k,v])=>`<div><small>${k.replaceAll("_"," ")}</small><strong>${v??"â€”"}</strong></div>`).join("")||"<p>No data available.</p>"}
 const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 const stateBadge=value=>`<span class="review-state state-${String(value||"UNKNOWN").toLowerCase().replaceAll("_","-")}">${escapeHtml(value||"UNKNOWN")}</span>`;
@@ -70,6 +108,7 @@ async function renderSubscribers(rows){
     <button data-action="broker-refresh" data-id="${r.id}">Verify MT5</button>
     <button data-action="approval-approve" data-id="${r.id}" ${o.admin_approval==="APPROVED"?"disabled":""}>Approve Activation</button>
     <button data-action="approval-reject" data-id="${r.id}">Reject</button>
+    <button data-action="copier-code" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account||o.copy_trading_status!=="ACTIVE"?"disabled":""}>Create Copier Code</button>
     <button data-action="live-enable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account||account.platform!=="MT5"||o.copy_trading_status!=="ACTIVE"||account.live_authorized?"disabled":""}>Enable Live MT5</button>
     <button class="danger-button" data-action="live-disable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account?.live_authorized?"disabled":""}>Emergency Stop</button>
    </div></td>
@@ -112,6 +151,19 @@ async function handleReviewAction(button){
  }else if(action==="approval-reject"){
   const reason=prompt("Reason for rejecting activation:");if(!reason)return;
   endpoint=`/onboarding/${id}/approval`;payload={decision:"REJECTED",reason};
+ }else if(action==="copier-code"){
+  const account=onboarding.broker_account,accountId=button.dataset.accountId;
+  if(!account||!accountId){setStatus("Verified MT5 account is required",true);return}
+  const mode=String(account.server||"").toLowerCase().includes("demo")?"DEMO":"LIVE";
+  const currency=String(account.currency||"USD").toUpperCase();
+  const unit=["USC","USCENT","USCENTS","CENT"].includes(currency)||account.account_type==="CENT"?"USC":"USD";
+  try{
+   const data=await apiPost("/copyhub/v1/admin/receivers",{subscriber_id:id,broker_account_id:Number(accountId),environment:mode,currency_unit:unit,is_cent_account:unit==="USC"});
+   if(navigator.clipboard)await navigator.clipboard.writeText(data.activation_code);
+   window.prompt("Copy this one-time Bethel Copier activation code. It expires in 24 hours:",data.activation_code);
+   setStatus("Copier activation code created");await loadCopyHub();
+  }catch(error){setStatus(error.message||"Unable to create copier code",true)}
+  return;
  }else if(action==="live-enable"){
   const accountId=button.dataset.accountId;
   if(!accountId){setStatus("Verified MT5 account is required",true);return}
