@@ -93,7 +93,7 @@ header h2 { font-size: 14px; font-weight: 400; color: var(--text-dim); text-tran
 }
 
 .panel h2 { font-size: 18px; margin-bottom: 25px; }
-.copier-download{margin-top:24px}.copier-build-status{display:block;margin:18px 0 10px;padding:13px 16px;border:1px solid #0ea5e9;border-radius:9px;background:rgba(14,165,233,.12);color:#7dd3fc;text-align:center;font-weight:800}.copier-download small{display:block;color:var(--text-dim)}
+.copier-download{margin-top:24px}.copier-download-button{display:block;margin:18px 0 10px;padding:13px 16px;border-radius:9px;background:linear-gradient(135deg,#0ea5e9,#2563eb);color:white;text-align:center;text-decoration:none;font-weight:800}.copier-download small{display:block;color:var(--text-dim)}
 
 /* TABLES - Data Grid style */
 table { width: 100%; border-collapse: collapse; }
