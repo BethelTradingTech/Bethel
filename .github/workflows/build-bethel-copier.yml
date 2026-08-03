@@ -3,8 +3,16 @@ name: Build Bethel Copier for Windows
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "copier-v*"
+    paths:
+      - "connector/bethel_copier_app.py"
+      - "connector/mt5_subscriber_copier.py"
+      - "connector/requirements.txt"
+      - "installer/**"
+      - ".github/workflows/build-bethel-copier.yml"
 
 permissions:
   contents: read
