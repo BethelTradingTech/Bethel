@@ -101,6 +101,7 @@ def terminal_details(path):
     return account, {
         "account_number": str(account.login),
         "environment": "DEMO" if "demo" in str(account.server).casefold() else "LIVE",
+        "server": str(account.server), "leverage": int(account.leverage or 0),
         "currency_unit": "USC" if cent else "USD", "is_cent_account": cent,
         "contract_size": info.trade_contract_size, "min_lot": info.volume_min,
         "max_lot": info.volume_max, "lot_step": info.volume_step,
