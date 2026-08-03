@@ -87,5 +87,7 @@ def test_activation_code_is_one_time_and_account_bound():
     accepted = client.post("/copyhub/v1/receiver/activate", json=payload)
     assert accepted.status_code == 200
     assert len(accepted.json()["receiver_token"]) >= 48
+    db.expire_all()
+    assert db.query(BrokerAccount).filter(BrokerAccount.id == account.id).one().status == "CONNECTED"
     assert client.post("/copyhub/v1/receiver/activate", json=payload).status_code == 401
     db.close()
