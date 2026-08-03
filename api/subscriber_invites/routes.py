@@ -86,21 +86,28 @@ def create_subscriber_invite(
     setup_url = (
         f"{base}/investor-frontend/setup-password.html?token={raw_token}"
     )
-    delivery = record_and_send(
-        db,
-        recipient=subscriber.email,
-        subscriber_id=subscriber.id,
-        message_type="ACCOUNT_SETUP",
-        subject="Set up your Bethel subscriber account",
-        text_body=(
-            f"Hello {subscriber.name},\\n\\n"
-            "Use this one-time link to create your subscriber password. "
-            "It expires in 24 hours:\\n"
-            f"{setup_url}\\n\\n"
-            "If you were not expecting this invitation, ignore this message."
-        ),
-    )
-    db.commit()
+    try:
+        delivery = record_and_send(
+            db,
+            recipient=subscriber.email,
+            subscriber_id=subscriber.id,
+            message_type="ACCOUNT_SETUP",
+            subject="Set up your Bethel subscriber account",
+            text_body=(
+                f"Hello {subscriber.name},\\n\\n"
+                "Use this one-time link to create your subscriber password. "
+                "It expires in 24 hours:\\n"
+                f"{setup_url}\\n\\n"
+                "If you were not expecting this invitation, ignore this message."
+            ),
+        )
+        db.commit()
+        email_status = delivery.status
+    except Exception:
+        # The setup token was committed above. A notification-storage or SMTP
+        # failure must never prevent Super Admin from copying the secure link.
+        db.rollback()
+        email_status = "FAILED"
 
     return {
         "status": "success",
@@ -108,7 +115,7 @@ def create_subscriber_invite(
         "setup_url": setup_url,
         "expires_at": expires_at.isoformat() + "Z",
         "message": "One-time setup link created; it expires in 24 hours",
-        "email_status": delivery.status,
+        "email_status": email_status,
     }
 
 
