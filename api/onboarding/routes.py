@@ -62,6 +62,17 @@ def _plan_dict(plan: SubscriptionPlan):
 
 @router.get("/plans")
 def list_plans(db: Session = Depends(get_db)):
+    if db.query(SubscriptionPlan).count() == 0:
+        db.add(SubscriptionPlan(
+            name="Standard",
+            description="Bethel copy-trading subscription with non-custodial broker account linking.",
+            price=100.0,
+            currency="USD",
+            billing_interval="MONTHLY",
+            allocation_percent=100.0,
+            active=True,
+        ))
+        db.commit()
     plans = (
         db.query(SubscriptionPlan)
         .filter(SubscriptionPlan.active.is_(True))
