@@ -87,3 +87,15 @@ class CopyDelivery(Base):
     acknowledged_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
     updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class ReceiverActivation(Base):
+    __tablename__ = "receiver_activations"
+
+    id = Column(Integer, primary_key=True)
+    receiver_id = Column(Integer, ForeignKey("copy_receivers.id"), nullable=False, index=True)
+    code_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
