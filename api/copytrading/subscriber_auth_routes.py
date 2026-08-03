@@ -26,7 +26,12 @@ from sqlalchemy.exc import IntegrityError
 
 from api.database import SessionLocal
 from api.copytrading.models import CopySubscriber
-from api.auth.rate_limit import check_registration_allowed
+from api.auth.rate_limit import (
+    check_login_allowed,
+    check_registration_allowed,
+    clear_login_failures,
+    record_login_failure,
+)
 
 from api.security import (
     hash_password,
@@ -119,9 +124,11 @@ def register_subscriber_password(data: RegisterRequest, request: Request):
 
 @router.post("/login")
 def subscriber_login(
-    data: LoginRequest
+    data: LoginRequest,
+    request: Request,
 ):
-
+    email = data.email.strip().lower()
+    check_login_allowed(request, email)
     db = SessionLocal()
 
     try:
@@ -129,14 +136,14 @@ def subscriber_login(
         subscriber = (
             db.query(CopySubscriber)
             .filter(
-                CopySubscriber.email == data.email
+                func.lower(CopySubscriber.email) == email
             )
             .first()
         )
 
 
         if not subscriber:
-
+            record_login_failure(request, email)
             raise HTTPException(
                 status_code=401,
                 detail="Invalid credentials"
@@ -145,10 +152,10 @@ def subscriber_login(
 
 
         if not subscriber.password_hash:
-
+            record_login_failure(request, email)
             raise HTTPException(
-                status_code=400,
-                detail="Password not created"
+                status_code=401,
+                detail="Invalid credentials"
             )
 
 
@@ -157,14 +164,14 @@ def subscriber_login(
             data.password,
             subscriber.password_hash
         ):
-
+            record_login_failure(request, email)
             raise HTTPException(
                 status_code=401,
                 detail="Invalid credentials"
             )
 
 
-
+        clear_login_failures(request, email)
         token = create_access_token(
             {
                 "subscriber_id":
