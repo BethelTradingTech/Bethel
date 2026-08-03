@@ -5,6 +5,7 @@ payment, compliance, or security evidence.
 """
 
 from datetime import datetime
+import os
 import sys
 
 from api.broker_accounts.models import BrokerAccount
@@ -14,19 +15,22 @@ from api.onboarding.models import ClientOnboarding
 from api.subscription_lifecycle.models import SubscriptionAudit, SubscriptionLifecycle
 
 
-PROTECTED_FOLLOWER_LOGIN = "49224282"
+PROTECTED_FOLLOWER_LOGIN = os.getenv("BETHEL_PROTECTED_SUBSCRIBER_ACCOUNT", "").strip()
 
 
 def main() -> int:
     db = SessionLocal()
     try:
+        if not PROTECTED_FOLLOWER_LOGIN:
+            print("Stopped: set BETHEL_PROTECTED_SUBSCRIBER_ACCOUNT before cleanup.")
+            return 1
         protected = db.query(BrokerAccount).filter(
             BrokerAccount.login == PROTECTED_FOLLOWER_LOGIN,
             BrokerAccount.status != "ARCHIVED",
         ).first()
         if protected is None:
             print(
-                "Stopped: protected follower account 49224282 must be linked "
+                f"Stopped: protected follower account {PROTECTED_FOLLOWER_LOGIN} must be linked "
                 "and active before cleanup."
             )
             return 1
