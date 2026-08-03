@@ -34,6 +34,7 @@ app.include_router(copy_routes.router, prefix="/copytrading")
 app.include_router(invite_routes.router)
 app.dependency_overrides[get_db] = override_db
 app.dependency_overrides[copy_routes.require_admin] = lambda: {"role": "super_admin"}
+app.dependency_overrides[copy_routes.require_super_admin] = lambda: {"role": "super_admin"}
 client = TestClient(app)
 
 
@@ -50,3 +51,11 @@ def test_admin_creation_is_idempotent_and_invite_survives_email_failure(monkeypa
     assert invited.status_code == 200
     assert invited.json()["setup_url"].startswith("http://testserver/investor-frontend/setup-password.html?token=")
     assert invited.json()["email_status"] == "FAILED"
+
+    removed = client.request(
+        "DELETE",
+        f"/copytrading/subscribers/{first.json()['id']}",
+        json={"confirmation": f"DELETE SUBSCRIBER {first.json()['id']}"},
+    )
+    assert removed.status_code == 200
+    assert Session().query(CopySubscriber).count() == 0
