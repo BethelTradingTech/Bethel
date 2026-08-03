@@ -6,7 +6,7 @@ const API_BASE =
         : window.location.hostname === "bethel-api.onrender.com" ||
           window.location.hostname === "api.betheltradingtechnologies.com"
             ? window.location.origin
-            : "https://api.betheltradingtechnologies.com";
+            : "https://bethel-api.onrender.com";
 
 if (isAuthenticated()) {
     window.location.replace("index.html");
