@@ -38,7 +38,7 @@ client = TestClient(app)
 
 
 def test_admin_creation_is_idempotent_and_invite_survives_email_failure(monkeypatch):
-    payload = {"name": "Adam Abu", "email": "yaatuni33@gmail.com", "account_number": "49224282", "allocation_percent": 100}
+    payload = {"name": "Test Subscriber", "email": "subscriber@example.test", "account_number": "90000002", "allocation_percent": 100}
     first = client.post("/copytrading/subscribers", json=payload)
     second = client.post("/copytrading/subscribers", json=payload)
     assert first.status_code == 200
