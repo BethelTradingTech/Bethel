@@ -44,7 +44,7 @@ def test_public_registration_and_login(monkeypatch):
     assert created.json()["subscriber_id"] > 0
     duplicate = client.post("/copytrading/auth/register", json=payload)
     assert duplicate.status_code == 409
-    logged_in = client.post("/copytrading/auth/login", json={"email": "public@example.com", "password": payload["password"]})
+    logged_in = client.post("/copytrading/auth/login", json={"email": "PUBLIC@EXAMPLE.COM", "password": payload["password"]})
     assert logged_in.status_code == 200
     assert logged_in.json()["access_token"]
 
