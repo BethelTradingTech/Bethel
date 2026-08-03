@@ -15,7 +15,7 @@ on:
       - ".github/workflows/build-bethel-copier.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-installer:
@@ -29,9 +29,21 @@ jobs:
         run: pip install -r connector/requirements.txt pyinstaller "numpy==1.26.4"
       - name: Build customer application
         run: pyinstaller --noconfirm --clean --onefile --windowed --name BethelCopier --paths . --hidden-import connector.mt5_subscriber_copier --hidden-import numpy._core.multiarray --collect-all MetaTrader5 --collect-all numpy connector/bethel_copier_app.py
+      - name: Validate packaged MetaTrader5 and NumPy runtime
+        run: .\dist\BethelCopier.exe --self-test
       - name: Build Windows installer
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\BethelCopier.iss'
       - uses: actions/upload-artifact@v4
         with:
           name: BethelCopierSetup
           path: installer/output/BethelCopierSetup.exe
+      - name: Publish public testing release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: copier-v1.0.1
+          name: Bethel Copier v1.0.1 Public Test
+          prerelease: true
+          body: |
+            Public testing release for 64-bit Windows 10/11 Intel/AMD laptops and desktops running MetaTrader 5.
+            This build is not yet code-signed. Windows SmartScreen may display an Unknown Publisher warning.
+          files: installer/output/BethelCopierSetup.exe
