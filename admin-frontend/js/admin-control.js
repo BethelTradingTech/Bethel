@@ -78,6 +78,22 @@ function renderDetails(selector,obj){const el=$(selector);if(!el)return;el.inner
 const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 const stateBadge=value=>`<span class="review-state state-${String(value||"UNKNOWN").toLowerCase().replaceAll("_","-")}">${escapeHtml(value||"UNKNOWN")}</span>`;
 
+const createSubscriberForm=$("#create-subscriber-form");
+if(createSubscriberForm)createSubscriberForm.addEventListener("submit",async event=>{
+ const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),result=$("#create-subscriber-result");
+ event.preventDefault();button.disabled=true;button.textContent="Creating secure setup link…";result.textContent="";
+ try{
+  const payload={name:form.elements.name.value.trim(),email:form.elements.email.value.trim().toLowerCase(),account_number:form.elements.account_number.value.trim(),allocation_percent:Number(form.elements.allocation_percent.value)};
+  const subscriber=await apiPost("/subscribers",payload);
+  const invite=await apiPost(`/admin/subscribers/${subscriber.id}/invite`,{});
+  result.textContent=`Subscriber ${subscriber.id} created. The one-time setup link expires in 24 hours.`;
+  if(navigator.clipboard)await navigator.clipboard.writeText(invite.setup_url).catch(()=>{});
+  window.prompt("Copy this secure one-time setup link:",invite.setup_url);
+  form.reset();form.elements.allocation_percent.value="100";await loadOverview();
+ }catch(error){result.textContent=error.message||"Unable to create subscriber";setStatus(result.textContent,true)}
+ finally{button.disabled=false;button.textContent="Create Subscriber & Setup Link"}
+});
+
 
 
 
