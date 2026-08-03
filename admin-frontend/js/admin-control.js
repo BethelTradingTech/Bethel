@@ -127,6 +127,7 @@ async function renderSubscribers(rows){
     <button data-action="copier-code" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account?"disabled":""}>Create Copier Code</button>
     <button data-action="live-enable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account||account.platform!=="MT5"||o.copy_trading_status!=="ACTIVE"||account.live_authorized?"disabled":""}>Enable Live MT5</button>
     <button class="danger-button" data-action="live-disable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account?.live_authorized?"disabled":""}>Emergency Stop</button>
+    <button class="danger-button" data-action="delete-subscriber" data-id="${r.id}" ${r.status==="ACTIVE"||r.payment_status==="PAID"?"disabled":""}>Delete Permanently</button>
    </div></td>
   </tr>`;
  }).join("")||'<tr><td colspan="7">No subscribers found.</td></tr>';
@@ -148,6 +149,14 @@ async function handleReviewAction(button){
     return;
   }
   if(action==="refresh"){await loadOverview();return}
+ if(action==="delete-subscriber"){
+  const confirmation=`DELETE SUBSCRIBER ${id}`;
+  if(prompt(`This permanently deletes this unpaid, inactive subscriber. Type exactly: ${confirmation}`)!==confirmation)return;
+  button.disabled=true;
+  try{await apiRequest(`/copytrading/subscribers/${id}`,{method:"DELETE",body:JSON.stringify({confirmation})});setStatus("Subscriber permanently deleted");await loadOverview()}
+  catch(error){setStatus(error.message||"Unable to delete subscriber",true)}finally{button.disabled=false}
+  return;
+ }
  let endpoint="", payload;
  if(action==="kyc-approve"){
   if(!confirm(`Approve KYC for subscriber ${id}?`))return;
