@@ -417,6 +417,9 @@ try:
     app.include_router(mt5_ingest_router)
     from api.media.routes import router as media_router
     app.include_router(media_router)
+    from api.copyhub import models as copyhub_models
+    from api.copyhub.routes import router as copyhub_router
+    app.include_router(copyhub_router)
     app.add_middleware(SecurityAuditMiddleware)
 
     from api.production_security import ProductionSecurityMiddleware
