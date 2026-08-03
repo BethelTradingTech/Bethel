@@ -11,3 +11,4 @@ async function apiRequest(endpoint,options={}){
 const apiGet=e=>apiRequest(e);
 const apiPost=(e,data)=>apiRequest(e,{method:"POST",body:data===undefined?undefined:JSON.stringify(data)});
 const apiPut=(e,data)=>apiRequest(e,{method:"PUT",body:JSON.stringify(data)});
+const apiPatch=(e,data)=>apiRequest(e,{method:"PATCH",body:JSON.stringify(data)});
