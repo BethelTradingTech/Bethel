@@ -72,6 +72,8 @@ class HeartbeatRequest(BaseModel):
     min_lot: float = Field(gt=0)
     max_lot: float = Field(gt=0)
     lot_step: float = Field(gt=0)
+    server: str | None = Field(default=None, min_length=2, max_length=255)
+    leverage: int | None = Field(default=None, ge=0, le=10000)
 
 
 class CustomerActivationRequest(HeartbeatRequest):
@@ -231,6 +233,17 @@ def customer_activate(data: CustomerActivationRequest, db: Session = Depends(get
     receiver.contract_size, receiver.min_lot, receiver.max_lot, receiver.lot_step = data.contract_size, data.min_lot, data.max_lot, data.lot_step
     receiver.metadata_verified = True
     receiver.last_heartbeat_at = utc_now()
+    account = db.query(BrokerAccount).filter(BrokerAccount.id == receiver.broker_account_id).first()
+    if account is not None:
+        account.status = "CONNECTED"
+        account.currency = data.currency_unit
+        account.account_type = "CENT" if data.is_cent_account else "STANDARD"
+        account.capital_verified = True
+        account.last_verified_at = utc_now()
+        if data.server:
+            account.server = data.server
+        if data.leverage is not None:
+            account.leverage = data.leverage
     activation.used_at = utc_now()
     db.commit()
     return {"status": "activated", "receiver_id": receiver.receiver_id, "receiver_token": raw_token, "token_shown_once": True, "active": receiver.active, "paused": receiver.paused}
