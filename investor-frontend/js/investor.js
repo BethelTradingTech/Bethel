@@ -6,7 +6,7 @@ const API =
         : window.location.hostname === "bethel-api.onrender.com" ||
           window.location.hostname === "api.betheltradingtechnologies.com"
             ? window.location.origin
-            : "https://api.betheltradingtechnologies.com";
+            : "https://bethel-api.onrender.com";
 
 
 function safe(id, value){
