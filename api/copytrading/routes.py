@@ -33,7 +33,9 @@ Does NOT:
 """
 
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
@@ -76,32 +78,44 @@ def create_subscriber(
     db: Session = Depends(get_db),
     _admin=Depends(require_admin),
 ):
+    email = subscriber.email.strip().lower()
+    account_number = subscriber.account_number.strip()
+    matches = db.query(models.CopySubscriber).filter(or_(
+        func.lower(models.CopySubscriber.email) == email,
+        models.CopySubscriber.mt5_account == account_number,
+    )).all()
+    if len({row.id for row in matches}) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="The email and trading account belong to different subscribers",
+        )
 
-    new_subscriber = models.CopySubscriber(
-
-        name=subscriber.name,
-
-        email=subscriber.email,
-
-        mt5_account=subscriber.account_number,
-
+    record = matches[0] if matches else models.CopySubscriber(
+        name=subscriber.name.strip(),
+        email=email,
+        mt5_account=account_number,
         allocation_percent=subscriber.allocation_percent,
-
         status="PENDING",
-
-        payment_status="UNPAID"
-
+        payment_status="UNPAID",
     )
+    if not matches:
+        db.add(record)
+    else:
+        record.name = subscriber.name.strip()
+        record.email = email
+        record.mt5_account = account_number
+        record.allocation_percent = subscriber.allocation_percent
 
-
-    db.add(new_subscriber)
-
-    db.commit()
-
-    db.refresh(new_subscriber)
-
-
-    return new_subscriber
+    try:
+        db.commit()
+        db.refresh(record)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="This email address or MT5 account is already registered",
+        ) from exc
+    return record
 
 
 
