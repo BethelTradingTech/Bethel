@@ -22,6 +22,7 @@ from api.broker_accounts.schemas import (
 )
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
+from api.notifications.emailer import record_and_send
 from api.onboarding.models import ClientOnboarding
 from api.subscription_lifecycle.models import SubscriptionAudit, SubscriptionLifecycle
 from api.subscription_lifecycle.service import subscriber_can_copy
@@ -134,6 +135,74 @@ def _prepare_connection(data: BrokerAccountLinkRequest):
     }
 
 
+def _issue_and_email_copier_code(
+    db: Session,
+    subscriber: CopySubscriber,
+    account: BrokerAccount,
+):
+    """Create and email a single-use copier code without risking account linking."""
+    if account.platform != "MT5":
+        return
+
+    # Import lazily to avoid a module-import cycle between broker and Copy Hub routes.
+    from api.copyhub.routes import ProvisionReceiver, provision_receiver
+
+    currency = str(account.currency or "USD").upper()
+    is_cent = account.account_type == "CENT" or currency in {
+        "USC",
+        "USCENT",
+        "USCENTS",
+        "CENT",
+    }
+    environment = "DEMO" if "demo" in str(account.server or "").casefold() else "LIVE"
+
+    # Live receiver provisioning remains protected by the existing explicit
+    # authorization rule. Until then, issue a DEMO/PAPER activation safely.
+    if environment == "LIVE" and not account.live_authorized:
+        environment = "DEMO"
+
+    result = provision_receiver(
+        ProvisionReceiver(
+            subscriber_id=subscriber.id,
+            broker_account_id=account.id,
+            environment=environment,
+            currency_unit="USC" if is_cent else "USD",
+            is_cent_account=is_cent,
+        ),
+        db=db,
+        admin={"sub": "automatic-broker-link"},
+    )
+    activation_code = result["activation_code"]
+
+    try:
+        delivery = record_and_send(
+            db,
+            recipient=subscriber.email,
+            subscriber_id=subscriber.id,
+            message_type="COPIER_ACTIVATION",
+            subject="Your Bethel Copier activation code",
+            text_body=(
+                f"Hello {subscriber.name},\n\n"
+                "Your MT5 account has been linked to Bethel Trading Technologies.\n\n"
+                f"MT5 account: {account.login}\n"
+                f"Broker: {account.broker}\n"
+                f"Server: {account.server}\n\n"
+                "Copy and paste this one-time code into the Bethel Copier:\n\n"
+                f"{activation_code}\n\n"
+                "This code expires in 24 hours and becomes invalid immediately after use. "
+                "Do not share it with anyone. Trading will begin only after all required "
+                "KYC, payment, legal, subscription, and Super Admin approvals are complete."
+            ),
+        )
+        db.commit()
+        return delivery.status
+    except Exception:
+        # The broker link and activation code were committed before email delivery.
+        # SMTP failure must not undo either record; Super Admin can resend safely.
+        db.rollback()
+        return "FAILED"
+
+
 def _save_account(db: Session, subscriber_id: int, data: BrokerAccountLinkRequest):
     if data.login == MASTER_BROKER_LOGIN:
         raise HTTPException(
@@ -195,9 +264,15 @@ def _save_account(db: Session, subscriber_id: int, data: BrokerAccountLinkReques
     subscriber.mt5_account_id = account.id
     db.commit()
     db.refresh(account)
+
+    # Generate a new single-use code and attempt SMTP delivery. This is isolated
+    # from the account transaction so notification failure cannot break linking.
+    try:
+        _issue_and_email_copier_code(db, subscriber, account)
+    except Exception:
+        db.rollback()
+
     return account
-
-
 
 
 @router.post("/admin/archive-test-subscribers")
