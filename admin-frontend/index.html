@@ -115,6 +115,18 @@
     <section id="view-subscribers" class="view">
       <article class="panel">
         <div class="section-heading"><div><h2>Subscriber Onboarding Review</h2><p>Verify KYC, payment and MT5 before final activation.</p></div></div>
+        <form id="create-subscriber-form" class="form-panel" autocomplete="off">
+          <h3>Create Subscriber &amp; Secure Setup Link</h3>
+          <p class="muted">Super Admin creates the subscriber first. The subscriber uses a one-time link to set a private password.</p>
+          <div class="form-grid">
+            <label>Full name<input name="name" required minlength="2" maxlength="100"></label>
+            <label>Email address<input name="email" type="email" required></label>
+            <label>MT5 account number<input name="account_number" inputmode="numeric" required pattern="[0-9]{4,20}"></label>
+            <label>Allocation percent<input name="allocation_percent" type="number" value="100" min="1" max="100" step="0.01" required></label>
+          </div>
+          <button type="submit">Create Subscriber &amp; Setup Link</button>
+          <p id="create-subscriber-result" class="muted" aria-live="polite"></p>
+        </form>
         <div class="table-wrap"><table class="review-table"><thead><tr><th>Subscriber</th><th>Subscription</th><th>KYC</th><th>Payment</th><th>MT5</th><th>Approval</th><th>Actions</th></tr></thead><tbody id="subscribers-table"><tr><td colspan="7">Loading...</td></tr></tbody></table></div>
       </article>
     </section>
