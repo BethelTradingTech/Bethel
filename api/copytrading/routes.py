@@ -34,13 +34,14 @@ Does NOT:
 
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, or_
+from pydantic import BaseModel, Field
+from sqlalchemy import delete, func, inspect, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 
-from api.database import get_db, SessionLocal
-from api.auth.dependency import require_admin, require_subscriber_or_admin
+from api.database import Base, get_db, SessionLocal
+from api.auth.dependency import require_admin, require_subscriber_or_admin, require_super_admin
 
 from api.copytrading import models
 
@@ -62,6 +63,10 @@ from config.execution import EXECUTION_MODE
 router = APIRouter(
     tags=["Copy Trading"]
 )
+
+
+class PermanentDeleteSubscriberRequest(BaseModel):
+    confirmation: str = Field(min_length=10, max_length=200)
 
 
 
@@ -138,6 +143,40 @@ def list_subscribers(
         db.query(models.CopySubscriber)
         .all()
     )
+
+
+@router.delete("/subscribers/{subscriber_id}")
+def permanently_delete_pending_subscriber(
+    subscriber_id: int,
+    data: PermanentDeleteSubscriberRequest,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_super_admin),
+):
+    subscriber = db.query(models.CopySubscriber).filter(
+        models.CopySubscriber.id == subscriber_id
+    ).first()
+    if subscriber is None:
+        raise HTTPException(status_code=404, detail="Subscriber not found")
+    expected = f"DELETE SUBSCRIBER {subscriber_id}"
+    if data.confirmation != expected:
+        raise HTTPException(status_code=422, detail=f"Confirmation must be: {expected}")
+    if subscriber.status == "ACTIVE" or subscriber.payment_status == "PAID" or subscriber.activated_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Active or paid subscribers cannot be permanently deleted",
+        )
+
+    # Delete dependent onboarding/test records in reverse dependency order.
+    # This operation is intentionally restricted to never-activated, unpaid records.
+    existing_tables = set(inspect(db.get_bind()).get_table_names())
+    for table in reversed(Base.metadata.sorted_tables):
+        if table.name == models.CopySubscriber.__tablename__:
+            continue
+        if table.name in existing_tables and "subscriber_id" in table.c:
+            db.execute(delete(table).where(table.c.subscriber_id == subscriber_id))
+    db.delete(subscriber)
+    db.commit()
+    return {"status": "deleted", "subscriber_id": subscriber_id}
 
 
 
