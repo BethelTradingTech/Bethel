@@ -29,9 +29,9 @@ from api.subscription_lifecycle.service import subscriber_can_copy
 
 router = APIRouter(prefix="/broker-accounts", tags=["Broker Accounts"])
 
-MASTER_BROKER_LOGIN = "49617874"
-OWNER_SUBSCRIBER_LOGIN = "49224282"
-OWNER_SUBSCRIBER_SERVER = "HFMGLOBALMARKETS-DEMO"
+MASTER_BROKER_LOGIN = os.getenv("BETHEL_MASTER_ACCOUNT", "49617874").strip()
+PROTECTED_SUBSCRIBER_LOGIN = os.getenv("BETHEL_PROTECTED_SUBSCRIBER_ACCOUNT", "").strip()
+PROTECTED_SUBSCRIBER_SERVER = os.getenv("BETHEL_PROTECTED_SUBSCRIBER_SERVER", "").strip()
 
 
 class ArchiveTestSubscribersRequest(BaseModel):
@@ -207,22 +207,27 @@ def archive_test_subscribers(
     admin: dict = Depends(require_admin),
 ):
     """Archive test subscribers while retaining financial and security audit history."""
-    expected = f"ARCHIVE TEST SUBSCRIBERS KEEP {OWNER_SUBSCRIBER_LOGIN}"
+    if not PROTECTED_SUBSCRIBER_LOGIN:
+        raise HTTPException(
+            status_code=503,
+            detail="No protected subscriber is configured for bulk archival",
+        )
+    expected = f"ARCHIVE TEST SUBSCRIBERS KEEP {PROTECTED_SUBSCRIBER_LOGIN}"
     if data.confirmation != expected:
         raise HTTPException(status_code=422, detail=f"Confirmation must be: {expected}")
 
     owner_account = db.query(BrokerAccount).filter(
-        BrokerAccount.login == OWNER_SUBSCRIBER_LOGIN
+        BrokerAccount.login == PROTECTED_SUBSCRIBER_LOGIN
     ).first()
     if owner_account is None:
         raise HTTPException(
             status_code=409,
             detail="Owner broker account must be linked before test accounts can be archived",
         )
-    if owner_account.server.casefold() != OWNER_SUBSCRIBER_SERVER.casefold():
+    if PROTECTED_SUBSCRIBER_SERVER and owner_account.server.casefold() != PROTECTED_SUBSCRIBER_SERVER.casefold():
         raise HTTPException(
             status_code=409,
-            detail="Protected subscriber server does not match HFMGLOBALMARKETS-DEMO",
+            detail="Protected subscriber server does not match the configured server",
         )
     if "hfm" not in owner_account.broker.casefold() and "hfmarkets" not in owner_account.broker.casefold():
         raise HTTPException(
@@ -288,7 +293,7 @@ def archive_test_subscribers(
     db.commit()
     return {
         "status": "success",
-        "protected_broker_login": OWNER_SUBSCRIBER_LOGIN,
+        "protected_broker_login": PROTECTED_SUBSCRIBER_LOGIN,
         "protected_server": owner_account.server,
         "protected_subscriber_id": keep_subscriber_id,
         "archived_subscribers": archived_subscribers,
