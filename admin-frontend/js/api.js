@@ -1,4 +1,4 @@
-const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1")?"http://127.0.0.1:8000":(location.hostname==="bethel-api.onrender.com"||location.hostname==="api.betheltradingtechnologies.com")?location.origin:"https://api.betheltradingtechnologies.com";
+const API_BASE=(location.hostname==="localhost"||location.hostname==="127.0.0.1")?"http://127.0.0.1:8000":(location.hostname==="bethel-api.onrender.com"||location.hostname==="api.betheltradingtechnologies.com")?location.origin:"https://bethel-api.onrender.com";
 function getToken(){return localStorage.getItem("bethel_access_token")}
 async function apiRequest(endpoint,options={}){
  const headers={Accept:"application/json",...(options.headers||{})};const token=getToken();if(token)headers.Authorization="Bearer "+token;
