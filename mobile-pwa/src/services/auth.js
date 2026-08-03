@@ -4,7 +4,7 @@ const API_URL =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV
     ? `http://${window.location.hostname}:8000`
-    : "https://api.betheltradingtechnologies.com");
+    : "https://bethel-api.onrender.com");
 const TOKEN_KEY = "bethel_subscriber_access_token";
 
 export function getToken() {
