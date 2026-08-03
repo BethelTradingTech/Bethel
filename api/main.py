@@ -108,7 +108,7 @@ async def security_headers(request: Request, call_next):
         "script-src 'self' https://static.sumsub.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: https://betheltradingtechnologies.com; "
-        "connect-src 'self' https://api.betheltradingtechnologies.com https://*.sumsub.com; "
+        "connect-src 'self' https://api.betheltradingtechnologies.com https://bethel-api.onrender.com https://*.sumsub.com; "
         "frame-src https://*.sumsub.com; "
         "object-src 'none'; base-uri 'self'; form-action 'self'"
     )
