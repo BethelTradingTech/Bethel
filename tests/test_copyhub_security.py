@@ -65,9 +65,9 @@ def test_master_event_requires_signature(monkeypatch):
 
 def test_usd_usc_metadata_must_be_consistent():
     db = TestingSession()
-    subscriber = CopySubscriber(name="Owner follower", email="owner@example.test", mt5_account="49224282", status="ACTIVE")
+    subscriber = CopySubscriber(name="Test follower", email="follower@example.test", mt5_account="90000002", status="ACTIVE")
     db.add(subscriber); db.flush()
-    account = BrokerAccount(subscriber_id=subscriber.id, broker="HFM", platform="MT5", login="49224282", server="HFMGLOBALMARKETS-DEMO", status="CONNECTED", currency="USD")
+    account = BrokerAccount(subscriber_id=subscriber.id, broker="Test Broker", platform="MT5", login="90000002", server="TEST-DEMO", status="CONNECTED", currency="USD")
     db.add(account); db.commit()
     response = client.post("/copyhub/v1/admin/receivers", json={"subscriber_id": subscriber.id, "broker_account_id": account.id, "environment": "DEMO", "currency_unit": "USD", "is_cent_account": True})
     assert response.status_code == 422
@@ -76,14 +76,14 @@ def test_usd_usc_metadata_must_be_consistent():
 
 def test_activation_code_is_one_time_and_account_bound():
     db = TestingSession()
-    subscriber = db.query(CopySubscriber).filter(CopySubscriber.mt5_account == "49224282").first()
-    account = db.query(BrokerAccount).filter(BrokerAccount.login == "49224282").first()
+    subscriber = db.query(CopySubscriber).filter(CopySubscriber.mt5_account == "90000002").first()
+    account = db.query(BrokerAccount).filter(BrokerAccount.login == "90000002").first()
     provision = client.post("/copyhub/v1/admin/receivers", json={"subscriber_id": subscriber.id, "broker_account_id": account.id, "environment": "DEMO", "currency_unit": "USD", "is_cent_account": False, "contract_size": 100000, "min_lot": 0.01, "max_lot": 100, "lot_step": 0.01})
     assert provision.status_code == 201
     code = provision.json()["activation_code"]
     payload = {"activation_code": code, "account_number": "99999999", "environment": "DEMO", "currency_unit": "USD", "is_cent_account": False, "contract_size": 100000, "min_lot": 0.01, "max_lot": 100, "lot_step": 0.01}
     assert client.post("/copyhub/v1/receiver/activate", json=payload).status_code == 409
-    payload["account_number"] = "49224282"
+    payload["account_number"] = "90000002"
     accepted = client.post("/copyhub/v1/receiver/activate", json=payload)
     assert accepted.status_code == 200
     assert len(accepted.json()["receiver_token"]) >= 48
