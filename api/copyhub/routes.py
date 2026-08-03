@@ -1,7 +1,7 @@
 import hashlib
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from api.auth.dependency import require_super_admin
 from api.broker_accounts.models import BrokerAccount
-from api.copyhub.models import CopyChannel, CopyDelivery, CopyEvent, CopyReceiver
+from api.copyhub.models import CopyChannel, CopyDelivery, CopyEvent, CopyReceiver, ReceiverActivation
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.mt5_ingest.models import ConnectorNonce
@@ -72,6 +72,10 @@ class HeartbeatRequest(BaseModel):
     min_lot: float = Field(gt=0)
     max_lot: float = Field(gt=0)
     lot_step: float = Field(gt=0)
+
+
+class CustomerActivationRequest(HeartbeatRequest):
+    activation_code: str = Field(min_length=20, max_length=120)
 
 
 class DeliveryAck(BaseModel):
@@ -161,6 +165,7 @@ def provision_receiver(data: ProvisionReceiver, db: Session = Depends(get_db), a
     if data.environment == "LIVE" and not account.live_authorized:
         raise HTTPException(403, "Live broker account requires explicit authorization")
     raw_token = secrets.token_urlsafe(48)
+    activation_code = "BETHEL-" + secrets.token_urlsafe(24)
     channel = get_or_create_channel(db)
     receiver = db.query(CopyReceiver).filter(CopyReceiver.broker_account_id == account.id).first()
     if receiver is None:
@@ -182,8 +187,53 @@ def provision_receiver(data: ProvisionReceiver, db: Session = Depends(get_db), a
     receiver.live_authorized = bool(account.live_authorized and data.environment == "LIVE")
     receiver.active = False
     receiver.paused = True
+    db.flush()
+    db.query(ReceiverActivation).filter(
+        ReceiverActivation.receiver_id == receiver.id,
+        ReceiverActivation.used_at.is_(None),
+    ).delete(synchronize_session=False)
+    db.add(ReceiverActivation(
+        receiver_id=receiver.id,
+        code_hash=token_hash(activation_code),
+        expires_at=utc_now() + timedelta(hours=24),
+    ))
     db.commit()
-    return {"receiver_id": receiver.receiver_id, "receiver_token": raw_token, "token_shown_once": True, "active": False, "paused": True}
+    return {"receiver_id": receiver.receiver_id, "activation_code": activation_code, "code_shown_once": True, "expires_in_hours": 24, "active": False, "paused": True}
+
+
+@router.post("/receiver/activate")
+def customer_activate(data: CustomerActivationRequest, db: Session = Depends(get_db)):
+    activation = db.query(ReceiverActivation).filter(
+        ReceiverActivation.code_hash == token_hash(data.activation_code.strip()),
+        ReceiverActivation.used_at.is_(None),
+    ).first()
+    if activation is None:
+        raise HTTPException(401, "Invalid or already used activation code")
+    activation.attempts += 1
+    if activation.attempts > 5 or activation.expires_at < utc_now():
+        db.commit()
+        raise HTTPException(401, "Activation code has expired")
+    receiver = db.query(CopyReceiver).filter(CopyReceiver.id == activation.receiver_id).first()
+    if receiver is None or data.account_number != receiver.account_number:
+        db.commit()
+        raise HTTPException(409, "MT5 account does not match this activation")
+    if data.environment != receiver.environment:
+        db.commit()
+        raise HTTPException(409, "MT5 DEMO/LIVE mode does not match this activation")
+    if data.currency_unit != receiver.currency_unit or data.is_cent_account != receiver.is_cent_account:
+        db.commit()
+        raise HTTPException(409, "MT5 USD/USC account type does not match this activation")
+    if data.environment == "LIVE" and not receiver.live_authorized:
+        db.commit()
+        raise HTTPException(403, "Live copying has not been authorized")
+    raw_token = secrets.token_urlsafe(48)
+    receiver.token_hash = token_hash(raw_token)
+    receiver.contract_size, receiver.min_lot, receiver.max_lot, receiver.lot_step = data.contract_size, data.min_lot, data.max_lot, data.lot_step
+    receiver.metadata_verified = True
+    receiver.last_heartbeat_at = utc_now()
+    activation.used_at = utc_now()
+    db.commit()
+    return {"status": "activated", "receiver_id": receiver.receiver_id, "receiver_token": raw_token, "token_shown_once": True, "active": receiver.active, "paused": receiver.paused}
 
 
 @router.patch("/admin/global-pause")
