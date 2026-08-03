@@ -108,7 +108,7 @@ async function renderSubscribers(rows){
     <button data-action="broker-refresh" data-id="${r.id}">Verify MT5</button>
     <button data-action="approval-approve" data-id="${r.id}" ${o.admin_approval==="APPROVED"?"disabled":""}>Approve Activation</button>
     <button data-action="approval-reject" data-id="${r.id}">Reject</button>
-    <button data-action="copier-code" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account||o.copy_trading_status!=="ACTIVE"?"disabled":""}>Create Copier Code</button>
+    <button data-action="copier-code" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account?"disabled":""}>Create Copier Code</button>
     <button data-action="live-enable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account||account.platform!=="MT5"||o.copy_trading_status!=="ACTIVE"||account.live_authorized?"disabled":""}>Enable Live MT5</button>
     <button class="danger-button" data-action="live-disable" data-id="${r.id}" data-account-id="${account?.id||""}" ${!account?.live_authorized?"disabled":""}>Emergency Stop</button>
    </div></td>
