@@ -1,0 +1,29 @@
+name: Build Bethel Copier for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "copier-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build dependencies
+        run: pip install -r connector/requirements.txt pyinstaller
+      - name: Build customer application
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name BethelCopier --paths . --hidden-import connector.mt5_subscriber_copier --collect-all MetaTrader5 connector/bethel_copier_app.py
+      - name: Build Windows installer
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\BethelCopier.iss'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BethelCopierSetup
+          path: installer/output/BethelCopierSetup.exe
