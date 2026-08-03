@@ -12,6 +12,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 import MetaTrader5 as mt5
+import numpy as np
 import requests
 
 
@@ -22,6 +23,16 @@ TOKEN_FILE = APP_DIR / "receiver-token.dpapi"
 LOG_FILE = APP_DIR / "subscriber-copier.log"
 STATE_FILE = APP_DIR / "subscriber-state.json"
 TASK_NAME = "Bethel Subscriber Copier"
+
+
+def packaged_self_test():
+    if os.name != "nt":
+        raise RuntimeError("Bethel Copier requires Windows")
+    if ctypes.sizeof(ctypes.c_void_p) != 8:
+        raise RuntimeError("Bethel Copier requires 64-bit Windows")
+    probe = np.array([1.0, 2.0], dtype=float)
+    if float(probe.sum()) != 3.0 or not hasattr(mt5, "initialize"):
+        raise RuntimeError("Packaged NumPy/MetaTrader5 runtime validation failed")
 
 
 class DATA_BLOB(ctypes.Structure):
@@ -190,7 +201,9 @@ class SetupApp(tk.Tk):
 
 
 if __name__ == "__main__":
-    if "--service" in sys.argv:
+    if "--self-test" in sys.argv:
+        packaged_self_test()
+    elif "--service" in sys.argv:
         service_mode()
     else:
         SetupApp().mainloop()
