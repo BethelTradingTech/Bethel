@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bethel Management Control</title>
-<link rel="stylesheet" href="css/admin-control.css?v=20260802-connector1">
+<link rel="stylesheet" href="css/admin-control.css?v=20260802-copier1">
 </head>
 <body>
 <div class="app-shell">
@@ -187,7 +187,15 @@
 
     <section id="view-mt5" class="view"><article class="panel"><h2>Trading Account Control</h2><div id="mt5-details" class="detail-grid"></div><h3>Open Positions</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Type</th><th>Volume</th><th>Profit</th></tr></thead><tbody id="positions-table"></tbody></table></div></article></section>
 
-    <section id="view-copytrading" class="view"><article class="panel"><h2>Copy-Trading Control</h2><div id="copy-details" class="detail-grid"></div><p class="notice">Execution controls should remain protected by explicit confirmation and role authorization.</p></article></section>
+    <section id="view-copytrading" class="view">
+      <article class="panel copier-control">
+        <div class="section-heading"><div><h2>Bethel Copier Control</h2><p>One master account, authorized subscriber installations and emergency pause controls.</p></div><button id="reload-copyhub">Reload</button></div>
+        <div class="copier-global"><span id="copyhub-master">Master —</span><span id="copyhub-global-state" class="review-state">Loading</span><button id="copyhub-global-toggle" class="danger-button">Emergency pause</button></div>
+        <div class="table-wrap"><table><thead><tr><th>Receiver</th><th>Account</th><th>Mode</th><th>Currency</th><th>Connection</th><th>State</th><th>Controls</th></tr></thead><tbody id="copyhub-table"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
+        <p class="notice">New receivers remain inactive and paused until terminal verification and explicit Super Admin activation.</p>
+      </article>
+      <article class="panel"><h2>Legacy Copy Summary</h2><div id="copy-details" class="detail-grid"></div></article>
+    </section>
 
     <section id="view-analytics" class="view"><article class="panel"><h2>Performance & Analytics</h2><div id="performance-details" class="detail-grid"></div></article></section>
 
@@ -207,7 +215,7 @@
 </div>
 <div id="overlay" class="overlay"></div>
 <script src="js/auth.js?v=20260802-superadmin1"></script>
-<script src="js/api.js?v=20260802-connector1"></script>
-<script src="js/admin-control.js?v=20260802-history1"></script>
+<script src="js/api.js?v=20260802-copier1"></script>
+<script src="js/admin-control.js?v=20260802-copier1"></script>
 </body>
 </html>
