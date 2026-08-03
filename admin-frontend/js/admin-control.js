@@ -84,7 +84,7 @@ if(createSubscriberForm)createSubscriberForm.addEventListener("submit",async eve
  event.preventDefault();button.disabled=true;button.textContent="Creating secure setup link…";result.textContent="";
  try{
   const payload={name:form.elements.name.value.trim(),email:form.elements.email.value.trim().toLowerCase(),account_number:form.elements.account_number.value.trim(),allocation_percent:Number(form.elements.allocation_percent.value)};
-  const subscriber=await apiPost("/subscribers",payload);
+  const subscriber=await apiPost("/copytrading/subscribers",payload);
   const invite=await apiPost(`/admin/subscribers/${subscriber.id}/invite`,{});
   result.textContent=`Subscriber ${subscriber.id} created. The one-time setup link expires in 24 hours.`;
   if(navigator.clipboard)await navigator.clipboard.writeText(invite.setup_url).catch(()=>{});
