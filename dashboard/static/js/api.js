@@ -23,7 +23,7 @@ const API_BASE =
 
 :
 
-"https://api.betheltradingtechnologies.com";
+"https://bethel-api.onrender.com";
 
 // ======================================
 // COMMON REQUEST ENGINE
@@ -261,5 +261,4 @@ async function apiDelete(url){
 
 
 }
-
 
