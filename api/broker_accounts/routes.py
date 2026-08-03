@@ -1,6 +1,7 @@
 """Secure multi-platform broker-account linking routes."""
 
 from datetime import datetime
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -98,8 +99,21 @@ def _prepare_connection(data: BrokerAccountLinkRequest):
             detail="Cent accounts are currently supported only on MT4 and MT5",
         )
 
-    if platform == TradingPlatform.MT5:
+    production = os.getenv("BETHEL_ENVIRONMENT", "DEVELOPMENT").upper() == "PRODUCTION"
+    if platform == TradingPlatform.MT5 and not production:
         result = _verify_mt5_terminal(data)
+    elif platform == TradingPlatform.MT5:
+        # Render cannot access a subscriber's Windows MT5 terminal. Record the
+        # claimed account as pending; Bethel Copier proves possession and
+        # supplies terminal metadata during its one-time activation.
+        result = {
+            "status": "PENDING_TERMINAL_VERIFICATION",
+            "server": data.server,
+            "currency": "USC" if data.account_type == "CENT" else "USD",
+            "leverage": 0,
+            "last_verified_at": None,
+            "capital_verified": False,
+        }
     else:
         # Never collect or store trading passwords. MT4 requires the Bethel bridge
         # agent; cTrader requires OAuth; Match-Trader requires an approved broker
