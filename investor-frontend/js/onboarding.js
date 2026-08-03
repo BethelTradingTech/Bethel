@@ -6,7 +6,7 @@
         : window.location.hostname === "bethel-api.onrender.com" ||
           window.location.hostname === "api.betheltradingtechnologies.com"
             ? window.location.origin
-            : "https://api.betheltradingtechnologies.com";
+            : "https://bethel-api.onrender.com";
 
 const SUBSCRIBER_TOKEN_KEY = "bethel_subscriber_access_token";
 const SUBSCRIBER_ID_KEY = "bethel_subscriber_id";
@@ -634,7 +634,6 @@ window.addEventListener("load",async()=>{
         await refreshStatus();
     }catch(error){setMessage("paypal-payment-message",error.message,"error");}
 });
-
 
 
 
