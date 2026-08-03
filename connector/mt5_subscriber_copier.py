@@ -186,6 +186,7 @@ def heartbeat(account, mode):
     unit = "USC" if currency in {"USC", "USCENT", "USCENTS", "CENT"} else "USD"
     return api("POST", "/copyhub/v1/receiver/heartbeat", json={
         "account_number": str(account.login), "environment": mode,
+        "server": str(account.server), "leverage": int(account.leverage or 0),
         "currency_unit": unit, "is_cent_account": unit == "USC",
         "contract_size": info.trade_contract_size, "min_lot": info.volume_min,
         "max_lot": info.volume_max, "lot_step": info.volume_step,
