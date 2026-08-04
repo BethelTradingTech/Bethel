@@ -1,6 +1,5 @@
 const API_URL = window.location.origin;
-let equityChart = null;
-let analyticsTimer = null;
+let equityHistory = [];
 
 async function fetchAPI(endpoint) {
   try {
@@ -27,28 +26,15 @@ function updateElement(id, value) {
   if (element) element.textContent = value;
 }
 
-function money(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
-}
-
-function percent(value, digits = 2) {
-  return `${Number(value || 0).toFixed(digits)}%`;
-}
-
-function number(value, digits = 2) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed.toFixed(digits) : "0.00";
-}
-
-function direction(type) {
-  return Number(type) === 0 ? "BUY" : "SELL";
-}
+const money = (value) => `$${Number(value || 0).toFixed(2)}`;
+const percent = (value, digits = 2) => `${Number(value || 0).toFixed(digits)}%`;
+const number = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : "0.00";
+const direction = (type) => Number(type) === 0 ? "BUY" : "SELL";
 
 async function loadAccountAndPositions() {
   const data = await fetchAPI("/dashboard/data");
   const account = data.account || {};
   const positions = data.positions || {};
-
   updateElement("status", data.account ? "MT5 Status: ONLINE" : "MT5 Status: ERROR");
   updateElement("balance", money(account.balance));
   updateElement("equity", money(account.equity));
@@ -60,15 +46,9 @@ async function loadAccountAndPositions() {
   updateElement("positions", positions.count || 0);
 
   const table = document.getElementById("positions-table");
-  if (table) {
-    table.innerHTML = (positions.positions || []).map((position) => `
-      <tr>
-        <td>${String(position.symbol || "-")}</td>
-        <td>${direction(position.type)}</td>
-        <td>${Number(position.volume || 0)}</td>
-        <td>${money(position.profit)}</td>
-      </tr>`).join("");
-  }
+  if (table) table.innerHTML = (positions.positions || []).map((position) => `
+    <tr><td>${String(position.symbol || "-")}</td><td>${direction(position.type)}</td><td>${Number(position.volume || 0)}</td><td>${money(position.profit)}</td></tr>
+  `).join("");
 }
 
 async function loadAnalytics() {
@@ -77,11 +57,8 @@ async function loadAnalytics() {
     fetchAPI("/analytics/performance"),
     fetchAPI("/risk/status"),
   ]);
-
   const legacyPerformance = legacy.performance || {};
-  const analytics = unified && unified.status !== "error" && Object.keys(unified).length
-    ? unified
-    : legacyPerformance;
+  const analytics = unified && unified.status !== "error" && Object.keys(unified).length ? unified : legacyPerformance;
   const risk = riskData.risk || {};
 
   updateElement("total-return", percent(analytics.total_return_percent));
@@ -107,8 +84,8 @@ async function loadAnalytics() {
 async function loadEquity() {
   const stored = await fetchAPI("/performance/equity-history");
   const legacy = Object.keys(stored).length ? {} : await fetchAPI("/analytics/equity");
-  const history = stored.history || legacy.equity?.equity_curve || [];
-  if (history.length) updateEquityChart(history);
+  equityHistory = stored.history || legacy.equity?.equity_curve || [];
+  drawEquityChart();
 }
 
 async function loadHistory() {
@@ -116,37 +93,56 @@ async function loadHistory() {
   const table = document.getElementById("history-table");
   if (!table) return;
   table.innerHTML = (historyData.history || []).slice(0, 50).map((trade) => `
-    <tr>
-      <td>${String(trade.symbol || "-")}</td>
-      <td>${direction(trade.type)}</td>
-      <td>${Number(trade.volume || 0)}</td>
-      <td>${money(trade.profit)}</td>
-      <td>${trade.time ? new Date(trade.time).toLocaleString() : "-"}</td>
-    </tr>`).join("");
+    <tr><td>${String(trade.symbol || "-")}</td><td>${direction(trade.type)}</td><td>${Number(trade.volume || 0)}</td><td>${money(trade.profit)}</td><td>${trade.time ? new Date(trade.time).toLocaleString() : "-"}</td></tr>
+  `).join("");
 }
 
-function updateEquityChart(history) {
+function drawEquityChart() {
   const canvas = document.getElementById("equityChart");
-  if (!canvas || typeof Chart === "undefined") return;
-  const labels = history.map((item) => new Date(item.timestamp || item.time).toLocaleString());
-  const values = history.map((item) => Number(item.equity || 0));
-  if (equityChart) {
-    equityChart.data.labels = labels;
-    equityChart.data.datasets[0].data = values;
-    equityChart.update();
-    return;
+  if (!canvas || !equityHistory.length) return;
+  const width = canvas.clientWidth || 900;
+  const height = Number(canvas.getAttribute("height")) || 320;
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.clearRect(0, 0, width, height);
+
+  const values = equityHistory.map((item) => Number(item.equity || 0));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 1);
+  const pad = 32;
+
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i += 1) {
+    const y = pad + ((height - pad * 2) * i / 4);
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(width - pad, y); ctx.stroke();
   }
-  equityChart = new Chart(canvas, {
-    type: "line",
-    data: { labels, datasets: [{ label: "Account Equity", data: values, tension: 0.3 }] },
-    options: { responsive: true, maintainAspectRatio: false },
+
+  ctx.strokeStyle = "#22c55e";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  values.forEach((value, index) => {
+    const x = pad + ((width - pad * 2) * index / Math.max(values.length - 1, 1));
+    const y = height - pad - ((value - min) / range) * (height - pad * 2);
+    if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
+  ctx.stroke();
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "12px sans-serif";
+  ctx.fillText(money(max), pad, 18);
+  ctx.fillText(money(min), pad, height - 8);
 }
 
 async function loadDashboard() {
   await Promise.all([loadAccountAndPositions(), loadAnalytics(), loadEquity(), loadHistory()]);
 }
 
+window.addEventListener("resize", drawEquityChart);
 loadDashboard();
 setInterval(loadAccountAndPositions, 10000);
 setInterval(loadAnalytics, 60000);
