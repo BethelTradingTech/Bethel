@@ -1,378 +1,85 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-
-<title>
-Bethel Trading Technologies | Algorithmic Trading Dashboard
-</title>
-
-<link rel="stylesheet" href="/static/css/style.css">
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bethel Trading Technologies | Investor Dashboard</title>
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
-
-
 <body>
-
-
 <div class="container">
+  <header>
+    <h1>Bethel Trading Technologies</h1>
+    <p>Algorithmic Trading Technology Platform</p>
+    <div id="status">CONNECTING...</div>
+  </header>
 
+  <section class="positions-section">
+    <h2>Account Overview</h2>
+    <div class="grid">
+      <div class="card"><h3>Balance</h3><p id="balance">$0.00</p></div>
+      <div class="card"><h3>Equity</h3><p id="equity">$0.00</p></div>
+      <div class="card"><h3>Floating Profit/Loss</h3><p id="profit">$0.00</p></div>
+      <div class="card"><h3>Open Positions</h3><p id="positions">0</p></div>
+    </div>
+  </section>
 
-<header>
+  <section class="positions-section">
+    <h2>MT5 Account Verification</h2>
+    <div class="grid">
+      <div class="card"><h3>Login</h3><p id="login">-</p></div>
+      <div class="card"><h3>Server</h3><p id="server">-</p></div>
+      <div class="card"><h3>Currency</h3><p id="currency">-</p></div>
+      <div class="card"><h3>Leverage</h3><p id="leverage">-</p></div>
+    </div>
+  </section>
 
-<h1>
-Bethel Trading Technologies
-</h1>
+  <section class="positions-section">
+    <h2>Performance Analytics</h2>
+    <div class="grid">
+      <div class="card"><h3>Total Return</h3><p id="total-return">0%</p></div>
+      <div class="card"><h3>Daily Return</h3><p id="daily-return">0%</p></div>
+      <div class="card"><h3>Monthly Return</h3><p id="monthly-return">0%</p></div>
+      <div class="card"><h3>Total Trades</h3><p id="total-trades">0</p></div>
+      <div class="card"><h3>Winning Trades</h3><p id="winning-trades">0</p></div>
+      <div class="card"><h3>Losing Trades</h3><p id="losing-trades">0</p></div>
+      <div class="card"><h3>Win Rate</h3><p id="win-rate">0%</p></div>
+      <div class="card"><h3>Profit Factor</h3><p id="profit-factor">0</p></div>
+      <div class="card"><h3>Total Profit</h3><p id="total-profit">$0.00</p></div>
+      <div class="card"><h3>Performance Grade</h3><p id="performance-grade">-</p></div>
+    </div>
+  </section>
 
-<p>
-Algorithmic Trading Technology Platform
-</p>
+  <section class="positions-section">
+    <h2>Risk-Adjusted Analytics</h2>
+    <div class="grid">
+      <div class="card"><h3>Sharpe Ratio</h3><p id="sharpe-ratio">0</p></div>
+      <div class="card"><h3>Sortino Ratio</h3><p id="sortino-ratio">0</p></div>
+      <div class="card"><h3>Recovery Factor</h3><p id="recovery-factor">0</p></div>
+      <div class="card"><h3>Consistency Score</h3><p id="consistency-score">0%</p></div>
+      <div class="card"><h3>Volatility</h3><p id="volatility">0%</p></div>
+      <div class="card"><h3>Maximum Drawdown</h3><p id="max-drawdown">0%</p></div>
+      <div class="card"><h3>Risk Level</h3><p id="risk-level">-</p></div>
+      <div class="card"><h3>Risk Score</h3><p id="risk-score">0/10</p></div>
+    </div>
+  </section>
 
+  <section class="positions-section">
+    <h2>Equity Growth Curve</h2>
+    <canvas id="equityChart"></canvas>
+  </section>
 
-<div id="status">
-CONNECTING...
+  <section class="positions-section">
+    <h2>Live Trading Positions</h2>
+    <table><thead><tr><th>Symbol</th><th>Direction</th><th>Volume</th><th>Profit</th></tr></thead><tbody id="positions-table"></tbody></table>
+  </section>
+
+  <section class="positions-section">
+    <h2>Trade History</h2>
+    <table><thead><tr><th>Symbol</th><th>Direction</th><th>Volume</th><th>Profit</th><th>Date</th></tr></thead><tbody id="history-table"></tbody></table>
+  </section>
 </div>
-
-
-</header>
-
-
-
-
-
-<!-- ACCOUNT OVERVIEW -->
-
-<div class="positions-section">
-
-<h2>
-Account Overview
-</h2>
-
-
-<div class="grid">
-
-
-<div class="card">
-<h3>Balance</h3>
-<p id="balance">$0.00</p>
-</div>
-
-
-<div class="card">
-<h3>Equity</h3>
-<p id="equity">$0.00</p>
-</div>
-
-
-<div class="card">
-<h3>Floating Profit/Loss</h3>
-<p id="profit">$0.00</p>
-</div>
-
-
-<div class="card">
-<h3>Open Positions</h3>
-<p id="positions">0</p>
-</div>
-
-
-</div>
-
-</div>
-
-
-
-
-
-
-<!-- MT5 -->
-
-<div class="positions-section">
-
-
-<h2>
-MT5 Account Verification
-</h2>
-
-
-<div class="grid">
-
-
-<div class="card">
-<h3>Login</h3>
-<p id="login">-</p>
-</div>
-
-
-<div class="card">
-<h3>Server</h3>
-<p id="server">-</p>
-</div>
-
-
-<div class="card">
-<h3>Currency</h3>
-<p id="currency">-</p>
-</div>
-
-
-<div class="card">
-<h3>Leverage</h3>
-<p id="leverage">-</p>
-</div>
-
-
-</div>
-
-</div>
-
-
-
-
-
-
-
-
-<!-- PERFORMANCE -->
-
-
-<div class="positions-section">
-
-
-<h2>
-Performance Analytics
-</h2>
-
-
-<div class="grid">
-
-
-<div class="card">
-<h3>Total Trades</h3>
-<p id="total-trades">0</p>
-</div>
-
-
-<div class="card">
-<h3>Winning Trades</h3>
-<p id="winning-trades">0</p>
-</div>
-
-
-<div class="card">
-<h3>Losing Trades</h3>
-<p id="losing-trades">0</p>
-</div>
-
-
-<div class="card">
-<h3>Win Rate</h3>
-<p id="win-rate">0%</p>
-</div>
-
-
-<div class="card">
-<h3>Profit Factor</h3>
-<p id="profit-factor">0</p>
-</div>
-
-
-<div class="card">
-<h3>Total Profit</h3>
-<p id="total-profit">$0</p>
-</div>
-
-
-</div>
-
-</div>
-
-
-
-
-
-
-
-
-<!-- EQUITY -->
-
-<div class="positions-section">
-
-
-<h2>
-Equity Growth Curve
-</h2>
-
-
-<canvas id="equityChart"></canvas>
-
-
-</div>
-
-
-
-
-
-
-
-
-
-<!-- RISK -->
-
-
-<div class="positions-section">
-
-
-<h2>
-Risk Management Engine
-</h2>
-
-
-<div class="grid">
-
-
-<div class="card">
-<h3>Risk Level</h3>
-<p id="risk-level">-</p>
-</div>
-
-
-<div class="card">
-<h3>Drawdown</h3>
-<p id="drawdown">0%</p>
-</div>
-
-
-<div class="card">
-<h3>Exposure</h3>
-<p id="risk-open-positions">0</p>
-</div>
-
-
-<div class="card">
-<h3>Risk Score</h3>
-<p id="risk-score">0/10</p>
-</div>
-
-
-</div>
-
-
-</div>
-
-
-
-
-
-
-
-
-<!-- LIVE POSITIONS -->
-
-
-<div class="positions-section">
-
-
-<h2>
-Live Trading Positions
-</h2>
-
-
-<table>
-
-
-<thead>
-
-<tr>
-
-<th>Symbol</th>
-<th>Direction</th>
-<th>Volume</th>
-<th>Profit</th>
-
-</tr>
-
-</thead>
-
-
-<tbody id="positions-table">
-
-</tbody>
-
-
-</table>
-
-
-</div>
-
-
-
-
-
-
-
-
-<!-- HISTORY -->
-
-
-<div class="positions-section">
-
-
-<h2>
-Trade History
-</h2>
-
-
-<table>
-
-
-<thead>
-
-<tr>
-
-<th>Symbol</th>
-<th>Direction</th>
-<th>Volume</th>
-<th>Profit</th>
-<th>Date</th>
-
-</tr>
-
-
-</thead>
-
-
-
-<tbody id="history-table">
-
-</tbody>
-
-
-</table>
-
-
-</div>
-
-
-
-
-
-
-
-</div>
-
-
-
-
-
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script src="/static/js/app.js"></script>
-
-
-
 </body>
-
-
 </html>
