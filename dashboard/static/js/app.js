@@ -53,7 +53,7 @@ async function loadAccountAndPositions() {
 
 async function loadAnalytics() {
   const [unified, legacy, riskData] = await Promise.all([
-    fetchAPI("/performance/analytics"),
+    fetchAPI("/analytics/investor-performance"),
     fetchAPI("/analytics/performance"),
     fetchAPI("/risk/status"),
   ]);
