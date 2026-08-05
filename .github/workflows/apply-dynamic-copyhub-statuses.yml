@@ -1,0 +1,243 @@
+name: Apply Dynamic Copy Hub Statuses
+
+on:
+  push:
+    branches:
+      - fix/dynamic-copyhub-statuses
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dynamic-copyhub-statuses
+          fetch-depth: 0
+
+      - name: Make Copy Hub statuses fully data-driven
+        shell: python
+        run: |
+          from pathlib import Path
+
+          routes = Path("api/copyhub/routes.py")
+          text = routes.read_text(encoding="utf-8")
+
+          old = '''@router.get("/admin/status")
+def admin_status(db: Session = Depends(get_db), admin: dict = Depends(require_super_admin)):
+    channel = get_or_create_channel(db)
+    receivers = db.query(CopyReceiver).filter(CopyReceiver.channel_id == channel.id).all()
+    db.commit()
+    return {"master_account": channel.master_account, "active": channel.active, "globally_paused": channel.globally_paused, "receivers": [{"receiver_id": r.receiver_id, "account_number": r.account_number, "environment": r.environment, "currency_unit": r.currency_unit, "is_cent_account": r.is_cent_account, "metadata_verified": r.metadata_verified, "active": r.active, "paused": r.paused, "last_heartbeat_at": r.last_heartbeat_at} for r in receivers]}
+'''
+
+          new = '''@router.get("/admin/status")
+def admin_status(db: Session = Depends(get_db), admin: dict = Depends(require_super_admin)):
+    channel = get_or_create_channel(db)
+    receivers = db.query(CopyReceiver).filter(CopyReceiver.channel_id == channel.id).all()
+    now = utc_now()
+    receiver_rows = []
+    running_count = 0
+    online_count = 0
+
+    for receiver in receivers:
+        heartbeat_age_seconds = None
+        if receiver.last_heartbeat_at is not None:
+            heartbeat_age_seconds = max(0, int((now - receiver.last_heartbeat_at).total_seconds()))
+
+        online = heartbeat_age_seconds is not None and heartbeat_age_seconds < 90
+        connection_status = "ONLINE" if online else ("NEVER_CONNECTED" if receiver.last_heartbeat_at is None else "OFFLINE")
+        if online:
+            online_count += 1
+
+        lifecycle = (
+            db.query(SubscriptionLifecycle)
+            .filter(SubscriptionLifecycle.subscriber_id == receiver.subscriber_id)
+            .first()
+        )
+        lifecycle_eligible = bool(
+            lifecycle
+            and lifecycle.status in {"ACTIVE", "GRACE"}
+            and not lifecycle.manual_suspended
+        )
+        live_eligible = receiver.environment == "DEMO" or receiver.live_authorized
+        terminal_ready = bool(online and receiver.metadata_verified)
+
+        if not lifecycle_eligible:
+            copy_status = "NOT_ELIGIBLE"
+        elif not receiver.active:
+            if connection_status == "NEVER_CONNECTED":
+                copy_status = "AWAITING_TERMINAL"
+            elif not online:
+                copy_status = "OFFLINE"
+            elif not receiver.metadata_verified:
+                copy_status = "VERIFYING_TERMINAL"
+            elif not live_eligible:
+                copy_status = "LIVE_NOT_AUTHORIZED"
+            else:
+                copy_status = "READY_FOR_ACTIVATION"
+        elif not online:
+            copy_status = "OFFLINE"
+        elif not receiver.metadata_verified:
+            copy_status = "VERIFYING_TERMINAL"
+        elif not live_eligible:
+            copy_status = "LIVE_NOT_AUTHORIZED"
+        elif channel.globally_paused:
+            copy_status = "GLOBAL_PAUSED"
+        elif receiver.paused:
+            copy_status = "PAUSED"
+        else:
+            copy_status = "RUNNING"
+            running_count += 1
+
+        can_activate = bool(not receiver.active and terminal_ready and lifecycle_eligible and live_eligible)
+        can_deactivate = bool(receiver.active)
+        can_pause = bool(receiver.active and not receiver.paused)
+        can_resume = bool(receiver.active and receiver.paused)
+
+        receiver_rows.append({
+            "receiver_id": receiver.receiver_id,
+            "account_number": receiver.account_number,
+            "environment": receiver.environment,
+            "currency_unit": receiver.currency_unit,
+            "is_cent_account": receiver.is_cent_account,
+            "metadata_verified": receiver.metadata_verified,
+            "active": receiver.active,
+            "paused": receiver.paused,
+            "last_heartbeat_at": receiver.last_heartbeat_at,
+            "heartbeat_age_seconds": heartbeat_age_seconds,
+            "connection_status": connection_status,
+            "activation_status": "ACTIVE" if receiver.active else "INACTIVE",
+            "copy_status": copy_status,
+            "lifecycle_eligible": lifecycle_eligible,
+            "terminal_ready": terminal_ready,
+            "live_eligible": live_eligible,
+            "can_activate": can_activate,
+            "can_deactivate": can_deactivate,
+            "can_pause": can_pause,
+            "can_resume": can_resume,
+        })
+
+    if not channel.active:
+        operational_status = "DISABLED"
+    elif channel.globally_paused:
+        operational_status = "PAUSED"
+    elif running_count:
+        operational_status = "RUNNING"
+    elif online_count:
+        operational_status = "READY"
+    else:
+        operational_status = "OFFLINE"
+
+    db.commit()
+    return {
+        "master_account": channel.master_account,
+        "active": channel.active,
+        "globally_paused": channel.globally_paused,
+        "operational_status": operational_status,
+        "receiver_count": len(receiver_rows),
+        "online_receiver_count": online_count,
+        "running_receiver_count": running_count,
+        "receivers": receiver_rows,
+    }
+'''
+
+          if old not in text:
+              raise SystemExit("Expected admin_status block not found")
+          routes.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          frontend = Path("admin-frontend/js/admin-control.js")
+          js = frontend.read_text(encoding="utf-8")
+          old_js = '''  $("#copyhub-global-state").textContent=data.globally_paused?"PAUSED":"RUNNING";
+  $("#copyhub-global-state").className=`review-state ${data.globally_paused?"state-rejected":"state-approved"}`;
+  $("#copyhub-global-toggle").textContent=data.globally_paused?"Resume all copying":"Emergency pause";
+  table.innerHTML=(data.receivers||[]).map(row=>{
+   const heartbeat=row.last_heartbeat_at?new Date(row.last_heartbeat_at+"Z"):null;
+   const online=heartbeat&&(Date.now()-heartbeat.getTime())<90000;
+   return `<tr><td>${escapeHtml(row.receiver_id)}</td><td><strong>${escapeHtml(row.account_number)}</strong></td><td>${stateBadge(row.environment)}</td><td>${escapeHtml(row.currency_unit)} · ${row.is_cent_account?"CENT":"STANDARD"}</td><td>${stateBadge(online?"ONLINE":"OFFLINE")}<br><small>${heartbeat?heartbeat.toLocaleString():"Never connected"}</small></td><td>${stateBadge(row.active?"ACTIVE":"INACTIVE")} ${stateBadge(row.paused?"PAUSED":"ENABLED")}</td><td><div class="review-actions"><button data-copyhub-action="${row.active?"deactivate":"activate"}" data-receiver="${escapeHtml(row.receiver_id)}" data-account="${escapeHtml(row.account_number)}" ${!online&&!row.active?"disabled":""}>${row.active?"Deactivate":"Activate"}</button><button data-copyhub-action="${row.paused?"resume":"pause"}" data-receiver="${escapeHtml(row.receiver_id)}">${row.paused?"Resume":"Pause"}</button></div></td></tr>`;
+  }).join("")||'<tr><td colspan="7">No copier receivers have been provisioned.</td></tr>';
+'''
+          new_js = '''  const globalStatus=data.operational_status||"UNKNOWN";
+  $("#copyhub-global-state").textContent=globalStatus;
+  $("#copyhub-global-state").className=`review-state state-${String(globalStatus).toLowerCase().replaceAll("_","-")}`;
+  $("#copyhub-global-toggle").textContent=data.globally_paused?"Resume all copying":"Emergency pause";
+  table.innerHTML=(data.receivers||[]).map(row=>{
+   const heartbeat=row.last_heartbeat_at?new Date(row.last_heartbeat_at+"Z"):null;
+   const primaryAction=row.active?"deactivate":"activate";
+   const primaryAllowed=row.active?row.can_deactivate:row.can_activate;
+   const pauseAction=row.paused?"resume":"pause";
+   const pauseAllowed=row.paused?row.can_resume:row.can_pause;
+   return `<tr><td>${escapeHtml(row.receiver_id)}</td><td><strong>${escapeHtml(row.account_number)}</strong></td><td>${stateBadge(row.environment)}</td><td>${escapeHtml(row.currency_unit)} · ${row.is_cent_account?"CENT":"STANDARD"}</td><td>${stateBadge(row.connection_status)}<br><small>${heartbeat?heartbeat.toLocaleString():"Never connected"}</small></td><td>${stateBadge(row.copy_status)}</td><td><div class="review-actions"><button data-copyhub-action="${primaryAction}" data-receiver="${escapeHtml(row.receiver_id)}" data-account="${escapeHtml(row.account_number)}" ${primaryAllowed?"":"disabled"}>${row.active?"Deactivate":"Activate"}</button><button data-copyhub-action="${pauseAction}" data-receiver="${escapeHtml(row.receiver_id)}" ${pauseAllowed?"":"disabled"}>${row.paused?"Resume":"Pause"}</button></div></td></tr>`;
+  }).join("")||'<tr><td colspan="7">No copier receivers have been provisioned.</td></tr>';
+'''
+          if old_js not in js:
+              raise SystemExit("Expected Copy Hub frontend block not found")
+          frontend.write_text(js.replace(old_js, new_js, 1), encoding="utf-8")
+
+          test = Path("tests/test_copyhub_dynamic_status.py")
+          test.write_text('''from datetime import datetime, timedelta
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from api.copyhub.models import CopyChannel, CopyReceiver
+from api.copyhub.routes import admin_status
+from api.models import EquitySnapshot
+from api.subscription_lifecycle.models import SubscriptionLifecycle
+
+
+def test_admin_status_derives_receiver_state_from_live_fields(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    EquitySnapshot.__table__.create(engine)
+    CopyChannel.__table__.create(engine)
+    CopyReceiver.__table__.create(engine)
+    SubscriptionLifecycle.__table__.create(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    now = datetime.utcnow()
+    db.add(EquitySnapshot(account_number="37371080", balance=10000, equity=10000, timestamp=now))
+    db.flush()
+    channel = CopyChannel(name="Bethel Master", master_account="37371080", globally_paused=False)
+    db.add(channel)
+    db.flush()
+    db.add(SubscriptionLifecycle(subscriber_id=1, status="ACTIVE", manual_suspended=False))
+    db.add(CopyReceiver(
+        receiver_id="mt5-49224282", channel_id=channel.id, subscriber_id=1,
+        broker_account_id=1, token_hash="a" * 64, account_number="49224282",
+        environment="DEMO", currency_unit="USD", is_cent_account=False,
+        metadata_verified=True, active=True, paused=False,
+        last_heartbeat_at=now - timedelta(seconds=10),
+    ))
+    db.commit()
+
+    result = admin_status(db=db, admin={})
+    row = result["receivers"][0]
+    assert result["operational_status"] == "RUNNING"
+    assert row["connection_status"] == "ONLINE"
+    assert row["copy_status"] == "RUNNING"
+    assert row["can_pause"] is True
+    assert row["can_resume"] is False
+
+
+def test_frontend_uses_backend_derived_statuses():
+    source = open("admin-frontend/js/admin-control.js", encoding="utf-8").read()
+    assert "row.connection_status" in source
+    assert "row.copy_status" in source
+    assert "Date.now()-heartbeat.getTime()" not in source
+    assert 'row.active?"ACTIVE":"INACTIVE"' not in source
+''', encoding="utf-8")
+
+          workflow = Path(".github/workflows/apply-dynamic-copyhub-statuses.yml")
+          workflow.unlink()
+
+      - name: Commit generated fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/copyhub/routes.py admin-frontend/js/admin-control.js tests/test_copyhub_dynamic_status.py .github/workflows/apply-dynamic-copyhub-statuses.yml
+          git commit -m "Make Copy Hub statuses fully dynamic"
+          git push origin HEAD:fix/dynamic-copyhub-statuses
