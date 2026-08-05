@@ -73,3 +73,17 @@ class ConnectorDeal(Base):
     fee = Column(Float, nullable=False, default=0)
     closed_at = Column(DateTime, nullable=False, index=True)
     received_at = Column(DateTime, default=utc_now, nullable=False)
+
+
+class ConnectorCashFlow(Base):
+    __tablename__ = "connector_cash_flows"
+    __table_args__ = (UniqueConstraint("connector_id", "deal_ticket", name="uq_connector_cash_flow_ticket"),)
+
+    id = Column(Integer, primary_key=True)
+    connector_id = Column(String(100), nullable=False, index=True)
+    account_number = Column(String(32), nullable=False, index=True)
+    deal_ticket = Column(String(40), nullable=False, index=True)
+    event_type = Column(String(24), nullable=False)
+    amount = Column(Float, nullable=False)
+    occurred_at = Column(DateTime, nullable=False, index=True)
+    received_at = Column(DateTime, default=utc_now, nullable=False)
