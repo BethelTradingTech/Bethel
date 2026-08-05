@@ -14,7 +14,7 @@ export function getToken() {
 export function saveSession(data) {
   localStorage.setItem(TOKEN_KEY, data.access_token);
   localStorage.setItem("bethel_subscriber_id", String(data.subscriber_id));
-  localStorage.setItem("bethel_subscriber_name", data.name || "Subscriber");
+  localStorage.setItem("bethel_subscriber_name", data.name || "Investor");
 }
 
 export function clearSession() {
@@ -31,26 +31,10 @@ export function isAuthenticated() {
   return Boolean(getToken() && getSubscriberId());
 }
 
-export async function registerSubscriber(name, email, password) {
+export async function registerSubscriber(email, password) {
   const response = await axios.post(
     `${API_URL}/copytrading/auth/register`,
-    { name, email, password }
-  );
-  return response.data;
-}
-
-export async function verifySubscriberEmail(token) {
-  const response = await axios.get(
-    `${API_URL}/copytrading/auth/verify-email`,
-    { params: { token } }
-  );
-  return response.data;
-}
-
-export async function resendVerification(email) {
-  const response = await axios.post(
-    `${API_URL}/copytrading/auth/resend-verification`,
-    { email }
+    { email, password }
   );
   return response.data;
 }
