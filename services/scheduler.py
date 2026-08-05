@@ -1,135 +1,41 @@
-"""
-Bethel Trading Technologies
-Equity Snapshot Scheduler
-
-Automatically records MT5 account performance.
-"""
-
+"""Bethel Trading Technologies - local MT5 snapshot and history scheduler."""
 
 import time
-
 from datetime import datetime
 
-
+from api.services.trade_importer import import_mt5_history
 from services.equity_collector import EquityCollector
 
 
-
-
-
 class EquityScheduler:
-
-
-
     def __init__(self):
-
         self.collector = EquityCollector()
-
         self.running = False
-
-
-
-    # ==========================
-    # RUN ONCE
-    # ==========================
 
     def run_once(self):
+        print(f"[{datetime.now()}] Collecting equity snapshot...")
+        snapshot_result = self.collector.collect()
+        print(snapshot_result)
 
+        if snapshot_result.get("status") == "success":
+            print(f"[{datetime.now()}] Importing closed MT5 trades...")
+            history_result = import_mt5_history()
+            print(history_result)
 
-        print(
-            f"[{datetime.now()}] Collecting equity snapshot..."
-        )
-
-
-        result = self.collector.collect()
-
-
-        print(result)
-
-
-
-    # ==========================
-    # START SCHEDULER
-    # ==========================
-
-    def start(
-
-        self,
-
-        interval_seconds=3600
-
-    ):
-
-
+    def start(self, interval_seconds=3600):
         self.running = True
-
-
-        print(
-
-            "Bethel Trading Technologies Equity Scheduler Started"
-
-        )
-
+        print("Bethel Trading Technologies Equity Scheduler Started")
 
         while self.running:
-
-
             try:
-
-
                 self.run_once()
-
-
-
-            except Exception as e:
-
-
-                print(
-
-                    "Scheduler Error:",
-
-                    e
-
-                )
-
-
-
-            time.sleep(
-
-                interval_seconds
-
-            )
-
-
-
-    # ==========================
-    # STOP
-    # ==========================
+            except Exception as exc:
+                print("Scheduler Error:", exc)
+            time.sleep(interval_seconds)
 
     def stop(self):
-
-
         self.running = False
-
-
-
-# ==========================
-# START SERVICE
-# ==========================
 
 
 if __name__ == "__main__":
-
-
-    scheduler = EquityScheduler()
-
-
-
-    # Test interval:
-    # Change to 3600 for hourly collection
-
-    scheduler.start(
-
-        interval_seconds=3600
-
-    )
+    EquityScheduler().start(interval_seconds=3600)
