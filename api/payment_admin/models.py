@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
 
 from api.database import Base
 
@@ -47,9 +47,6 @@ class PromoCode(Base):
 
 class PromoRedemption(Base):
     __tablename__ = "promo_redemptions"
-    __table_args__ = (
-        UniqueConstraint("promo_code_id", "subscriber_id", name="uq_promo_subscriber_once"),
-    )
 
     id = Column(Integer, primary_key=True, index=True)
     promo_code_id = Column(Integer, nullable=False, index=True)
