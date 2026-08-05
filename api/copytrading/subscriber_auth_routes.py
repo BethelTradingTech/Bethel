@@ -21,7 +21,7 @@ import os
 import secrets
 import string
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -98,9 +98,7 @@ def _create_verification(db, subscriber: CopySubscriber) -> str:
 
 
 def _send_verification_email(db, subscriber: CopySubscriber, raw_token: str) -> None:
-    verification_url = portal_url(
-        f"verify-email.html?token={raw_token}"
-    )
+    verification_url = portal_url(f"verify-email.html?token={raw_token}")
     record_and_send(
         db,
         recipient=subscriber.email,
@@ -170,7 +168,9 @@ def register_subscriber_password(data: RegisterRequest, request: Request):
 
 
 @router.get("/verify-email")
-def verify_subscriber_email(token: str = Field(min_length=20, max_length=200)):
+def verify_subscriber_email(
+    token: str = Query(..., min_length=20, max_length=200),
+):
     db = SessionLocal()
     try:
         _ensure_verification_table(db)
@@ -204,7 +204,6 @@ def resend_subscriber_verification(data: ResendVerificationRequest, request: Req
     try:
         email = str(data.email).strip().lower()
         subscriber = db.query(CopySubscriber).filter(func.lower(CopySubscriber.email) == email).first()
-        # Use the same response for unknown addresses to prevent account discovery.
         generic = {"status": "success", "message": "If the account requires verification, a new email has been sent."}
         if subscriber is None:
             return generic
@@ -248,8 +247,6 @@ def subscriber_login(data: LoginRequest, request: Request):
             .filter(SubscriberEmailVerification.subscriber_id == subscriber.id)
             .first()
         )
-        # Accounts created by public registration have a verification record.
-        # Legacy and admin-invited accounts without one remain compatible.
         if verification is not None and verification.verified_at is None:
             raise HTTPException(status_code=403, detail="Verify your email address before signing in")
 
