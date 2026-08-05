@@ -62,6 +62,8 @@ def _quality_report(account_number: str) -> dict:
             issues.append("fewer_than_two_snapshots")
         if len(daily_dates) < 2:
             issues.append("fewer_than_two_daily_observations")
+        if 0 < coverage_days < 1.0:
+            issues.append("snapshot_coverage_under_one_full_day")
         if nonpositive_equity:
             issues.append("nonpositive_equity_values")
         if negative_balance:
