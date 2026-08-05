@@ -52,6 +52,57 @@ def test_compound_return_links_subperiods():
     assert round(result, 4) == 6.59
 
 
+def test_compound_rejects_total_loss_or_worse():
+    assert AuditedAnalyticsEngine._compound([0.02, -1.0]) is None
+    assert AuditedAnalyticsEngine._compound([0.02, -1.25]) is None
+
+
+def test_daily_closes_keeps_latest_valid_snapshot_for_each_day():
+    snapshots = [
+        SimpleNamespace(
+            timestamp=datetime(2026, 1, 1, 8, 0),
+            equity=1000.0,
+            balance=1000.0,
+            profit=0.0,
+        ),
+        SimpleNamespace(
+            timestamp=datetime(2026, 1, 1, 23, 0),
+            equity=1015.0,
+            balance=1010.0,
+            profit=5.0,
+        ),
+        SimpleNamespace(
+            timestamp=datetime(2026, 1, 2, 22, 0),
+            equity=1020.0,
+            balance=1010.0,
+            profit=10.0,
+        ),
+    ]
+
+    closes = AuditedAnalyticsEngine._daily_closes(snapshots)
+
+    assert len(closes) == 2
+    assert closes[0].observed_at == datetime(2026, 1, 1, 23, 0)
+    assert closes[0].equity == 1015.0
+    assert closes[1].observed_at == datetime(2026, 1, 2, 22, 0)
+
+
+def test_period_return_uses_only_observations_inside_requested_window():
+    daily_returns = [
+        (datetime(2026, 1, 1, 23, 59), 0.10, True),
+        (datetime(2026, 1, 5, 23, 59), 0.02, True),
+        (datetime(2026, 1, 8, 23, 59), -0.01, True),
+    ]
+
+    result = AuditedAnalyticsEngine._period_return(
+        daily_returns,
+        datetime(2026, 1, 4, 0, 0),
+    )
+
+    assert result is not None
+    assert round(result, 4) == 0.98
+
+
 def test_monthly_bootstrap_is_deterministic_for_seeded_rng():
     returns = np.linspace(-0.01, 0.015, EXPOSURE_LOOKBACK_DAYS)
     first = AuditedAnalyticsEngine._block_bootstrap_months(
