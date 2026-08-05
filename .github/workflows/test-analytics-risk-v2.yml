@@ -4,20 +4,27 @@ on:
   push:
     branches:
       - analytics-risk-v2
+      - fix/authentic-period-returns
     paths:
       - "api/services/analytics_v2.py"
       - "api/services/analytics_comparison.py"
+      - "api/services/period_returns.py"
+      - "api/services/performance_report.py"
       - "api/routes/performance/router.py"
       - "tests/test_analytics_v2.py"
       - "tests/test_analytics_comparison.py"
+      - "tests/test_period_returns.py"
       - ".github/workflows/test-analytics-risk-v2.yml"
   pull_request:
     paths:
       - "api/services/analytics_v2.py"
       - "api/services/analytics_comparison.py"
+      - "api/services/period_returns.py"
+      - "api/services/performance_report.py"
       - "api/routes/performance/router.py"
       - "tests/test_analytics_v2.py"
       - "tests/test_analytics_comparison.py"
+      - "tests/test_period_returns.py"
       - ".github/workflows/test-analytics-risk-v2.yml"
 
 permissions:
@@ -47,4 +54,4 @@ jobs:
       - name: Run isolated analytics tests
         env:
           DATABASE_URL: sqlite:///./analytics_v2_ci.db
-        run: python -m pytest tests/test_analytics_v2.py tests/test_analytics_comparison.py -v
+        run: python -m pytest tests/test_analytics_v2.py tests/test_analytics_comparison.py tests/test_period_returns.py -v
