@@ -1,21 +1,258 @@
 import json
+import re
 import secrets
 import time
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from api.auth.dependency import require_subscriber_or_admin
+from api.auth.dependency import require_admin, require_subscriber_or_admin
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.onboarding.models import ClientOnboarding, SubscriptionPlan
 from api.onboarding.service import get_or_create_onboarding, recompute_activation
+from api.payment_admin.models import PromoCode, PromoRedemption
 from api.payments.binance_client import signed_post, verify_webhook
 from api.payments.models import BinancePayment
 
 
 router = APIRouter(prefix="/payments/binance", tags=["Binance Pay USDT"])
+promo_router = APIRouter(prefix="/payments/promos", tags=["Promotion Codes"])
+
+
+class PromoCreate(BaseModel):
+    code: str = Field(min_length=3, max_length=40)
+    description: str | None = Field(default=None, max_length=255)
+    discount_type: Literal["FIXED", "PERCENT"] = "FIXED"
+    discount_value: float = Field(gt=0)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    restricted_email: EmailStr | None = None
+    max_uses: int | None = Field(default=None, ge=1)
+    starts_at: datetime | None = None
+    expires_at: datetime | None = None
+    active: bool = True
+
+
+class PromoUpdate(BaseModel):
+    description: str | None = Field(default=None, max_length=255)
+    discount_type: Literal["FIXED", "PERCENT"] | None = None
+    discount_value: float | None = Field(default=None, gt=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    restricted_email: EmailStr | None = None
+    max_uses: int | None = Field(default=None, ge=1)
+    starts_at: datetime | None = None
+    expires_at: datetime | None = None
+    active: bool | None = None
+
+
+class PromoQuote(BaseModel):
+    code: str = Field(min_length=3, max_length=40)
+
+
+def _normalize_code(value: str) -> str:
+    code = re.sub(r"[^A-Z0-9_-]", "", value.strip().upper())
+    if len(code) < 3:
+        raise HTTPException(status_code=422, detail="Promo code must contain at least 3 letters or numbers")
+    return code
+
+
+def _promo_dict(row: PromoCode):
+    return {
+        "id": row.id,
+        "code": row.code,
+        "description": row.description,
+        "discount_type": row.discount_type,
+        "discount_value": row.discount_value,
+        "currency": row.currency,
+        "restricted_email": row.restricted_email,
+        "max_uses": row.max_uses,
+        "uses_count": row.uses_count,
+        "active": row.active,
+        "starts_at": row.starts_at.isoformat() + "Z" if row.starts_at else None,
+        "expires_at": row.expires_at.isoformat() + "Z" if row.expires_at else None,
+        "created_by": row.created_by,
+        "created_at": row.created_at.isoformat() + "Z" if row.created_at else None,
+    }
+
+
+def _validate_promo(db: Session, subscriber_id: int, code: str):
+    subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == subscriber_id).first()
+    if subscriber is None:
+        raise HTTPException(status_code=404, detail="Subscriber not found")
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+    if onboarding.plan_id is None:
+        raise HTTPException(status_code=409, detail="Select a subscription plan first")
+    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == onboarding.plan_id).first()
+    if plan is None or not plan.active:
+        raise HTTPException(status_code=409, detail="Subscription plan is unavailable")
+    promo = db.query(PromoCode).filter(func.upper(PromoCode.code) == _normalize_code(code)).first()
+    if promo is None:
+        raise HTTPException(status_code=404, detail="Promo code is invalid")
+    now = datetime.utcnow()
+    if not promo.active:
+        raise HTTPException(status_code=409, detail="Promo code is inactive")
+    if promo.starts_at and promo.starts_at > now:
+        raise HTTPException(status_code=409, detail="Promo code is not active yet")
+    if promo.expires_at and promo.expires_at <= now:
+        raise HTTPException(status_code=409, detail="Promo code has expired")
+    if promo.max_uses is not None and promo.uses_count >= promo.max_uses:
+        raise HTTPException(status_code=409, detail="Promo code usage limit has been reached")
+    if promo.restricted_email and promo.restricted_email.lower() != subscriber.email.lower():
+        raise HTTPException(status_code=403, detail="Promo code is not assigned to this subscriber")
+    if promo.discount_type == "PERCENT" and promo.discount_value > 100:
+        raise HTTPException(status_code=409, detail="Promo percentage is invalid")
+    if promo.discount_type == "FIXED" and promo.currency.upper() != plan.currency.upper():
+        raise HTTPException(status_code=409, detail="Promo currency does not match the subscription plan")
+    existing = db.query(PromoRedemption).filter(
+        PromoRedemption.promo_code_id == promo.id,
+        PromoRedemption.subscriber_id == subscriber_id,
+    ).first()
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="This promo code has already been used by this subscriber")
+    original = round(float(plan.price), 2)
+    discount = (
+        original * float(promo.discount_value) / 100.0
+        if promo.discount_type == "PERCENT"
+        else float(promo.discount_value)
+    )
+    discount = round(min(original, max(0.0, discount)), 2)
+    return subscriber, onboarding, plan, promo, original, discount, round(original - discount, 2)
+
+
+@promo_router.get("/admin")
+def list_promo_codes(db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    rows = db.query(PromoCode).order_by(PromoCode.id.desc()).all()
+    return {"status": "success", "promos": [_promo_dict(row) for row in rows]}
+
+
+@promo_router.post("/admin", status_code=201)
+def create_promo_code(
+    data: PromoCreate,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+):
+    code = _normalize_code(data.code)
+    if data.discount_type == "PERCENT" and data.discount_value > 100:
+        raise HTTPException(status_code=422, detail="Percentage discount cannot exceed 100")
+    if data.starts_at and data.expires_at and data.expires_at <= data.starts_at:
+        raise HTTPException(status_code=422, detail="Expiry must be after the start date")
+    row = PromoCode(
+        code=code,
+        description=data.description,
+        discount_type=data.discount_type,
+        discount_value=float(data.discount_value),
+        currency=data.currency.upper(),
+        restricted_email=str(data.restricted_email).lower() if data.restricted_email else None,
+        max_uses=data.max_uses,
+        active=data.active,
+        starts_at=data.starts_at,
+        expires_at=data.expires_at,
+        created_by=str(admin.get("email") or admin.get("sub") or "admin"),
+    )
+    db.add(row)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Promo code already exists") from exc
+    db.refresh(row)
+    return _promo_dict(row)
+
+
+@promo_router.patch("/admin/{promo_id}")
+def update_promo_code(
+    promo_id: int,
+    data: PromoUpdate,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    row = db.query(PromoCode).filter(PromoCode.id == promo_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+    values = data.model_dump(exclude_unset=True)
+    if values.get("discount_type", row.discount_type) == "PERCENT" and values.get("discount_value", row.discount_value) > 100:
+        raise HTTPException(status_code=422, detail="Percentage discount cannot exceed 100")
+    for key, value in values.items():
+        if key == "currency" and value:
+            value = value.upper()
+        if key == "restricted_email" and value:
+            value = str(value).lower()
+        setattr(row, key, value)
+    if row.starts_at and row.expires_at and row.expires_at <= row.starts_at:
+        raise HTTPException(status_code=422, detail="Expiry must be after the start date")
+    db.commit()
+    db.refresh(row)
+    return _promo_dict(row)
+
+
+@promo_router.post("/{subscriber_id}/quote")
+def quote_promo_code(
+    subscriber_id: int,
+    data: PromoQuote,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    _, _, plan, promo, original, discount, final = _validate_promo(db, subscriber_id, data.code)
+    return {
+        "status": "valid",
+        "promo_code": promo.code,
+        "plan_id": plan.id,
+        "original_amount": original,
+        "discount_amount": discount,
+        "final_amount": final,
+        "currency": plan.currency,
+    }
+
+
+@promo_router.post("/{subscriber_id}/redeem")
+def redeem_promo_code(
+    subscriber_id: int,
+    data: PromoQuote,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    subscriber, onboarding, plan, promo, original, discount, final = _validate_promo(db, subscriber_id, data.code)
+    redemption = PromoRedemption(
+        promo_code_id=promo.id,
+        subscriber_id=subscriber_id,
+        plan_id=plan.id,
+        original_amount=original,
+        discount_amount=discount,
+        final_amount=final,
+        currency=plan.currency.upper(),
+        status="REDEEMED" if final == 0 else "APPLIED",
+    )
+    db.add(redemption)
+    promo.uses_count += 1
+    onboarding.payment_reference = f"PROMO:{promo.code}"
+    if final == 0:
+        onboarding.payment_status = "PAID"
+        onboarding.subscription_status = "ACTIVE"
+        onboarding.payment_confirmed_at = datetime.utcnow()
+        subscriber.payment_status = "PAID"
+        recompute_activation(db, onboarding)
+    else:
+        onboarding.payment_status = "UNPAID"
+        onboarding.subscription_status = "PENDING_PAYMENT"
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Promo code has already been redeemed") from exc
+    return {
+        "status": redemption.status,
+        "promo_code": promo.code,
+        "original_amount": original,
+        "discount_amount": discount,
+        "final_amount": final,
+        "currency": plan.currency,
+        "payment_waived": final == 0,
+    }
 
 
 @router.post("/{subscriber_id}/order")
@@ -180,3 +417,6 @@ async def binance_webhook(
 
     db.commit()
     return {"returnCode": "SUCCESS", "returnMessage": None}
+
+
+router.include_router(promo_router)
