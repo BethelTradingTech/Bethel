@@ -145,7 +145,7 @@ def register_subscriber_password(data: RegisterRequest, request: Request):
             password_hash=hash_password(data.password),
             mt5_account=f"PENDING-{secrets.token_hex(12)}",
             allocation_percent=100.0,
-            status="PENDING_EMAIL_VERIFICATION",
+            status="EMAIL_UNVERIFIED",
             payment_status="UNPAID",
         )
         db.add(subscriber)
@@ -189,7 +189,7 @@ def verify_subscriber_email(
         if subscriber is None:
             raise HTTPException(status_code=404, detail="Subscriber account not found")
         record.verified_at = datetime.utcnow()
-        if subscriber.status == "PENDING_EMAIL_VERIFICATION":
+        if subscriber.status == "EMAIL_UNVERIFIED":
             subscriber.status = "PENDING"
         db.commit()
         return {"status": "success", "email_verified": True, "message": "Email verified. You may now sign in."}
