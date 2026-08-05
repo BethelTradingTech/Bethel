@@ -12,3 +12,16 @@ const apiGet=e=>apiRequest(e);
 const apiPost=(e,data)=>apiRequest(e,{method:"POST",body:data===undefined?undefined:JSON.stringify(data)});
 const apiPut=(e,data)=>apiRequest(e,{method:"PUT",body:JSON.stringify(data)});
 const apiPatch=(e,data)=>apiRequest(e,{method:"PATCH",body:JSON.stringify(data)});
+
+// The legacy dashboard renderer capped detail panels at 20 scalar fields. Override
+// it after admin-control.js loads so the complete production analytics response is
+// visible without changing any connector, account, trading, or calculation logic.
+setTimeout(()=>{
+ window.renderDetails=(selector,obj)=>{
+  const el=document.querySelector(selector);
+  if(!el)return;
+  const rows=Object.entries(obj||{}).filter(([,value])=>typeof value!=="object");
+  el.innerHTML=rows.map(([key,value])=>`<div><small>${key.replaceAll("_"," ")}</small><strong>${value??"—"}</strong></div>`).join("")||"<p>No data available.</p>";
+ };
+ if(document.querySelector("#view-analytics")?.classList.contains("active")&&typeof window.loadAnalytics==="function")window.loadAnalytics();
+},0);
