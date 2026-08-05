@@ -6,14 +6,17 @@ on:
       - analytics-risk-v2
     paths:
       - "api/services/analytics_v2.py"
+      - "api/services/analytics_comparison.py"
       - "api/routes/performance/router.py"
       - "tests/test_analytics_v2.py"
       - ".github/workflows/test-analytics-risk-v2.yml"
   pull_request:
     paths:
       - "api/services/analytics_v2.py"
+      - "api/services/analytics_comparison.py"
       - "api/routes/performance/router.py"
       - "tests/test_analytics_v2.py"
+      - ".github/workflows/test-analytics-risk-v2.yml"
 
 permissions:
   contents: read
