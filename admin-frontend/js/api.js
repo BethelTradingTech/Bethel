@@ -14,7 +14,7 @@ const apiPut=(e,data)=>apiRequest(e,{method:"PUT",body:JSON.stringify(data)});
 const apiPatch=(e,data)=>apiRequest(e,{method:"PATCH",body:JSON.stringify(data)});
 
 const PERFORMANCE_FIELD_ORDER=[
- "status","master_account","baseline_source","starting_capital","funding_base","deposits","withdrawals",
+ "status","master_account","analytics_method","baseline_source","starting_capital","funding_base","deposits","withdrawals",
  "current_balance","current_equity","floating_profit_loss","closed_profit","total_profit","total_return_percent",
  "banked_return_percent","daily_return_percent","weekly_return_percent","monthly_return_percent","history_days",
  "profit_factor","total_trades","winning_trades","losing_trades","breakeven_trades","win_rate","gross_profit",
@@ -23,6 +23,44 @@ const PERFORMANCE_FIELD_ORDER=[
  "value_at_risk_95_amount","value_at_risk_95_percent","consistency_score","risk_level","performance_grade",
  "cash_flow_events","snapshots_analyzed"
 ];
+
+function normalizedReturnsFromBankedReturn(bankedReturnPercent,tradingWeekdays){
+ const days=Number(tradingWeekdays);
+ const total=Number(bankedReturnPercent)/100;
+ if(!Number.isFinite(days)||days<=0||!Number.isFinite(total)||total<=-1)return null;
+ const dailyFactor=Math.pow(1+total,1/days);
+ return {
+  daily_return_percent:(dailyFactor-1)*100,
+  weekly_return_percent:(Math.pow(dailyFactor,5)-1)*100,
+  monthly_return_percent:(Math.pow(dailyFactor,21)-1)*100
+ };
+}
+
+function countWeekdaysInclusive(startValue,endValue){
+ const start=new Date(startValue);const end=new Date(endValue);
+ if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime())||end<start)return 0;
+ let count=0;const current=new Date(start.getFullYear(),start.getMonth(),start.getDate());
+ const last=new Date(end.getFullYear(),end.getMonth(),end.getDate());
+ while(current<=last){const day=current.getDay();if(day!==0&&day!==6)count+=1;current.setDate(current.getDate()+1)}
+ return count;
+}
+
+function buildSuperAdminPerformance(stable,audit){
+ const merged={...(stable||{})};
+ if(!audit||audit.status!=="available"||!Number.isFinite(Number(audit.banked_return_percent)))return merged;
+ const historyStart=audit.cash_flows?.[0]?.occurred_at||audit.subperiods?.[0]?.start_at;
+ const historyEnd=audit.subperiods?.[audit.subperiods.length-1]?.end_at;
+ const tradingWeekdays=countWeekdaysInclusive(historyStart,historyEnd);
+ const normalized=normalizedReturnsFromBankedReturn(audit.banked_return_percent,tradingWeekdays);
+ merged.analytics_method="FX Blue-style cash-flow-split compounded banked return";
+ merged.banked_return_percent=Number(audit.banked_return_percent).toFixed(2);
+ if(normalized){
+  merged.daily_return_percent=normalized.daily_return_percent.toFixed(2);
+  merged.weekly_return_percent=normalized.weekly_return_percent.toFixed(2);
+  merged.monthly_return_percent=normalized.monthly_return_percent.toFixed(2);
+ }
+ return merged;
+}
 
 function renderCompletePerformance(data){
  const target=document.querySelector("#performance-details");
@@ -43,7 +81,13 @@ function renderCompletePerformance(data){
 async function refreshCompletePerformance(){
  const analyticsView=document.querySelector("#view-analytics");
  if(!analyticsView||!analyticsView.classList.contains("active"))return;
- try{renderCompletePerformance(await apiGet("/performance/analytics"));}
+ try{
+  const [stable,audit]=await Promise.all([
+   apiGet("/performance/analytics"),
+   apiGet("/performance/analytics-fxblue-banked-return-preview")
+  ]);
+  renderCompletePerformance(buildSuperAdminPerformance(stable,audit));
+ }
  catch(error){
   const target=document.querySelector("#performance-details");
   if(target)target.innerHTML=`<p class="notice">${String(error.message||"Performance analytics unavailable")}</p>`;
