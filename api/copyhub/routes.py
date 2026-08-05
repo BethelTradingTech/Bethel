@@ -14,12 +14,13 @@ from api.copyhub.models import CopyChannel, CopyDelivery, CopyEvent, CopyReceive
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.mt5_ingest.models import ConnectorNonce
+from api.models import EquitySnapshot
 from api.mt5_ingest.routes import _verify as verify_connector_signature
 from api.subscription_lifecycle.models import SubscriptionLifecycle
 
 
 router = APIRouter(prefix="/copyhub/v1", tags=["Secure Copy Hub"])
-MASTER_ACCOUNT = "49617874"
+CHANNEL_NAME = "Bethel Master"
 
 
 def utc_now():
@@ -100,11 +101,35 @@ class MasterEvent(BaseModel):
     take_profit: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
+def active_master_account(db: Session) -> str:
+    latest = (
+        db.query(EquitySnapshot)
+        .filter(EquitySnapshot.account_number.isnot(None))
+        .order_by(EquitySnapshot.timestamp.desc(), EquitySnapshot.id.desc())
+        .first()
+    )
+    if latest is None or not str(latest.account_number or "").strip():
+        raise HTTPException(409, "No verified active master account is available")
+    return str(latest.account_number).strip()
+
+
 def get_or_create_channel(db: Session) -> CopyChannel:
-    channel = db.query(CopyChannel).filter(CopyChannel.master_account == MASTER_ACCOUNT).first()
+    master_account = active_master_account(db)
+    channel = db.query(CopyChannel).filter(CopyChannel.name == CHANNEL_NAME).first()
     if channel is None:
-        channel = CopyChannel(name="Bethel Master", master_account=MASTER_ACCOUNT, globally_paused=True)
+        channel = CopyChannel(name=CHANNEL_NAME, master_account=master_account, globally_paused=True)
         db.add(channel)
+        db.flush()
+    elif channel.master_account != master_account:
+        conflict = (
+            db.query(CopyChannel)
+            .filter(CopyChannel.master_account == master_account, CopyChannel.id != channel.id)
+            .first()
+        )
+        if conflict is not None:
+            raise HTTPException(409, "Active master account is already assigned to another copy channel")
+        channel.master_account = master_account
+        channel.updated_at = utc_now()
         db.flush()
     return channel
 
@@ -118,9 +143,9 @@ async def publish_master_event(request: Request, db: Session = Depends(get_db)):
         data = MasterEvent.model_validate(json.loads(body))
     except Exception:
         raise HTTPException(422, "Invalid master event")
-    if data.account_number != MASTER_ACCOUNT:
-        raise HTTPException(403, "Only the configured master account may publish")
     channel = get_or_create_channel(db)
+    if data.account_number != channel.master_account:
+        raise HTTPException(403, "Only the active master account may publish")
     existing = db.query(CopyEvent).filter(CopyEvent.channel_id == channel.id, CopyEvent.event_key == data.event_key).first()
     digest = hashlib.sha256(body).hexdigest()
     if existing is not None:
@@ -157,7 +182,8 @@ def provision_receiver(data: ProvisionReceiver, db: Session = Depends(get_db), a
     account = db.query(BrokerAccount).filter(BrokerAccount.id == data.broker_account_id).first()
     if subscriber is None or account is None or account.subscriber_id != data.subscriber_id:
         raise HTTPException(404, "Subscriber broker account not found")
-    if account.login == MASTER_ACCOUNT:
+    channel = get_or_create_channel(db)
+    if account.login == channel.master_account:
         raise HTTPException(409, "Master account cannot be a receiver")
     if account.platform != "MT5":
         raise HTTPException(422, "The first receiver release supports MT5 only")
@@ -168,7 +194,6 @@ def provision_receiver(data: ProvisionReceiver, db: Session = Depends(get_db), a
         raise HTTPException(403, "Live broker account requires explicit authorization")
     raw_token = secrets.token_urlsafe(48)
     activation_code = "BETHEL-" + secrets.token_urlsafe(24)
-    channel = get_or_create_channel(db)
     receiver = db.query(CopyReceiver).filter(CopyReceiver.broker_account_id == account.id).first()
     if receiver is None:
         receiver = CopyReceiver(
@@ -254,7 +279,7 @@ def global_pause(data: PauseRequest, db: Session = Depends(get_db), admin: dict 
     channel = get_or_create_channel(db)
     channel.globally_paused = data.paused
     db.commit()
-    return {"master_account": MASTER_ACCOUNT, "globally_paused": channel.globally_paused}
+    return {"master_account": channel.master_account, "globally_paused": channel.globally_paused}
 
 
 @router.patch("/admin/receivers/{receiver_id}/pause")
