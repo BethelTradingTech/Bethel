@@ -73,6 +73,51 @@ class AuditedAnalyticsEngine:
         )
         return {row[0].date() for row in rows if row[0] is not None}
 
+    def _history_completeness(self, snapshots: list[EquitySnapshot]) -> dict:
+        """Confirm account-labelled snapshots cover the account's trading history.
+
+        Older snapshots can exist without an account number after a master-account
+        migration. In that case, filtering by the active account produces a partial
+        history. Calculating returns from that partial series can create extreme,
+        false results. The engine therefore refuses to calculate until the snapshot
+        series begins no later than the first signed cash flow or closed deal.
+        """
+        if not snapshots or snapshots[0].timestamp is None:
+            return {
+                "complete": False,
+                "reason": "no_signed_equity_snapshots",
+                "first_snapshot_at": None,
+                "earliest_account_event_at": None,
+            }
+
+        first_snapshot_at = snapshots[0].timestamp
+        cash_flows = self._cash_flows()
+        earliest_cash_flow = next(
+            (item.occurred_at for item in cash_flows if item.occurred_at is not None),
+            None,
+        )
+        earliest_deal_row = (
+            self.db.query(ConnectorDeal.closed_at)
+            .filter(
+                ConnectorDeal.account_number == self.account_number,
+                ConnectorDeal.closed_at.isnot(None),
+            )
+            .order_by(ConnectorDeal.closed_at.asc())
+            .first()
+        )
+        earliest_deal = earliest_deal_row[0] if earliest_deal_row else None
+        event_candidates = [
+            value for value in (earliest_cash_flow, earliest_deal) if value is not None
+        ]
+        earliest_event = min(event_candidates) if event_candidates else None
+        complete = earliest_event is None or first_snapshot_at <= earliest_event
+        return {
+            "complete": complete,
+            "reason": None if complete else "account_snapshot_history_starts_after_trading_history",
+            "first_snapshot_at": first_snapshot_at.isoformat(),
+            "earliest_account_event_at": earliest_event.isoformat() if earliest_event else None,
+        }
+
     @staticmethod
     def _daily_closes(snapshots: Iterable[EquitySnapshot]) -> list[DailyPoint]:
         closes: OrderedDict = OrderedDict()
@@ -97,13 +142,6 @@ class AuditedAnalyticsEngine:
         end: DailyPoint,
         cash_flows: Iterable[ConnectorCashFlow],
     ) -> Optional[float]:
-        """Calculate one interval's cash-flow-neutral equity return.
-
-        Modified Dietz is used because historical equity immediately before and
-        after every external cash flow is not guaranteed to be available. Flow
-        weights reflect the fraction of the interval for which each flow was
-        invested. This avoids counting deposits as profit or withdrawals as loss.
-        """
         seconds = (end.observed_at - start.observed_at).total_seconds()
         if seconds <= 0 or start.equity <= 0:
             return None
@@ -167,7 +205,6 @@ class AuditedAnalyticsEngine:
 
     def returns_report(self) -> dict:
         snapshots = self._snapshots()
-        daily_returns = self._daily_returns()
         if not snapshots:
             return {
                 "status": "not_available",
@@ -175,6 +212,23 @@ class AuditedAnalyticsEngine:
                 "method": "cash_flow_adjusted_equity_modified_dietz",
             }
 
+        completeness = self._history_completeness(snapshots)
+        if not completeness["complete"]:
+            return {
+                "status": "insufficient_history",
+                "reason": completeness["reason"],
+                "method": "cash_flow_adjusted_equity_modified_dietz_compounded",
+                "source": "signed_mt5_equity_snapshots_and_cash_flows",
+                "first_snapshot_at": completeness["first_snapshot_at"],
+                "earliest_account_event_at": completeness["earliest_account_event_at"],
+                "daily_observations": 0,
+                "since_inception_return_percent": None,
+                "rolling_1d_return_percent": None,
+                "rolling_1w_return_percent": None,
+                "rolling_1m_return_percent": None,
+            }
+
+        daily_returns = self._daily_returns()
         end_at = snapshots[-1].timestamp
         first_at = snapshots[0].timestamp
         since_inception = self._compound(value for _, value, _ in daily_returns)
@@ -219,6 +273,23 @@ class AuditedAnalyticsEngine:
         return scenarios
 
     def risk_report(self) -> dict:
+        snapshots = self._snapshots()
+        completeness = self._history_completeness(snapshots)
+        if not completeness["complete"]:
+            return {
+                "status": "insufficient_history",
+                "reason": completeness["reason"],
+                "method": "monthly_95_var_block_bootstrap_monte_carlo",
+                "source": "signed_mt5_cash_flow_adjusted_exposed_day_equity_returns",
+                "required_exposed_days": EXPOSURE_LOOKBACK_DAYS,
+                "available_exposed_days": 0,
+                "monthly_horizon_trading_days": MONTHLY_HORIZON_TRADING_DAYS,
+                "confidence_percent": 95,
+                "scenario_count": MONTE_CARLO_SCENARIOS,
+                "monthly_var_95_percent": None,
+                "monthly_expected_shortfall_95_percent": None,
+            }
+
         daily = self._daily_returns()
         exposed = np.asarray([value for _, value, is_exposed in daily if is_exposed], dtype=float)
         exposed = exposed[np.isfinite(exposed)]
