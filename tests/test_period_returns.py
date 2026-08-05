@@ -114,7 +114,7 @@ def test_same_timestamp_cash_flow_is_processed_before_deal():
     assert [event.kind for event in events] == ["cash_flow", "deal"]
 
 
-def test_nonpositive_reconstructed_opening_balance_is_rejected():
+def test_negative_reconstructed_opening_balance_is_rejected():
     end_at = datetime(2026, 8, 5, 12, 0)
     report = rolling_balance_twr(
         current_balance=100.0,
@@ -125,5 +125,5 @@ def test_nonpositive_reconstructed_opening_balance_is_rejected():
     )
 
     assert report["status"] == "insufficient_history"
-    assert report["reason"] == "nonpositive_reconstructed_opening_balance"
+    assert report["reason"] == "negative_reconstructed_opening_balance"
     assert report["return_percent"] is None
