@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email | Bethel Trading Technologies</title>
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/investor.css?v=6">
+    <link rel="stylesheet" href="css/onboarding.css?v=11">
+</head>
+<body>
+<main class="onboarding-shell">
+    <section class="panel onboarding-panel" style="max-width:720px;margin:4rem auto;">
+        <div class="step-heading"><span>✓</span><div><h1>Verify your email address</h1><p id="verification-message">Checking your secure verification link...</p></div></div>
+        <a id="continue-link" class="primary-button" href="onboarding.html" hidden>Continue to subscriber sign in</a>
+    </section>
+</main>
+<script>
+(function(){
+    const message=document.getElementById("verification-message");
+    const continueLink=document.getElementById("continue-link");
+    const token=new URLSearchParams(window.location.search).get("token");
+    const local=["localhost","127.0.0.1"].includes(window.location.hostname)||window.location.hostname.startsWith("192.168.");
+    const apiBase=local?`${window.location.protocol}//${window.location.hostname}:8000`:"https://bethel-api.onrender.com";
+    if(!token){
+        message.textContent="This verification link is incomplete. Return to registration and request another email.";
+        continueLink.hidden=false;
+        return;
+    }
+    fetch(`${apiBase}/copytrading/auth/verify-email?token=${encodeURIComponent(token)}`,{
+        headers:{"Accept":"application/json"}
+    }).then(async response=>{
+        let data={};
+        try{data=await response.json();}catch(_){}
+        if(!response.ok)throw new Error(data.detail||data.message||"The verification link is invalid or expired.");
+        message.textContent=data.message||"Your email address has been verified. You may now sign in.";
+        continueLink.hidden=false;
+        history.replaceState({},document.title,"verify-email.html");
+    }).catch(error=>{
+        message.textContent=error.message;
+        continueLink.textContent="Return to subscriber registration";
+        continueLink.hidden=false;
+    });
+})();
+</script>
+</body>
+</html>
