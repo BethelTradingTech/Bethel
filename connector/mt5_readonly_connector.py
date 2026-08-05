@@ -48,6 +48,7 @@ def snapshot():
     } for position in open_positions]
 
     closed_deals = []
+    cash_flows = []
     now_timestamp = time.time()
     if now_timestamp - last_history_sync >= HISTORY_INTERVAL:
         date_to = datetime.now(timezone.utc)
@@ -55,6 +56,7 @@ def snapshot():
         history = mt5.history_deals_get(date_from, date_to)
         if history is None:
             raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
+
         exit_entries = {mt5.DEAL_ENTRY_OUT, mt5.DEAL_ENTRY_OUT_BY, mt5.DEAL_ENTRY_INOUT}
         eligible = [
             deal for deal in history
@@ -74,8 +76,26 @@ def snapshot():
             "fee": getattr(deal, "fee", 0.0),
             "closed_at": datetime.fromtimestamp(deal.time, timezone.utc).isoformat(),
         } for deal in eligible]
+
+        cash_type_names = {
+            mt5.DEAL_TYPE_BALANCE: "BALANCE",
+            mt5.DEAL_TYPE_CREDIT: "CREDIT",
+            mt5.DEAL_TYPE_BONUS: "BONUS",
+            mt5.DEAL_TYPE_CORRECTION: "CORRECTION",
+        }
+        cash_flows = [{
+            "deal_ticket": str(deal.ticket),
+            "event_type": cash_type_names[deal.type],
+            "amount": float(deal.profit),
+            "occurred_at": datetime.fromtimestamp(deal.time, timezone.utc).isoformat(),
+        } for deal in history if deal.type in cash_type_names]
+
         last_history_sync = now_timestamp
-        logger.info("prepared %s closed deals for signed sync", len(closed_deals))
+        logger.info(
+            "prepared %s closed deals and %s cash-flow events for signed sync",
+            len(closed_deals),
+            len(cash_flows),
+        )
 
     return {
         "account_number": str(account.login), "server": account.server,
@@ -84,6 +104,7 @@ def snapshot():
         "observed_at": datetime.now(timezone.utc).isoformat(), "mode": mode,
         "positions": positions,
         "closed_deals": closed_deals,
+        "cash_flows": cash_flows,
     }
 
 
@@ -105,7 +126,12 @@ if __name__ == "__main__":
             payload = snapshot()
             send(payload)
             failures = 0
-            logger.info("snapshot accepted%s", f" with {len(payload['closed_deals'])} closed deals" if payload["closed_deals"] else "")
+            details = []
+            if payload["closed_deals"]:
+                details.append(f"{len(payload['closed_deals'])} closed deals")
+            if payload["cash_flows"]:
+                details.append(f"{len(payload['cash_flows'])} cash-flow events")
+            logger.info("snapshot accepted%s", f" with {', '.join(details)}" if details else "")
         except Exception as error:
             failures += 1
             logger.error("connector error: %s", error)
