@@ -108,12 +108,6 @@ def _validate_promo(db: Session, subscriber_id: int, code: str):
         raise HTTPException(status_code=409, detail="Promo percentage is invalid")
     if promo.discount_type == "FIXED" and promo.currency.upper() != plan.currency.upper():
         raise HTTPException(status_code=409, detail="Promo currency does not match the subscription plan")
-    existing = db.query(PromoRedemption).filter(
-        PromoRedemption.promo_code_id == promo.id,
-        PromoRedemption.subscriber_id == subscriber_id,
-    ).first()
-    if existing is not None:
-        raise HTTPException(status_code=409, detail="This promo code has already been used by this subscriber")
     original = round(float(plan.price), 2)
     discount = (
         original * float(promo.discount_value) / 100.0
@@ -239,11 +233,7 @@ def redeem_promo_code(
     else:
         onboarding.payment_status = "UNPAID"
         onboarding.subscription_status = "PENDING_PAYMENT"
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Promo code has already been redeemed") from exc
+    db.commit()
     return {
         "status": redemption.status,
         "promo_code": promo.code,
