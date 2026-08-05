@@ -62,6 +62,36 @@ function buildSuperAdminPerformance(stable,audit){
  return merged;
 }
 
+function performanceValueColor(key,value){
+ const colors={
+  total_return_percent:"#22c55e",banked_return_percent:"#10b981",daily_return_percent:"#38bdf8",
+  weekly_return_percent:"#a78bfa",monthly_return_percent:"#f59e0b",current_balance:"#60a5fa",
+  current_equity:"#22d3ee",closed_profit:"#22c55e",total_profit:"#34d399",profit_factor:"#10b981",
+  win_rate:"#3b82f6",gross_profit:"#22c55e",gross_loss:"#ef4444",average_win:"#4ade80",
+  average_loss:"#fb7185",maximum_drawdown_amount:"#ef4444",maximum_drawdown_percent:"#f43f5e",
+  value_at_risk_95_amount:"#dc2626",value_at_risk_95_percent:"#dc2626",volatility:"#fb923c",
+  sharpe_ratio:"#c084fc",sortino_ratio:"#a855f7",calmar_ratio:"#fbbf24",consistency_score:"#60a5fa",
+  expectancy:"#c084fc",recovery_factor:"#14b8a6",performance_grade:"#3b82f6",risk_level:"#ef4444"
+ };
+ if(key==="floating_profit_loss")return Number(value)>=0?"#22c55e":"#ef4444";
+ if(key==="risk_level"){
+  const risk=String(value||"").toUpperCase();
+  if(risk==="LOW")return "#22c55e";
+  if(risk==="MEDIUM")return "#f59e0b";
+  if(risk==="CRITICAL")return "#dc2626";
+  return "#ef4444";
+ }
+ if(key==="performance_grade"){
+  const grade=String(value||"").toUpperCase();
+  if(grade.startsWith("A"))return "#22c55e";
+  if(grade.startsWith("B"))return "#3b82f6";
+  if(grade.startsWith("C"))return "#f59e0b";
+  if(grade.startsWith("D"))return "#fb923c";
+  if(grade.startsWith("F"))return "#ef4444";
+ }
+ return colors[key]||"";
+}
+
 function renderCompletePerformance(data){
  const target=document.querySelector("#performance-details");
  if(!target)return;
@@ -75,7 +105,11 @@ function renderCompletePerformance(data){
  for(const [key,value] of Object.entries(data||{})){
   if(!seen.has(key)&&typeof value!=="object")ordered.push([key,value]);
  }
- target.innerHTML=ordered.map(([key,value])=>`<div><small>${key.replaceAll("_"," ")}</small><strong>${value??"—"}</strong></div>`).join("")||"<p>No data available.</p>";
+ target.innerHTML=ordered.map(([key,value])=>{
+  const color=performanceValueColor(key,value);
+  const style=color?` style="color:${color}"`:"";
+  return `<div><small>${key.replaceAll("_"," ")}</small><strong${style}>${value??"—"}</strong></div>`;
+ }).join("")||"<p>No data available.</p>";
 }
 
 async function refreshCompletePerformance(){
