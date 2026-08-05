@@ -3,8 +3,7 @@
 The engine reconstructs the balance at a requested period boundary from the
 current broker balance, then compounds each closed-deal return using the
 balance immediately before that deal. Deposits and withdrawals change capital
-but never create performance. This follows time-weighted-return principles used
-by professional account trackers.
+but never create performance.
 """
 
 from __future__ import annotations
@@ -22,7 +21,12 @@ class ReturnEvent:
 
 
 def _net_deal_profit(deal) -> float:
-    return float(deal.profit or 0) + float(deal.commission or 0) + float(deal.swap or 0) + float(deal.fee or 0)
+    return (
+        float(deal.profit or 0)
+        + float(deal.commission or 0)
+        + float(deal.swap or 0)
+        + float(deal.fee or 0)
+    )
 
 
 def build_events(deals: Iterable, cash_flows: Iterable, start_at: datetime) -> list[ReturnEvent]:
@@ -33,8 +37,6 @@ def build_events(deals: Iterable, cash_flows: Iterable, start_at: datetime) -> l
     for flow in cash_flows:
         if flow.occurred_at is not None and flow.occurred_at >= start_at:
             events.append(ReturnEvent(flow.occurred_at, "cash_flow", float(flow.amount or 0)))
-    # Cash flow is processed before a deal at the same timestamp, matching the
-    # broker balance available to the subsequently booked deal.
     events.sort(key=lambda item: (item.occurred_at, 0 if item.kind == "cash_flow" else 1))
     return events
 
@@ -47,47 +49,50 @@ def rolling_balance_twr(
     end_at: datetime,
     period_days: float,
 ) -> dict:
-    """Return actual period TWR, not an annualised full-history estimate."""
+    """Calculate the actual rolling-period TWR from broker ledger events."""
     start_at = end_at - timedelta(days=period_days)
     events = build_events(deals, cash_flows, start_at)
-    total_after_start = sum(event.amount for event in events)
-    opening_balance = float(current_balance) - total_after_start
+    opening_balance = float(current_balance) - sum(event.amount for event in events)
 
-    if opening_balance <= 0:
+    # A period can legitimately begin before the account's initial deposit. In
+    # that case opening balance is zero and the first positive cash flow starts
+    # the investable subperiod. A negative opening balance is never valid.
+    if opening_balance < -0.01:
         return {
             "status": "insufficient_history",
-            "reason": "nonpositive_reconstructed_opening_balance",
+            "reason": "negative_reconstructed_opening_balance",
             "start_at": start_at,
             "end_at": end_at,
             "return_percent": None,
             "deal_count": 0,
             "cash_flow_count": 0,
         }
-
-    balance = opening_balance
+    balance = max(0.0, opening_balance)
     growth = 1.0
     deal_count = 0
     cash_flow_count = 0
+
     for event in events:
         if event.kind == "cash_flow":
             balance += event.amount
             cash_flow_count += 1
-            if balance <= 0:
+            if balance < -0.01:
                 return {
                     "status": "insufficient_history",
-                    "reason": "nonpositive_balance_after_cash_flow",
+                    "reason": "negative_balance_after_cash_flow",
                     "start_at": start_at,
                     "end_at": end_at,
                     "return_percent": None,
                     "deal_count": deal_count,
                     "cash_flow_count": cash_flow_count,
                 }
+            balance = max(0.0, balance)
             continue
 
         if balance <= 0:
             return {
                 "status": "insufficient_history",
-                "reason": "nonpositive_balance_before_deal",
+                "reason": "no_invested_capital_before_deal",
                 "start_at": start_at,
                 "end_at": end_at,
                 "return_percent": None,
