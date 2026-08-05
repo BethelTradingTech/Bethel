@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Request
 from api.database import SessionLocal
 from api.auth.dependency import require_admin
 from api.models import EquitySnapshot
+from api.services.analytics_comparison import get_analytics_comparison
 from api.services.analytics_v2 import get_audited_analytics
 from api.services.performance_engine import get_performance_analytics
 from api.services.daily_performance import get_daily_performance
@@ -73,16 +74,20 @@ def analytics(request: Request, _admin=Depends(require_admin)):
 
 @router.get("/analytics-v2")
 def analytics_v2(request: Request, _admin=Depends(require_admin)):
-    """Audited candidate engine for validation before any production merge.
-
-    This endpoint is intentionally separate from ``/analytics`` so the stable
-    production report remains unchanged while return and monthly VaR methods are
-    validated against external benchmarks.
-    """
+    """Audited candidate engine for validation before any production merge."""
     account_number = _active_master_account()
     if not account_number:
         return {"status": "error", "message": "No active master account available"}
     return get_audited_analytics(account_number)
+
+
+@router.get("/analytics-comparison")
+def analytics_comparison(request: Request, _admin=Depends(require_admin)):
+    """Read-only stable-vs-v2 comparison with data-quality and merge gates."""
+    account_number = _active_master_account()
+    if not account_number:
+        return {"status": "error", "message": "No active master account available"}
+    return get_analytics_comparison(account_number)
 
 
 @router.get("/daily")
