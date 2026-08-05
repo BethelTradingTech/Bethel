@@ -23,11 +23,9 @@ class PerformanceEngine:
         self.db = SessionLocal()
 
     def active_account_number(self) -> Optional[str]:
-        """Resolve the current master account without a hard-coded account number."""
         configured = os.getenv("BETHEL_MASTER_ACCOUNT", "").strip()
         if configured:
             return configured
-
         latest = (
             self.db.query(EquitySnapshot)
             .filter(EquitySnapshot.account_number.isnot(None))
@@ -46,13 +44,10 @@ class PerformanceEngine:
 
     @staticmethod
     def starting_capital(history: List[EquitySnapshot]) -> float:
-        """Use the first recorded balance for the active master account as fallback baseline."""
         if not history:
             return 0.0
         first_balance = float(history[0].balance or 0)
-        if first_balance > 0:
-            return first_balance
-        return float(history[0].equity or 0)
+        return first_balance if first_balance > 0 else float(history[0].equity or 0)
 
     def funding_summary(self, account_number: str, fallback: float) -> Dict:
         cash_flows = (
@@ -111,7 +106,6 @@ class PerformanceEngine:
 
     @staticmethod
     def period_return(aggregate_return_percent: float, history_days: float, period_days: float) -> float:
-        """Geometrically normalize banked return over the account history period."""
         if history_days <= 0 or aggregate_return_percent <= -100:
             return 0.0
         growth = 1 + aggregate_return_percent / 100
@@ -137,52 +131,43 @@ class PerformanceEngine:
 
     @staticmethod
     def trade_metrics() -> Dict:
+        defaults = {
+            "total_trades": 0,
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "breakeven_trades": 0,
+            "win_rate": 0,
+            "gross_profit": 0,
+            "gross_loss": 0,
+            "profit_factor": 0,
+            "average_win": 0,
+            "average_loss": 0,
+            "payoff_ratio": 0,
+            "expectancy": 0,
+            "sharpe_ratio": 0,
+            "sortino_ratio": 0,
+            "max_drawdown": 0,
+            "value_at_risk_95_amount": 0,
+            "value_at_risk_95_percent": 0,
+        }
         try:
             data = get_trade_performance()
             performance = data.get("performance", {})
             risk = data.get("risk", {})
             return {
-                "total_trades": performance.get("total_trades", 0),
-                "win_rate": performance.get("win_rate", 0),
-                "profit_factor": performance.get("profit_factor", 0),
-                "sharpe_ratio": risk.get("sharpe_ratio", 0),
-                "sortino_ratio": risk.get("sortino_ratio", 0),
-                "max_drawdown": risk.get("max_drawdown", 0),
+                **defaults,
+                **{key: performance.get(key, defaults[key]) for key in (
+                    "total_trades", "winning_trades", "losing_trades", "breakeven_trades",
+                    "win_rate", "gross_profit", "gross_loss", "profit_factor",
+                    "average_win", "average_loss", "payoff_ratio", "expectancy",
+                )},
+                **{key: risk.get(key, defaults[key]) for key in (
+                    "sharpe_ratio", "sortino_ratio", "max_drawdown",
+                    "value_at_risk_95_amount", "value_at_risk_95_percent",
+                )},
             }
         except Exception:
-            return {
-                "total_trades": 0,
-                "win_rate": 0,
-                "profit_factor": 0,
-                "sharpe_ratio": 0,
-                "sortino_ratio": 0,
-                "max_drawdown": 0,
-            }
-
-    @staticmethod
-    def sharpe_ratio(returns: np.ndarray, trade_data: Dict) -> float:
-        value = trade_data.get("sharpe_ratio", 0)
-        if value:
-            return round(float(value), 2)
-        if len(returns) < 2:
-            return 0.0
-        deviation = np.std(returns, ddof=1)
-        if deviation == 0:
-            return 0.0
-        return round(float((np.mean(returns) / deviation) * math.sqrt(TRADING_DAYS_PER_YEAR)), 2)
-
-    @staticmethod
-    def sortino_ratio(returns: np.ndarray, trade_data: Dict) -> float:
-        value = trade_data.get("sortino_ratio", 0)
-        if value:
-            return round(float(value), 2)
-        downside = returns[returns < 0]
-        if len(downside) < 2:
-            return 0.0
-        deviation = np.std(downside, ddof=1)
-        if deviation == 0:
-            return 0.0
-        return round(float((np.mean(returns) / deviation) * math.sqrt(TRADING_DAYS_PER_YEAR)), 2)
+            return defaults
 
     @staticmethod
     def recovery_factor(total_profit: float, drawdown_amount: float):
@@ -217,6 +202,15 @@ class PerformanceEngine:
         if total_return > 0 and profit_factor >= 1.5:
             return "B"
         return "C"
+
+    @staticmethod
+    def calmar_ratio(banked_return_percent: float, history_days: float, drawdown_percent: float):
+        if history_days <= 0 or drawdown_percent <= 0 or banked_return_percent <= -100:
+            return None
+        annualized_return = (
+            ((1 + banked_return_percent / 100) ** (365.25 / history_days)) - 1
+        ) * 100
+        return round(annualized_return / drawdown_percent, 2)
 
     def generate_report(self) -> Dict:
         account_number = self.active_account_number()
@@ -259,13 +253,18 @@ class PerformanceEngine:
         volatility = self.volatility(return_series)
         equity_drawdown_percent = self.equity_drawdown(equity)
         trade_data = self.trade_metrics()
-        profit_factor = round(float(trade_data.get("profit_factor", 0)), 2)
-        drawdown_amount = round(float(trade_data.get("max_drawdown", 0)), 2)
+        profit_factor = round(float(trade_data["profit_factor"]), 2)
+        drawdown_amount = round(float(trade_data["max_drawdown"]), 2)
         drawdown_percent = (
             (drawdown_amount / funding_base) * 100
             if funding_base > 0 and drawdown_amount > 0
             else equity_drawdown_percent
         )
+        recovery = self.recovery_factor(total_profit, drawdown_amount)
+        calmar = self.calmar_ratio(banked_return, history_days, drawdown_percent)
+        consistency = self.consistency_score(return_series, drawdown_percent, volatility)
+        risk = self.risk_level(drawdown_percent, volatility)
+        grade = self.performance_grade(total_return, profit_factor, drawdown_percent)
 
         return {
             "status": "success",
@@ -286,18 +285,30 @@ class PerformanceEngine:
             "weekly_return_percent": round(weekly_return, 2),
             "monthly_return_percent": round(monthly_return, 2),
             "history_days": round(history_days, 2),
-            "volatility": round(volatility * 100, 2),
+            "profit_factor": profit_factor,
+            "total_trades": int(trade_data["total_trades"]),
+            "winning_trades": int(trade_data["winning_trades"]),
+            "losing_trades": int(trade_data["losing_trades"]),
+            "breakeven_trades": int(trade_data["breakeven_trades"]),
+            "win_rate": round(float(trade_data["win_rate"]), 2),
+            "gross_profit": round(float(trade_data["gross_profit"]), 2),
+            "gross_loss": round(float(trade_data["gross_loss"]), 2),
+            "average_win": round(float(trade_data["average_win"]), 2),
+            "average_loss": round(float(trade_data["average_loss"]), 2),
+            "payoff_ratio": round(float(trade_data["payoff_ratio"]), 2),
+            "expectancy": round(float(trade_data["expectancy"]), 2),
+            "sharpe_ratio": round(float(trade_data["sharpe_ratio"]), 2),
+            "sortino_ratio": round(float(trade_data["sortino_ratio"]), 2),
+            "recovery_factor": recovery,
             "maximum_drawdown_amount": drawdown_amount,
             "maximum_drawdown_percent": round(drawdown_percent, 2),
-            "profit_factor": profit_factor,
-            "sharpe_ratio": self.sharpe_ratio(return_series, trade_data),
-            "sortino_ratio": self.sortino_ratio(return_series, trade_data),
-            "recovery_factor": self.recovery_factor(total_profit, drawdown_amount),
-            "consistency_score": self.consistency_score(return_series, drawdown_percent, volatility),
-            "risk_level": self.risk_level(drawdown_percent, volatility),
-            "performance_grade": self.performance_grade(total_return, profit_factor, drawdown_percent),
-            "total_trades": trade_data.get("total_trades", 0),
-            "win_rate": trade_data.get("win_rate", 0),
+            "volatility": round(volatility * 100, 2),
+            "calmar_ratio": calmar,
+            "value_at_risk_95_amount": round(float(trade_data["value_at_risk_95_amount"]), 2),
+            "value_at_risk_95_percent": round(float(trade_data["value_at_risk_95_percent"]), 2),
+            "consistency_score": consistency,
+            "risk_level": risk,
+            "performance_grade": grade,
             "cash_flow_events": funding["cash_flow_count"],
             "snapshots_analyzed": len(history),
         }
