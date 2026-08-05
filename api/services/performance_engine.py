@@ -1,15 +1,9 @@
-"""Bethel Trading Technologies unified performance analytics.
-
-Returns are calculated from signed MT5 balance/equity snapshots and signed MT5
-cash-flow events. No account number, capital amount, history duration, or return
-percentage is hard-coded.
-"""
+"""Bethel Trading Technologies unified performance analytics."""
 
 from __future__ import annotations
 
 import math
 import os
-from collections import OrderedDict
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -20,9 +14,8 @@ from api.models import EquitySnapshot
 from api.mt5_ingest.models import ConnectorCashFlow, ConnectorDeal
 from api.services.trade_performance import get_trade_performance
 
-TRADING_DAYS_PER_WEEK = 5
-TRADING_DAYS_PER_MONTH = 21
 TRADING_DAYS_PER_YEAR = 252
+AVERAGE_DAYS_PER_MONTH = 365.25 / 12
 
 
 class PerformanceEngine:
@@ -71,7 +64,6 @@ class PerformanceEngine:
             "withdrawals": withdrawals,
             "net_deposits": net_deposits if net_deposits > 0 else fallback,
             "cash_flow_count": len(cash_flows),
-            "cash_flows": cash_flows,
             "first_cash_flow_at": cash_flows[0].occurred_at if cash_flows else None,
             "source": "mt5_cash_flows" if net_deposits > 0 else "first_snapshot_balance",
         }
@@ -113,80 +105,13 @@ class PerformanceEngine:
         return values[np.isfinite(values)]
 
     @staticmethod
-    def daily_closes(history: List[EquitySnapshot], value_field: str):
-        """Return the final signed snapshot for each weekday.
-
-        FX performance periods are trading-day based. Weekend telemetry is retained
-        in the database but excluded from normalized day/week/month calculations.
-        """
-        closes = OrderedDict()
-        for snapshot in history:
-            timestamp = snapshot.timestamp
-            if timestamp is None or timestamp.weekday() >= 5:
-                continue
-            value = float(getattr(snapshot, value_field) or 0)
-            if value <= 0:
-                continue
-            closes[timestamp.date()] = (timestamp, value)
-        return list(closes.values())
-
-    @staticmethod
-    def cash_flow_adjusted_daily_returns(daily_closes, cash_flows) -> np.ndarray:
-        """Calculate daily time-weighted returns between signed daily closes.
-
-        External cash flows occurring after the prior close and on/before the next
-        close are removed from performance. This prevents deposits and withdrawals
-        from being counted as trading gains or losses.
-        """
-        if len(daily_closes) < 2:
-            return np.array([], dtype=float)
-
-        returns = []
-        flow_index = 0
-        ordered_flows = sorted(
-            [item for item in cash_flows if item.occurred_at is not None],
-            key=lambda item: item.occurred_at,
-        )
-
-        for index in range(1, len(daily_closes)):
-            previous_time, previous_value = daily_closes[index - 1]
-            current_time, current_value = daily_closes[index]
-            if previous_value <= 0:
-                continue
-
-            while flow_index < len(ordered_flows) and ordered_flows[flow_index].occurred_at <= previous_time:
-                flow_index += 1
-
-            interval_flow = 0.0
-            cursor = flow_index
-            while cursor < len(ordered_flows) and ordered_flows[cursor].occurred_at <= current_time:
-                interval_flow += float(ordered_flows[cursor].amount or 0)
-                cursor += 1
-            flow_index = cursor
-
-            daily_return = (current_value - previous_value - interval_flow) / previous_value
-            if math.isfinite(daily_return) and daily_return > -1:
-                returns.append(daily_return)
-
-        return np.array(returns, dtype=float)
-
-    @staticmethod
-    def compound_return(returns: np.ndarray) -> Optional[float]:
-        if len(returns) == 0:
-            return None
-        growth = float(np.prod(1.0 + returns))
-        if not math.isfinite(growth) or growth <= 0:
-            return None
-        return (growth - 1.0) * 100
-
-    @staticmethod
-    def normalized_period_return(aggregate_return_percent: float, observations: int, target_days: int) -> Optional[float]:
-        if observations <= 0 or aggregate_return_percent <= -100:
-            return None
-        growth = 1.0 + aggregate_return_percent / 100.0
+    def period_return(aggregate_return_percent: float, history_days: float, period_days: float) -> float:
+        if history_days <= 0 or aggregate_return_percent <= -100:
+            return 0.0
+        growth = 1 + aggregate_return_percent / 100
         if growth <= 0:
-            return None
-        return ((growth ** (target_days / observations)) - 1.0) * 100.0
+            return 0.0
+        return ((growth ** (period_days / history_days)) - 1) * 100
 
     @staticmethod
     def volatility(returns: np.ndarray) -> float:
@@ -279,11 +204,11 @@ class PerformanceEngine:
         return "C"
 
     @staticmethod
-    def calmar_ratio(banked_return_percent: float, trading_days: int, drawdown_percent: float):
-        if trading_days <= 0 or drawdown_percent <= 0 or banked_return_percent <= -100:
+    def calmar_ratio(banked_return_percent: float, history_days: float, drawdown_percent: float):
+        if history_days <= 0 or drawdown_percent <= 0 or banked_return_percent <= -100:
             return None
         annualized_return = (
-            ((1 + banked_return_percent / 100) ** (TRADING_DAYS_PER_YEAR / trading_days)) - 1
+            ((1 + banked_return_percent / 100) ** (365.25 / history_days)) - 1
         ) * 100
         return round(annualized_return / drawdown_percent, 2)
 
@@ -306,43 +231,26 @@ class PerformanceEngine:
         funding_base = float(funding["net_deposits"] or fallback_capital or 0)
 
         equity = self.equity_values(history)
-        snapshot_return_series = self.returns(equity)
+        return_series = self.returns(equity)
         current_balance = float(history[-1].balance or 0)
         current_equity = float(history[-1].equity or 0)
         floating_profit = float(history[-1].profit or (current_equity - current_balance))
         closed_profit = float(closed["net_profit"])
         total_profit = closed_profit + floating_profit
 
-        balance_daily_returns = self.cash_flow_adjusted_daily_returns(
-            self.daily_closes(history, "balance"), funding["cash_flows"]
-        )
-        equity_daily_returns = self.cash_flow_adjusted_daily_returns(
-            self.daily_closes(history, "equity"), funding["cash_flows"]
-        )
-
-        simple_banked_return = (closed_profit / funding_base) * 100 if funding_base > 0 else 0.0
-        simple_total_return = (total_profit / funding_base) * 100 if funding_base > 0 else 0.0
-        compounded_banked = self.compound_return(balance_daily_returns)
-        compounded_total = self.compound_return(equity_daily_returns)
-        banked_return = compounded_banked if compounded_banked is not None else simple_banked_return
-        total_return = compounded_total if compounded_total is not None else simple_total_return
-
-        trading_day_observations = len(balance_daily_returns)
-        daily_return = self.normalized_period_return(banked_return, trading_day_observations, 1)
-        weekly_return = self.normalized_period_return(
-            banked_return, trading_day_observations, TRADING_DAYS_PER_WEEK
-        )
-        monthly_return = self.normalized_period_return(
-            banked_return, trading_day_observations, TRADING_DAYS_PER_MONTH
-        )
+        banked_return = (closed_profit / funding_base) * 100 if funding_base > 0 else 0.0
+        total_return = (total_profit / funding_base) * 100 if funding_base > 0 else 0.0
 
         start_candidates = [history[0].timestamp, funding["first_cash_flow_at"], closed["first_closed_at"]]
         start_at = min(value for value in start_candidates if value is not None)
         end_at = history[-1].timestamp
         history_days = max((end_at - start_at).total_seconds() / 86400, 1 / 24)
 
-        risk_return_series = equity_daily_returns if len(equity_daily_returns) >= 2 else snapshot_return_series
-        volatility = self.volatility(risk_return_series)
+        daily_return = self.period_return(banked_return, history_days, 1)
+        weekly_return = self.period_return(banked_return, history_days, 7)
+        monthly_return = self.period_return(banked_return, history_days, AVERAGE_DAYS_PER_MONTH)
+
+        volatility = self.volatility(return_series)
         equity_drawdown_percent = self.equity_drawdown(equity)
         trade_data = self.trade_metrics()
         profit_factor = round(float(trade_data["profit_factor"]), 2)
@@ -353,8 +261,8 @@ class PerformanceEngine:
             else equity_drawdown_percent
         )
         recovery = self.recovery_factor(total_profit, drawdown_amount)
-        calmar = self.calmar_ratio(banked_return, trading_day_observations, drawdown_percent)
-        consistency = self.consistency_score(risk_return_series, drawdown_percent, volatility)
+        calmar = self.calmar_ratio(banked_return, history_days, drawdown_percent)
+        consistency = self.consistency_score(return_series, drawdown_percent, volatility)
         risk = self.risk_level(drawdown_percent, volatility)
         grade = self.performance_grade(total_return, profit_factor, drawdown_percent)
 
@@ -362,11 +270,6 @@ class PerformanceEngine:
             "status": "success",
             "master_account": account_number,
             "baseline_source": funding["source"],
-            "return_method": "cash_flow_adjusted_daily_time_weighted",
-            "return_source": "signed_mt5_balance_equity_snapshots_and_cash_flows",
-            "return_period_start": start_at.isoformat() if start_at else None,
-            "return_period_end": end_at.isoformat() if end_at else None,
-            "trading_day_observations": trading_day_observations,
             "starting_capital": round(fallback_capital, 2),
             "funding_base": round(funding_base, 2),
             "deposits": round(float(funding["deposits"]), 2),
@@ -378,9 +281,9 @@ class PerformanceEngine:
             "total_profit": round(total_profit, 2),
             "total_return_percent": round(total_return, 2),
             "banked_return_percent": round(banked_return, 2),
-            "daily_return_percent": round(daily_return, 2) if daily_return is not None else None,
-            "weekly_return_percent": round(weekly_return, 2) if weekly_return is not None else None,
-            "monthly_return_percent": round(monthly_return, 2) if monthly_return is not None else None,
+            "daily_return_percent": round(daily_return, 2),
+            "weekly_return_percent": round(weekly_return, 2),
+            "monthly_return_percent": round(monthly_return, 2),
             "history_days": round(history_days, 2),
             "profit_factor": profit_factor,
             "total_trades": int(trade_data["total_trades"]),
