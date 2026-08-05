@@ -22,7 +22,7 @@ def flow(at, amount, row_id=1):
 def test_fxblue_official_multiple_deposit_example_links_to_minus_eight_percent():
     start = datetime(2026, 1, 1, 9, 0)
     report = calculate_banked_return_audit(
-        current_balance=10500.0,
+        current_balance=11500.0,
         deals=[
             deal(start + timedelta(hours=2), -1000.0, row_id=1),
             deal(start + timedelta(hours=4), 1500.0, row_id=2),
