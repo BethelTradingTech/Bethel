@@ -42,13 +42,17 @@ async function loadCopyHub(){
  try{
   const data=await apiGet("/copyhub/v1/admin/status");window.copyHubState=data;
   $("#copyhub-master").textContent=`Master ${data.master_account}`;
-  $("#copyhub-global-state").textContent=data.globally_paused?"PAUSED":"RUNNING";
-  $("#copyhub-global-state").className=`review-state ${data.globally_paused?"state-rejected":"state-approved"}`;
+  const globalStatus=data.operational_status||"UNKNOWN";
+  $("#copyhub-global-state").textContent=globalStatus;
+  $("#copyhub-global-state").className=`review-state state-${String(globalStatus).toLowerCase().replaceAll("_","-")}`;
   $("#copyhub-global-toggle").textContent=data.globally_paused?"Resume all copying":"Emergency pause";
   table.innerHTML=(data.receivers||[]).map(row=>{
    const heartbeat=row.last_heartbeat_at?new Date(row.last_heartbeat_at+"Z"):null;
-   const online=heartbeat&&(Date.now()-heartbeat.getTime())<90000;
-   return `<tr><td>${escapeHtml(row.receiver_id)}</td><td><strong>${escapeHtml(row.account_number)}</strong></td><td>${stateBadge(row.environment)}</td><td>${escapeHtml(row.currency_unit)} · ${row.is_cent_account?"CENT":"STANDARD"}</td><td>${stateBadge(online?"ONLINE":"OFFLINE")}<br><small>${heartbeat?heartbeat.toLocaleString():"Never connected"}</small></td><td>${stateBadge(row.active?"ACTIVE":"INACTIVE")} ${stateBadge(row.paused?"PAUSED":"ENABLED")}</td><td><div class="review-actions"><button data-copyhub-action="${row.active?"deactivate":"activate"}" data-receiver="${escapeHtml(row.receiver_id)}" data-account="${escapeHtml(row.account_number)}" ${!online&&!row.active?"disabled":""}>${row.active?"Deactivate":"Activate"}</button><button data-copyhub-action="${row.paused?"resume":"pause"}" data-receiver="${escapeHtml(row.receiver_id)}">${row.paused?"Resume":"Pause"}</button></div></td></tr>`;
+   const primaryAction=row.active?"deactivate":"activate";
+   const primaryAllowed=row.active?row.can_deactivate:row.can_activate;
+   const pauseAction=row.paused?"resume":"pause";
+   const pauseAllowed=row.paused?row.can_resume:row.can_pause;
+   return `<tr><td>${escapeHtml(row.receiver_id)}</td><td><strong>${escapeHtml(row.account_number)}</strong></td><td>${stateBadge(row.environment)}</td><td>${escapeHtml(row.currency_unit)} · ${row.is_cent_account?"CENT":"STANDARD"}</td><td>${stateBadge(row.connection_status)}<br><small>${heartbeat?heartbeat.toLocaleString():"Never connected"}</small></td><td>${stateBadge(row.copy_status)}</td><td><div class="review-actions"><button data-copyhub-action="${primaryAction}" data-receiver="${escapeHtml(row.receiver_id)}" data-account="${escapeHtml(row.account_number)}" ${primaryAllowed?"":"disabled"}>${row.active?"Deactivate":"Activate"}</button><button data-copyhub-action="${pauseAction}" data-receiver="${escapeHtml(row.receiver_id)}" ${pauseAllowed?"":"disabled"}>${row.paused?"Resume":"Pause"}</button></div></td></tr>`;
   }).join("")||'<tr><td colspan="7">No copier receivers have been provisioned.</td></tr>';
   $$('[data-copyhub-action]').forEach(button=>button.onclick=()=>handleCopyHubAction(button));
  }catch(error){table.innerHTML=`<tr><td colspan="7">${escapeHtml(error.message)}</td></tr>`}
