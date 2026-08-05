@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bethel Promotion Codes</title>
+<link rel="stylesheet" href="css/admin-control.css?v=20260802-copier1">
+<style>
+body{padding:24px;background:#07101f;color:#eef4ff}.promo-shell{max-width:1200px;margin:auto}.promo-header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}.promo-header a{color:#d6b45b}.promo-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:20px}.promo-form,.promo-list{background:#0d1a2d;border:1px solid #263a57;border-radius:16px;padding:20px}.promo-form label{display:block;margin:12px 0 6px}.promo-form input,.promo-form select,.promo-form textarea{width:100%;box-sizing:border-box;padding:11px;border-radius:9px;border:1px solid #38506f;background:#081423;color:#fff}.promo-form button,.promo-actions button{padding:10px 14px;border-radius:9px;border:0;cursor:pointer}.promo-form button{margin-top:16px;background:#d6b45b;color:#081423;font-weight:700}.promo-table{width:100%;border-collapse:collapse}.promo-table th,.promo-table td{padding:10px;border-bottom:1px solid #263a57;text-align:left;vertical-align:top}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#223753}.badge.active{background:#174b37}.badge.inactive{background:#5b2530}.muted{color:#9eb0c8}.notice{margin:12px 0;min-height:22px}.promo-actions{display:flex;gap:6px;flex-wrap:wrap}.promo-actions button{background:#263a57;color:#fff}@media(max-width:900px){.promo-grid{grid-template-columns:1fr}.promo-header{align-items:flex-start;flex-direction:column}.promo-table{font-size:13px}}
+</style>
+</head>
+<body>
+<main class="promo-shell">
+<header class="promo-header">
+<div><p class="muted">Bethel Trading Technologies</p><h1>Promotion & Discount Codes</h1><p class="muted">Create controlled subscription discounts. Codes may be restricted to one subscriber email and reused until their configured usage limit is reached.</p></div>
+<div><a href="/admin-frontend/">← Return to Super Admin</a></div>
+</header>
+<section class="promo-grid">
+<form id="promo-form" class="promo-form" autocomplete="off">
+<h2>Create promotion</h2>
+<label>Code</label><input name="code" required minlength="3" maxlength="40" value="BETHELPROMO" placeholder="BETHELPROMO">
+<label>Description</label><textarea name="description" maxlength="255" placeholder="Reusable owner subscription waiver">Reusable owner subscription waiver</textarea>
+<label>Discount type</label><select name="discount_type"><option value="FIXED">Fixed amount</option><option value="PERCENT">Percentage</option></select>
+<label>Discount value</label><input name="discount_value" type="number" min="0.01" step="0.01" required value="100">
+<label>Currency</label><input name="currency" value="USD" minlength="3" maxlength="3" required>
+<label>Restricted subscriber email (recommended)</label><input name="restricted_email" type="email" placeholder="your-subscriber-email@example.com">
+<label>Maximum uses (optional)</label><input name="max_uses" type="number" min="1" step="1" placeholder="Leave blank for unlimited reuse">
+<p class="muted">Leave Maximum uses blank to allow the assigned subscriber to reuse the code without a usage limit.</p>
+<label>Starts at (optional)</label><input name="starts_at" type="datetime-local">
+<label>Expires at (optional)</label><input name="expires_at" type="datetime-local">
+<label><input name="active" type="checkbox" checked style="width:auto"> Active immediately</label>
+<button type="submit">Create promo code</button>
+<p id="promo-message" class="notice muted" aria-live="polite"></p>
+</form>
+<section class="promo-list">
+<div class="promo-header"><div><h2>Existing codes</h2><p class="muted">Deactivate a code immediately when it should no longer be accepted.</p></div><button id="refresh-promos" type="button">Refresh</button></div>
+<div style="overflow:auto"><table class="promo-table"><thead><tr><th>Code</th><th>Discount</th><th>Restriction</th><th>Usage</th><th>Status</th><th>Action</th></tr></thead><tbody id="promo-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+</section>
+</section>
+</main>
+<script src="js/api.js?v=20260805-promos1"></script>
+<script>
+const PROMO_ENDPOINT="/payments/binance/payments/promos/admin";
+const escapeHtml=value=>String(value??"").replace(/[&<>\"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
+const isoOrNull=value=>value?new Date(value).toISOString():null;
+function discountText(row){return row.discount_type==="PERCENT"?`${row.discount_value}%`:`${row.currency} ${Number(row.discount_value).toFixed(2)}`}
+async function loadPromos(){
+ const table=document.getElementById("promo-table");
+ try{
+  const data=await apiGet(PROMO_ENDPOINT);
+  table.innerHTML=(data.promos||[]).map(row=>`<tr><td><strong>${escapeHtml(row.code)}</strong><br><small>${escapeHtml(row.description||"")}</small></td><td>${escapeHtml(discountText(row))}</td><td>${escapeHtml(row.restricted_email||"Any eligible subscriber")}</td><td>${row.uses_count}${row.max_uses?` / ${row.max_uses}`:" / unlimited"}</td><td><span class="badge ${row.active?"active":"inactive"}">${row.active?"ACTIVE":"INACTIVE"}</span><br><small>${row.expires_at?`Expires ${new Date(row.expires_at).toLocaleString()}`:`No expiry`}</small></td><td class="promo-actions"><button data-id="${row.id}" data-active="${row.active}">${row.active?"Deactivate":"Activate"}</button></td></tr>`).join("")||'<tr><td colspan="6">No promotion codes created.</td></tr>';
+  table.querySelectorAll("button[data-id]").forEach(button=>button.onclick=async()=>{button.disabled=true;try{await apiPatch(`${PROMO_ENDPOINT}/${button.dataset.id}`,{active:button.dataset.active!=="true"});await loadPromos()}catch(error){alert(error.message)}finally{button.disabled=false}});
+ }catch(error){table.innerHTML=`<tr><td colspan="6">${escapeHtml(error.message)}</td></tr>`}
+}
+document.getElementById("promo-form").addEventListener("submit",async event=>{
+ event.preventDefault();const form=new FormData(event.currentTarget);const message=document.getElementById("promo-message");
+ const payload={code:form.get("code"),description:form.get("description")||null,discount_type:form.get("discount_type"),discount_value:Number(form.get("discount_value")),currency:String(form.get("currency")||"USD").toUpperCase(),restricted_email:form.get("restricted_email")||null,max_uses:form.get("max_uses")?Number(form.get("max_uses")):null,starts_at:isoOrNull(form.get("starts_at")),expires_at:isoOrNull(form.get("expires_at")),active:form.get("active")==="on"};
+ message.textContent="Creating promo code…";
+ try{const row=await apiPost(PROMO_ENDPOINT,payload);message.textContent=`Promo code ${row.code} created successfully.`;event.currentTarget.reset();event.currentTarget.elements.code.value="BETHELPROMO";event.currentTarget.elements.description.value="Reusable owner subscription waiver";event.currentTarget.elements.currency.value="USD";event.currentTarget.elements.discount_value.value="100";event.currentTarget.elements.max_uses.value="";event.currentTarget.elements.active.checked=true;await loadPromos()}catch(error){message.textContent=error.message}
+});
+document.getElementById("refresh-promos").addEventListener("click",loadPromos);
+if(!getToken()){location.href="/admin-frontend/login.html"}else{loadPromos()}
+</script>
+</body>
+</html>
