@@ -49,7 +49,8 @@ def record_and_send(
     delivery.attempts += 1
 
     if not smtp_configured():
-        delivery.status = "CONFIGURATION_REQUIRED"
+        # EmailDelivery.status is VARCHAR(20); keep status values within that limit.
+        delivery.status = "SMTP_NOT_CONFIGURED"
         delivery.error = "SMTP environment variables are not configured"
         return delivery
 
