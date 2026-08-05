@@ -1,0 +1,86 @@
+name: Apply Dynamic Copy Hub Master
+
+on:
+  push:
+    branches:
+      - fix/dynamic-copyhub-master
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dynamic-copyhub-master
+          fetch-depth: 0
+
+      - name: Replace hard-coded Copy Hub master safely
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("api/copyhub/routes.py")
+          text = path.read_text(encoding="utf-8")
+
+          text = text.replace(
+              "from api.mt5_ingest.models import ConnectorNonce\n",
+              "from api.mt5_ingest.models import ConnectorNonce\nfrom api.models import EquitySnapshot\n",
+              1,
+          )
+          text = text.replace(
+              'router = APIRouter(prefix="/copyhub/v1", tags=["Secure Copy Hub"])\nMASTER_ACCOUNT = "49617874"\n',
+              'router = APIRouter(prefix="/copyhub/v1", tags=["Secure Copy Hub"])\nCHANNEL_NAME = "Bethel Master"\n',
+              1,
+          )
+
+          old_channel = '''def get_or_create_channel(db: Session) -> CopyChannel:\n    channel = db.query(CopyChannel).filter(CopyChannel.master_account == MASTER_ACCOUNT).first()\n    if channel is None:\n        channel = CopyChannel(name="Bethel Master", master_account=MASTER_ACCOUNT, globally_paused=True)\n        db.add(channel)\n        db.flush()\n    return channel\n'''
+          new_channel = '''def active_master_account(db: Session) -> str:\n    latest = (\n        db.query(EquitySnapshot)\n        .filter(EquitySnapshot.account_number.isnot(None))\n        .order_by(EquitySnapshot.timestamp.desc(), EquitySnapshot.id.desc())\n        .first()\n    )\n    if latest is None or not str(latest.account_number or "").strip():\n        raise HTTPException(409, "No verified active master account is available")\n    return str(latest.account_number).strip()\n\n\ndef get_or_create_channel(db: Session) -> CopyChannel:\n    master_account = active_master_account(db)\n    channel = db.query(CopyChannel).filter(CopyChannel.name == CHANNEL_NAME).first()\n    if channel is None:\n        channel = CopyChannel(name=CHANNEL_NAME, master_account=master_account, globally_paused=True)\n        db.add(channel)\n        db.flush()\n    elif channel.master_account != master_account:\n        conflict = (\n            db.query(CopyChannel)\n            .filter(CopyChannel.master_account == master_account, CopyChannel.id != channel.id)\n            .first()\n        )\n        if conflict is not None:\n            raise HTTPException(409, "Active master account is already assigned to another copy channel")\n        channel.master_account = master_account\n        channel.updated_at = utc_now()\n        db.flush()\n    return channel\n'''
+          if old_channel not in text:
+              raise SystemExit("Expected get_or_create_channel block not found")
+          text = text.replace(old_channel, new_channel, 1)
+
+          old_publish = '''    if data.account_number != MASTER_ACCOUNT:\n        raise HTTPException(403, "Only the configured master account may publish")\n    channel = get_or_create_channel(db)\n'''
+          new_publish = '''    channel = get_or_create_channel(db)\n    if data.account_number != channel.master_account:\n        raise HTTPException(403, "Only the active master account may publish")\n'''
+          if old_publish not in text:
+              raise SystemExit("Expected publish master check not found")
+          text = text.replace(old_publish, new_publish, 1)
+
+          old_provision = '''    if account.login == MASTER_ACCOUNT:\n        raise HTTPException(409, "Master account cannot be a receiver")\n'''
+          new_provision = '''    channel = get_or_create_channel(db)\n    if account.login == channel.master_account:\n        raise HTTPException(409, "Master account cannot be a receiver")\n'''
+          if old_provision not in text:
+              raise SystemExit("Expected receiver master check not found")
+          text = text.replace(old_provision, new_provision, 1)
+          text = text.replace(
+              '''    raw_token = secrets.token_urlsafe(48)\n    activation_code = "BETHEL-" + secrets.token_urlsafe(24)\n    channel = get_or_create_channel(db)\n''',
+              '''    raw_token = secrets.token_urlsafe(48)\n    activation_code = "BETHEL-" + secrets.token_urlsafe(24)\n''',
+              1,
+          )
+
+          text = text.replace(
+              '    return {"master_account": MASTER_ACCOUNT, "globally_paused": channel.globally_paused}\n',
+              '    return {"master_account": channel.master_account, "globally_paused": channel.globally_paused}\n',
+              1,
+          )
+
+          if "MASTER_ACCOUNT" in text or "49617874" in text:
+              raise SystemExit("Hard-coded master account reference remains")
+
+          path.write_text(text, encoding="utf-8")
+
+          test = Path("tests/test_copyhub_dynamic_master.py")
+          test.write_text('''from datetime import datetime, timedelta\n\nfrom sqlalchemy import create_engine\nfrom sqlalchemy.orm import sessionmaker\n\nfrom api.copyhub.models import CopyChannel\nfrom api.copyhub.routes import get_or_create_channel\nfrom api.models import EquitySnapshot\n\n\ndef _snapshot(account_number: str, timestamp: datetime):\n    return EquitySnapshot(\n        account_number=account_number,\n        balance=10000.0,\n        equity=10000.0,\n        timestamp=timestamp,\n    )\n\n\ndef test_copyhub_follows_latest_master_without_recreating_channel_or_resetting_pause():\n    engine = create_engine("sqlite:///:memory:")\n    EquitySnapshot.__table__.create(engine)\n    CopyChannel.__table__.create(engine)\n    Session = sessionmaker(bind=engine)\n    db = Session()\n\n    start = datetime(2026, 8, 1, 9, 0)\n    db.add(_snapshot("11111111", start))\n    db.commit()\n\n    channel = get_or_create_channel(db)\n    original_id = channel.id\n    channel.globally_paused = False\n    db.commit()\n\n    db.add(_snapshot("22222222", start + timedelta(days=1)))\n    db.commit()\n\n    refreshed = get_or_create_channel(db)\n    db.commit()\n\n    assert refreshed.id == original_id\n    assert refreshed.master_account == "22222222"\n    assert refreshed.globally_paused is False\n    assert db.query(CopyChannel).count() == 1\n\n\ndef test_copyhub_source_contains_no_specific_master_account_constant():\n    source = Path("api/copyhub/routes.py").read_text(encoding="utf-8")\n    assert "MASTER_ACCOUNT" not in source\n    assert "49617874" not in source\n'''.replace('from datetime import datetime, timedelta\n\n', 'from datetime import datetime, timedelta\nfrom pathlib import Path\n\n'), encoding="utf-8")
+
+          workflow = Path(".github/workflows/apply-dynamic-copyhub-master.yml")
+          workflow.unlink()
+
+      - name: Commit generated fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/copyhub/routes.py tests/test_copyhub_dynamic_master.py .github/workflows/apply-dynamic-copyhub-master.yml
+          git commit -m "Make Copy Hub follow active master dynamically"
+          git push origin HEAD:fix/dynamic-copyhub-master
