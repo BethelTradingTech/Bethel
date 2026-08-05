@@ -15,6 +15,7 @@ from api.models import EquitySnapshot
 from api.services.analytics_comparison import get_analytics_comparison
 from api.services.analytics_v2 import get_audited_analytics
 from api.services.performance_engine import get_performance_analytics
+from api.services.performance_report import get_performance_analytics as get_period_return_preview
 from api.services.daily_performance import get_daily_performance
 from api.services.monthly_performance import get_monthly_performance
 from api.services.trade_performance import get_trade_performance
@@ -67,6 +68,15 @@ def equity_history(request: Request, _admin=Depends(require_admin)):
 def analytics(request: Request, _admin=Depends(require_admin)):
     """Current protected production analytics endpoint."""
     data = get_performance_analytics()
+    if "consistency_score" in data:
+        data["consistency_score"] = float(data["consistency_score"])
+    return data
+
+
+@router.get("/analytics-period-returns-preview")
+def analytics_period_returns_preview(request: Request, _admin=Depends(require_admin)):
+    """Read-only preview; production analytics remains unchanged."""
+    data = get_period_return_preview()
     if "consistency_score" in data:
         data["consistency_score"] = float(data["consistency_score"])
     return data
