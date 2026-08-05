@@ -95,13 +95,14 @@ def get_analytics_comparison(account_number: str) -> dict:
     candidate = get_audited_analytics(account_number)
     returns = candidate.get("return_analytics", {})
     risk = candidate.get("risk_analytics", {})
+    quality = _quality_report(account_number)
 
     same_account = str(stable.get("master_account")) == str(account_number)
     return {
         "status": "success" if same_account else "account_mismatch",
         "account_number": account_number,
         "same_account": same_account,
-        "data_quality": _quality_report(account_number),
+        "data_quality": quality,
         "stable_production": stable,
         "candidate_v2": candidate,
         "return_comparison": {
@@ -127,7 +128,7 @@ def get_analytics_comparison(account_number: str) -> dict:
         },
         "merge_ready": bool(
             same_account
-            and _quality_report(account_number)["status"] == "pass"
+            and quality["status"] == "pass"
             and returns.get("status") == "available"
             and risk.get("status") == "available"
         ),
