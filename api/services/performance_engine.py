@@ -7,12 +7,15 @@ import os
 from typing import Dict, List, Optional
 
 import numpy as np
+from sqlalchemy import func
 
 from api.database import SessionLocal
 from api.models import EquitySnapshot
+from api.mt5_ingest.models import ConnectorCashFlow, ConnectorDeal
 from api.services.trade_performance import get_trade_performance
 
 TRADING_DAYS_PER_YEAR = 252
+AVERAGE_DAYS_PER_MONTH = 365.25 / 12
 
 
 class PerformanceEngine:
@@ -43,13 +46,56 @@ class PerformanceEngine:
 
     @staticmethod
     def starting_capital(history: List[EquitySnapshot]) -> float:
-        """Use the first recorded balance for the active master account as baseline."""
+        """Use the first recorded balance for the active master account as fallback baseline."""
         if not history:
             return 0.0
         first_balance = float(history[0].balance or 0)
         if first_balance > 0:
             return first_balance
         return float(history[0].equity or 0)
+
+    def funding_summary(self, account_number: str, fallback: float) -> Dict:
+        cash_flows = (
+            self.db.query(ConnectorCashFlow)
+            .filter(ConnectorCashFlow.account_number == account_number)
+            .order_by(ConnectorCashFlow.occurred_at.asc())
+            .all()
+        )
+        deposits = sum(float(item.amount) for item in cash_flows if float(item.amount) > 0)
+        withdrawals = abs(sum(float(item.amount) for item in cash_flows if float(item.amount) < 0))
+        net_deposits = deposits - withdrawals
+        return {
+            "deposits": deposits,
+            "withdrawals": withdrawals,
+            "net_deposits": net_deposits if net_deposits > 0 else fallback,
+            "cash_flow_count": len(cash_flows),
+            "first_cash_flow_at": cash_flows[0].occurred_at if cash_flows else None,
+            "source": "mt5_cash_flows" if net_deposits > 0 else "first_snapshot_balance",
+        }
+
+    def closed_profit_summary(self, account_number: str) -> Dict:
+        row = (
+            self.db.query(
+                func.coalesce(
+                    func.sum(
+                        ConnectorDeal.profit
+                        + ConnectorDeal.commission
+                        + ConnectorDeal.swap
+                        + ConnectorDeal.fee
+                    ),
+                    0.0,
+                ),
+                func.min(ConnectorDeal.closed_at),
+                func.max(ConnectorDeal.closed_at),
+            )
+            .filter(ConnectorDeal.account_number == account_number)
+            .one()
+        )
+        return {
+            "net_profit": float(row[0] or 0),
+            "first_closed_at": row[1],
+            "last_closed_at": row[2],
+        }
 
     @staticmethod
     def equity_values(history: List[EquitySnapshot]) -> np.ndarray:
@@ -64,22 +110,14 @@ class PerformanceEngine:
         return values[np.isfinite(values)]
 
     @staticmethod
-    def total_return(current_equity: float, starting_capital: float) -> float:
-        if starting_capital <= 0:
+    def period_return(aggregate_return_percent: float, history_days: float, period_days: float) -> float:
+        """Geometrically normalize banked return over the account history period."""
+        if history_days <= 0 or aggregate_return_percent <= -100:
             return 0.0
-        return ((current_equity - starting_capital) / starting_capital) * 100
-
-    @staticmethod
-    def daily_return(returns: np.ndarray) -> float:
-        if len(returns) == 0:
+        growth = 1 + aggregate_return_percent / 100
+        if growth <= 0:
             return 0.0
-        return round(float(np.mean(returns)) * 100, 4)
-
-    @staticmethod
-    def monthly_return(returns: np.ndarray) -> float:
-        if len(returns) == 0:
-            return 0.0
-        return round((((1 + np.mean(returns)) ** 21) - 1) * 100, 2)
+        return ((growth ** (period_days / history_days)) - 1) * 100
 
     @staticmethod
     def volatility(returns: np.ndarray) -> float:
@@ -147,10 +185,10 @@ class PerformanceEngine:
         return round(float((np.mean(returns) / deviation) * math.sqrt(TRADING_DAYS_PER_YEAR)), 2)
 
     @staticmethod
-    def recovery_factor(current_equity: float, starting_capital: float, drawdown_amount: float):
+    def recovery_factor(total_profit: float, drawdown_amount: float):
         if drawdown_amount <= 0:
             return None
-        return round((current_equity - starting_capital) / drawdown_amount, 2)
+        return round(total_profit / drawdown_amount, 2)
 
     @staticmethod
     def consistency_score(returns: np.ndarray, max_drawdown_percent: float, volatility: float) -> float:
@@ -193,44 +231,74 @@ class PerformanceEngine:
                 "master_account": account_number,
             }
 
-        starting_capital = self.starting_capital(history)
+        fallback_capital = self.starting_capital(history)
+        funding = self.funding_summary(account_number, fallback_capital)
+        closed = self.closed_profit_summary(account_number)
+        funding_base = float(funding["net_deposits"] or fallback_capital or 0)
+
         equity = self.equity_values(history)
         return_series = self.returns(equity)
-        current_equity = float(equity[-1])
-        total_return = self.total_return(current_equity, starting_capital)
+        current_balance = float(history[-1].balance or 0)
+        current_equity = float(history[-1].equity or 0)
+        floating_profit = float(history[-1].profit or (current_equity - current_balance))
+        closed_profit = float(closed["net_profit"])
+        total_profit = closed_profit + floating_profit
+
+        banked_return = (closed_profit / funding_base) * 100 if funding_base > 0 else 0.0
+        total_return = (total_profit / funding_base) * 100 if funding_base > 0 else 0.0
+
+        start_candidates = [history[0].timestamp, funding["first_cash_flow_at"], closed["first_closed_at"]]
+        start_at = min(value for value in start_candidates if value is not None)
+        end_at = history[-1].timestamp
+        history_days = max((end_at - start_at).total_seconds() / 86400, 1 / 24)
+
+        daily_return = self.period_return(banked_return, history_days, 1)
+        weekly_return = self.period_return(banked_return, history_days, 7)
+        monthly_return = self.period_return(banked_return, history_days, AVERAGE_DAYS_PER_MONTH)
+
         volatility = self.volatility(return_series)
         equity_drawdown_percent = self.equity_drawdown(equity)
-
         trade_data = self.trade_metrics()
         profit_factor = round(float(trade_data.get("profit_factor", 0)), 2)
         drawdown_amount = round(float(trade_data.get("max_drawdown", 0)), 2)
         drawdown_percent = (
-            (drawdown_amount / starting_capital) * 100
-            if starting_capital > 0 and drawdown_amount > 0
+            (drawdown_amount / funding_base) * 100
+            if funding_base > 0 and drawdown_amount > 0
             else equity_drawdown_percent
         )
 
         return {
             "status": "success",
             "master_account": account_number,
-            "baseline_source": "first_snapshot_balance",
-            "starting_capital": round(starting_capital, 2),
+            "baseline_source": funding["source"],
+            "starting_capital": round(fallback_capital, 2),
+            "funding_base": round(funding_base, 2),
+            "deposits": round(float(funding["deposits"]), 2),
+            "withdrawals": round(float(funding["withdrawals"]), 2),
+            "current_balance": round(current_balance, 2),
             "current_equity": round(current_equity, 2),
+            "floating_profit_loss": round(floating_profit, 2),
+            "closed_profit": round(closed_profit, 2),
+            "total_profit": round(total_profit, 2),
             "total_return_percent": round(total_return, 2),
-            "daily_return_percent": self.daily_return(return_series),
-            "monthly_return_percent": self.monthly_return(return_series),
+            "banked_return_percent": round(banked_return, 2),
+            "daily_return_percent": round(daily_return, 2),
+            "weekly_return_percent": round(weekly_return, 2),
+            "monthly_return_percent": round(monthly_return, 2),
+            "history_days": round(history_days, 2),
             "volatility": round(volatility * 100, 2),
             "maximum_drawdown_amount": drawdown_amount,
             "maximum_drawdown_percent": round(drawdown_percent, 2),
             "profit_factor": profit_factor,
             "sharpe_ratio": self.sharpe_ratio(return_series, trade_data),
             "sortino_ratio": self.sortino_ratio(return_series, trade_data),
-            "recovery_factor": self.recovery_factor(current_equity, starting_capital, drawdown_amount),
+            "recovery_factor": self.recovery_factor(total_profit, drawdown_amount),
             "consistency_score": self.consistency_score(return_series, drawdown_percent, volatility),
             "risk_level": self.risk_level(drawdown_percent, volatility),
             "performance_grade": self.performance_grade(total_return, profit_factor, drawdown_percent),
             "total_trades": trade_data.get("total_trades", 0),
             "win_rate": trade_data.get("win_rate", 0),
+            "cash_flow_events": funding["cash_flow_count"],
             "snapshots_analyzed": len(history),
         }
 
