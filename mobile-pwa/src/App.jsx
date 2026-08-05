@@ -10,6 +10,7 @@ import Subscribers from "./pages/Subscribers";
 import Settings from "./pages/Settings";
 import Register from "./pages/onboarding/Register";
 import Login from "./pages/onboarding/Login";
+import VerifyEmail from "./pages/onboarding/VerifyEmail";
 import Subscription from "./pages/onboarding/Subscription";
 import ConnectMT5 from "./pages/onboarding/ConnectMT5";
 import Success from "./pages/onboarding/Success";
@@ -50,6 +51,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route
           path="/subscription"
           element={<Protected><Subscription /></Protected>}
