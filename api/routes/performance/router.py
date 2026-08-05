@@ -16,6 +16,7 @@ from api.services.analytics_comparison import get_analytics_comparison
 from api.services.analytics_v2 import get_audited_analytics
 from api.services.performance_engine import get_performance_analytics
 from api.services.performance_report import get_performance_analytics as get_period_return_preview
+from api.services.normalized_return_preview import get_normalized_return_preview
 from api.services.daily_performance import get_daily_performance
 from api.services.monthly_performance import get_monthly_performance
 from api.services.trade_performance import get_trade_performance
@@ -80,6 +81,12 @@ def analytics_period_returns_preview(request: Request, _admin=Depends(require_ad
     if "consistency_score" in data:
         data["consistency_score"] = float(data["consistency_score"])
     return data
+
+
+@router.get("/analytics-normalized-returns-preview")
+def analytics_normalized_returns_preview(request: Request, _admin=Depends(require_admin)):
+    """Read-only FX Blue/Myfxbook-style normalized headline-return preview."""
+    return get_normalized_return_preview()
 
 
 @router.get("/analytics-v2")
