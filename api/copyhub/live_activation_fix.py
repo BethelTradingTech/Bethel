@@ -1,8 +1,9 @@
-"""Compatibility activation route for LIVE MT5 receiver verification.
+"""Compatibility activation route for LIVE and DEMO MT5 verification.
 
-A LIVE terminal may prove possession and establish its encrypted receiver token
-before Super Admin live authorization. The receiver remains inactive and paused,
-so this route never enables copying or live execution by itself.
+The Copier verifies the exact terminal selected by the subscriber and records
+whether it is LIVE or DEMO. Verification only proves possession of the linked
+MT5 account; it never enables copying. Every receiver remains inactive and
+paused until the separate Super Admin approval step.
 """
 
 import hashlib
@@ -44,7 +45,7 @@ class CustomerActivationRequest(BaseModel):
 
 
 @router.post("/receiver/activate")
-def customer_activate_live_safe(
+def customer_activate_terminal_safe(
     data: CustomerActivationRequest,
     db: Session = Depends(get_db),
 ):
@@ -67,27 +68,14 @@ def customer_activate_live_safe(
         db.commit()
         raise HTTPException(409, "MT5 account does not match this activation")
 
-    # Earlier broker linking intentionally provisioned every unapproved LIVE
-    # account as DEMO. The Windows Copier correctly detects the real terminal as
-    # LIVE, producing a permanent mismatch. Permit only this one-way correction
-    # while the receiver is still inactive and paused. This verifies possession;
-    # it does not authorize copying.
-    if data.environment != receiver.environment:
-        safe_live_promotion = (
-            receiver.environment == "DEMO"
-            and data.environment == "LIVE"
-            and not receiver.active
-            and receiver.paused
-            and not receiver.live_authorized
-        )
-        if not safe_live_promotion:
-            db.commit()
-            raise HTTPException(409, "MT5 DEMO/LIVE mode does not match this activation")
-        receiver.environment = "LIVE"
-
     if data.currency_unit != receiver.currency_unit or data.is_cent_account != receiver.is_cent_account:
         db.commit()
         raise HTTPException(409, "MT5 USD/USC account type does not match this activation")
+
+    # The MT5 terminal is the source of truth for LIVE versus DEMO. Broker
+    # linking may initially hold a provisional environment, so synchronize it
+    # only after the activation code and account number have both matched.
+    receiver.environment = data.environment
 
     raw_token = secrets.token_urlsafe(48)
     receiver.token_hash = token_hash(raw_token)
@@ -98,12 +86,10 @@ def customer_activate_live_safe(
     receiver.metadata_verified = True
     receiver.last_heartbeat_at = utc_now()
 
-    # Explicitly preserve the safety gates. Super Admin approval remains a
-    # separate action and is still required before any events can be delivered.
+    # Terminal verification is never execution approval.
     receiver.active = False
     receiver.paused = True
-    if receiver.environment == "LIVE":
-        receiver.live_authorized = False
+    receiver.live_authorized = False
 
     account = db.query(BrokerAccount).filter(
         BrokerAccount.id == receiver.broker_account_id
@@ -114,6 +100,7 @@ def customer_activate_live_safe(
         account.account_type = "CENT" if data.is_cent_account else "STANDARD"
         account.capital_verified = True
         account.last_verified_at = utc_now()
+        account.live_authorized = False
         if data.server:
             account.server = data.server
         if data.leverage is not None:
@@ -126,6 +113,7 @@ def customer_activate_live_safe(
         "receiver_id": receiver.receiver_id,
         "receiver_token": raw_token,
         "token_shown_once": True,
+        "environment": receiver.environment,
         "active": False,
         "paused": True,
         "terminal_verified": True,
