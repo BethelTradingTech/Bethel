@@ -3,7 +3,7 @@
 from datetime import datetime
 import os
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,7 @@ from api.broker_accounts.schemas import (
     LiveAccessRequest,
 )
 from api.copytrading.models import CopySubscriber
-from api.database import get_db
+from api.database import SessionLocal, get_db
 from api.notifications.emailer import record_and_send
 from api.onboarding.models import ClientOnboarding
 from api.subscription_lifecycle.models import SubscriptionAudit, SubscriptionLifecycle
@@ -203,6 +203,26 @@ def _issue_and_email_copier_code(
         return "FAILED"
 
 
+def _deliver_copier_activation_background(subscriber_id: int, account_id: int):
+    """Provision and email the copier code after the API response is returned."""
+    db = SessionLocal()
+    try:
+        subscriber = db.query(CopySubscriber).filter(
+            CopySubscriber.id == subscriber_id
+        ).first()
+        account = db.query(BrokerAccount).filter(
+            BrokerAccount.id == account_id,
+            BrokerAccount.subscriber_id == subscriber_id,
+        ).first()
+        if subscriber is None or account is None:
+            return
+        _issue_and_email_copier_code(db, subscriber, account)
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _save_account(db: Session, subscriber_id: int, data: BrokerAccountLinkRequest):
     if data.login == MASTER_BROKER_LOGIN:
         raise HTTPException(
@@ -264,14 +284,6 @@ def _save_account(db: Session, subscriber_id: int, data: BrokerAccountLinkReques
     subscriber.mt5_account_id = account.id
     db.commit()
     db.refresh(account)
-
-    # Generate a new single-use code and attempt SMTP delivery. This is isolated
-    # from the account transaction so notification failure cannot break linking.
-    try:
-        _issue_and_email_copier_code(db, subscriber, account)
-    except Exception:
-        db.rollback()
-
     return account
 
 
@@ -386,19 +398,33 @@ def list_supported_platforms():
 def link_subscriber_broker_account(
     subscriber_id: int,
     data: BrokerAccountLinkRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _actor=Depends(require_subscriber_or_admin),
 ):
-    return _save_account(db, subscriber_id, data)
+    account = _save_account(db, subscriber_id, data)
+    background_tasks.add_task(
+        _deliver_copier_activation_background,
+        subscriber_id,
+        account.id,
+    )
+    return account
 
 
 @router.post("/link", response_model=BrokerAccountResponse, deprecated=True)
 def admin_legacy_link(
     data: BrokerAccountCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _admin=Depends(require_admin),
 ):
-    return _save_account(db, data.subscriber_id, data)
+    account = _save_account(db, data.subscriber_id, data)
+    background_tasks.add_task(
+        _deliver_copier_activation_background,
+        data.subscriber_id,
+        account.id,
+    )
+    return account
 
 
 @router.get("/subscriber/{subscriber_id}")
