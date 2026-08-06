@@ -16,6 +16,59 @@ from api.stripe_payments.stripe_api import create_checkout_session, verify_webho
 router = APIRouter(prefix="/payments/stripe", tags=["Stripe Card Payments"])
 
 
+def reconcile_paid_checkout(
+    db: Session,
+    payment: StripePayment,
+    session: dict,
+    subscriber_id: int,
+    plan_id: int,
+):
+    """Idempotently reconcile every Bethel payment status from a paid Stripe session.
+
+    A previous delivery may have marked only the StripePayment row as PAID. Never
+    return early solely because that row is already paid; always repair the
+    onboarding and subscriber records from the verified Stripe event.
+    """
+    if payment.subscriber_id != subscriber_id or payment.plan_id != plan_id:
+        raise HTTPException(status_code=409, detail="Stripe payment identity mismatch")
+
+    expected_minor = int(round(payment.amount * 100))
+    if session.get("amount_total") != expected_minor:
+        raise HTTPException(status_code=409, detail="Stripe payment amount mismatch")
+    if str(session.get("currency", "")).upper() != payment.currency.upper():
+        raise HTTPException(status_code=409, detail="Stripe payment currency mismatch")
+
+    onboarding = (
+        db.query(ClientOnboarding)
+        .filter(ClientOnboarding.subscriber_id == subscriber_id)
+        .first()
+    )
+    if onboarding is None or onboarding.plan_id != plan_id:
+        raise HTTPException(status_code=409, detail="Subscription selection changed")
+
+    subscriber = (
+        db.query(CopySubscriber)
+        .filter(CopySubscriber.id == subscriber_id)
+        .first()
+    )
+    if subscriber is None:
+        raise HTTPException(status_code=404, detail="Subscriber not found")
+
+    now = payment.paid_at or datetime.utcnow()
+    payment.status = "PAID"
+    payment.payment_intent_id = session.get("payment_intent") or payment.payment_intent_id
+    payment.paid_at = now
+
+    onboarding.payment_status = "PAID"
+    onboarding.subscription_status = "ACTIVE"
+    onboarding.payment_reference = f"STRIPE:{payment.checkout_session_id}"
+    onboarding.payment_confirmed_at = now
+    subscriber.payment_status = "PAID"
+
+    recompute_activation(db, onboarding)
+    db.commit()
+
+
 @router.post("/{subscriber_id}/checkout")
 def create_card_checkout(
     subscriber_id: int,
@@ -153,40 +206,6 @@ async def stripe_webhook(
     )
     if payment is None:
         raise HTTPException(status_code=404, detail="Stripe payment record not found")
-    if payment.status == "PAID":
-        return {"received": True}
-    if payment.subscriber_id != subscriber_id or payment.plan_id != plan_id:
-        raise HTTPException(status_code=409, detail="Stripe payment identity mismatch")
 
-    expected_minor = int(round(payment.amount * 100))
-    if session.get("amount_total") != expected_minor:
-        raise HTTPException(status_code=409, detail="Stripe payment amount mismatch")
-    if str(session.get("currency", "")).upper() != payment.currency.upper():
-        raise HTTPException(status_code=409, detail="Stripe payment currency mismatch")
-
-    now = datetime.utcnow()
-    payment.status = "PAID"
-    payment.payment_intent_id = session.get("payment_intent")
-    payment.paid_at = now
-    onboarding = (
-        db.query(ClientOnboarding)
-        .filter(ClientOnboarding.subscriber_id == subscriber_id)
-        .first()
-    )
-    if onboarding is None or onboarding.plan_id != plan_id:
-        raise HTTPException(status_code=409, detail="Subscription selection changed")
-    onboarding.payment_status = "PAID"
-    onboarding.subscription_status = "ACTIVE"
-    onboarding.payment_reference = f"STRIPE:{payment.checkout_session_id}"
-    onboarding.payment_confirmed_at = now
-    subscriber = (
-        db.query(CopySubscriber)
-        .filter(CopySubscriber.id == subscriber_id)
-        .first()
-    )
-    if subscriber is None:
-        raise HTTPException(status_code=404, detail="Subscriber not found")
-    subscriber.payment_status = "PAID"
-    recompute_activation(db, onboarding)
-    db.commit()
-    return {"received": True}
+    reconcile_paid_checkout(db, payment, session, subscriber_id, plan_id)
+    return {"received": True, "reconciled": True, "subscriber_id": subscriber_id}
