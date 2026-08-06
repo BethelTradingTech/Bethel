@@ -1,0 +1,80 @@
+C:\BethelTradingTech\.venv\Lib\site-packages\fastapi\openapi\utils.py:252: UserWarning: Duplicate Operation ID get_subscriber_copytrading_subscribers__subscriber_id__get for function get_subscriber at C:\BethelTradingTech\api\copytrading\subscriber_routes.py
+  warnings.warn(message, stacklevel=1)
+Bethel Trading Technologies Configuration Loaded
+✓ Authentication API Loaded
+✓ Subscriber Authentication API Loaded
+✓ Copy Trading API Loaded
+✓ Subscriber API Loaded
+✓ Copy Orders API Loaded
+✓ Copy Dashboard API Loaded
+✓ Subscriber Onboarding Loaded
+✓ Broker Accounts API Loaded
+✓ Client Onboarding Workflow Loaded
+✓ Performance API Loaded
+✓ Investor API Loaded
+Dashboard Data API Loaded
+✓ MT5 API Loaded
+✓ Admin Management Control Loaded
+====================================================================================================
+BETHEL TRADING TECHNOLOGIES - REGISTERED API ROUTES
+====================================================================================================
+             GET               /
+             GET               /admin/control/public-settings
+             GET               /admin/control/routes
+             GET               /admin/control/settings
+             PUT               /admin/control/settings/system
+             PUT               /admin/control/settings/website
+             GET               /admin/investors
+             GET               /admin/investors/{investor_id}
+             POST              /auth/login
+             POST              /broker-accounts/link
+             GET               /broker-accounts/subscriber/{subscriber_id}
+             POST              /copytrading/auth/login
+             POST              /copytrading/auth/register
+             POST              /copytrading/bridge-execute
+             GET               /copytrading/dashboard
+             GET               /copytrading/investors/{investor_id}/orders
+             POST              /copytrading/onboarding/activate/{subscriber_id}
+             POST              /copytrading/onboarding/connect-mt5/{subscriber_id}
+             POST              /copytrading/onboarding/payment-confirm/{subscriber_id}
+             GET               /copytrading/onboarding/status/{subscriber_id}
+             GET               /copytrading/orders
+          GET, POST            /copytrading/subscribers
+             GET               /copytrading/subscribers/
+             POST              /copytrading/subscribers/performance/close-sync
+             POST              /copytrading/subscribers/performance/sync
+             GET               /copytrading/subscribers/{subscriber_id}
+             GET               /copytrading/subscribers/{subscriber_id}/dashboard
+             GET               /copytrading/subscribers/{subscriber_id}/orders
+             GET               /copytrading/subscribers/{subscriber_id}/performance
+             POST              /copytrading/sync-open/{master_ticket}
+             POST              /copytrading/sync-trade
+             POST              /copytrading/sync/{master_trade_id}
+             GET               /dashboard/data
+             GET               /health
+             GET               /investor/api/dashboard/{investor_id}
+             GET               /investor/api/mt5
+             POST              /investor/auth/login
+             GET               /mt5/account
+             POST              /mt5/connect
+             GET               /mt5/history
+             POST              /mt5/import-history
+             GET               /mt5/positions
+             GET               /mt5/symbols
+             POST              /mt5/test-order
+          GET, POST            /onboarding/plans
+             GET               /onboarding/{subscriber_id}
+             POST              /onboarding/{subscriber_id}/approval
+             POST              /onboarding/{subscriber_id}/broker/refresh
+             POST              /onboarding/{subscriber_id}/kyc/review
+             POST              /onboarding/{subscriber_id}/kyc/submit
+             POST              /onboarding/{subscriber_id}/payment/confirm
+             POST              /onboarding/{subscriber_id}/subscription
+             GET               /performance/analytics
+             GET               /performance/daily
+             GET               /performance/equity-history
+             GET               /performance/monthly
+             GET               /performance/trades
+             GET               /public/investor/equity
+             GET               /public/investor/monthly
+             GET               /public/investor/trades

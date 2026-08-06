@@ -1,0 +1,84 @@
+{
+  "summary": {
+    "PASS": 12,
+    "FAIL": 0,
+    "WARN": 3
+  },
+  "checks": [
+    {
+      "name": "JWT_SECRET_KEY",
+      "status": "PASS",
+      "detail": "configured (86 characters)"
+    },
+    {
+      "name": "SUBSCRIBER_JWT_SECRET_KEY",
+      "status": "PASS",
+      "detail": "configured (86 characters)"
+    },
+    {
+      "name": "Hardcoded subscriber secret removed",
+      "status": "PASS",
+      "detail": "source inspection"
+    },
+    {
+      "name": "Hardcoded legacy admin password removed",
+      "status": "PASS",
+      "detail": "source inspection"
+    },
+    {
+      "name": "Production CORS",
+      "status": "PASS",
+      "detail": "explicit origins, methods and headers"
+    },
+    {
+      "name": "Reload disabled",
+      "status": "PASS",
+      "detail": "production process configuration"
+    },
+    {
+      "name": "Operational database tables",
+      "status": "PASS",
+      "detail": "all present"
+    },
+    {
+      "name": "Latest database backup",
+      "status": "PASS",
+      "detail": "bethel-20260726-225246-711276.db; 1875968 bytes"
+    },
+    {
+      "name": "SMTP production configuration",
+      "status": "PASS",
+      "detail": "configured"
+    },
+    {
+      "name": "Sumsub production configuration",
+      "status": "PASS",
+      "detail": "configured"
+    },
+    {
+      "name": "Stripe production configuration",
+      "status": "PASS",
+      "detail": "configured"
+    },
+    {
+      "name": "Binance Pay production configuration",
+      "status": "WARN",
+      "detail": "not configured"
+    },
+    {
+      "name": "PayPal production configuration",
+      "status": "WARN",
+      "detail": "not configured"
+    },
+    {
+      "name": "Wise production configuration",
+      "status": "WARN",
+      "detail": "not configured"
+    },
+    {
+      "name": "Public HTTPS API",
+      "status": "PASS",
+      "detail": "HTTP 200; status=healthy"
+    }
+  ]
+}

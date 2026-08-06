@@ -1,0 +1,47 @@
+BETHEL TRADING TECHNOLOGIES - SYSTEM TEST REPORT
+Generated: 2026-07-26T14:15:32.103495
+PASS: 36  FAIL: 1  SKIP: 6
+
+PASS | Source | Python syntax | 105 Python files
+PASS | Source | JavaScript syntax | 5 JavaScript files
+PASS | Application | Import and OpenAPI generation | 101 OpenAPI paths
+PASS | Routes | Authentication | 3 required routes
+PASS | Routes | Onboarding | 4 required routes
+PASS | Routes | MT5 | 3 required routes
+PASS | Routes | KYC | 2 required routes
+PASS | Routes | Payments | 5 required routes
+PASS | Routes | Subscriptions | 3 required routes
+PASS | Routes | Profit share | 3 required routes
+PASS | Routes | Legal consent | 4 required routes
+PASS | Database | Core | 3 required tables
+PASS | Database | Invitations | 1 required tables
+PASS | Database | KYC | provider stores use onboarding record
+PASS | Database | Payments | 5 required tables
+PASS | Database | Subscriptions | 2 required tables
+PASS | Database | Profit share | 4 required tables
+PASS | Database | Legal consent | 2 required tables
+PASS | Legal | Document integrity | 5 active documents with valid SHA-256 hashes
+PASS | Accounting | 20% profit-share calculations | 20/80 split and high-water mark
+PASS | Subscriptions | Calendar period logic | monthly period rollover
+PASS | Onboarding | Activation gates | 4 activation gates
+PASS | Copy trading | Subscription enforcement | allocation, synchronization and execution
+PASS | HTTP public | Health | HTTP 200
+PASS | HTTP public | Plans | HTTP 200
+PASS | HTTP public | Legal documents | HTTP 200
+PASS | HTTP public | Profit-share terms | HTTP 200
+PASS | HTTP authentication | Onboarding | HTTP 401
+PASS | HTTP authentication | Legal status | HTTP 401
+PASS | HTTP authentication | Profit share | HTTP 401
+PASS | HTTP authentication | Subscription | HTTP 401
+PASS | HTTP authentication | Admin payments | HTTP 401
+PASS | HTTP authentication | Admin legal | HTTP 401
+PASS | HTTP authentication | Admin subscriptions | HTTP 401
+PASS | HTTP authentication | Admin profit share | HTTP 401
+PASS | HTTP authentication | Public password overwrite disabled | HTTP 410
+FAIL | Authenticated workflow | Subscriber login | HTTP 401; expected [200]; response={'detail': 'Invalid credentials'}
+SKIP | Authenticated workflow | Subscriber scope and role isolation | No valid subscriber session
+SKIP | External configuration | Sumsub | test credentials not configured
+SKIP | External configuration | Stripe | test credentials not configured
+SKIP | External configuration | Binance Pay | test credentials not configured
+SKIP | External configuration | PayPal | test credentials not configured
+SKIP | External configuration | Wise | test credentials not configured

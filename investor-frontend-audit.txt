@@ -1,0 +1,526 @@
+====================================================================================================
+FILE: investor-frontend\login.html
+====================================================================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Bethel Investor">
+    <title>Bethel Investor Login</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/app-icon.svg">
+    <link rel="stylesheet" href="css/investor.css?v=2">
+</head>
+<body>
+    <main class="container" style="max-width: 440px; padding-top: 10vh;">
+        <section class="panel">
+            <h1>Bethel Trading</h1>
+            <p>Private Investor Dashboard</p>
+            <form id="login-form">
+                <label for="email">Email</label>
+                <input id="email" type="email" autocomplete="username" required>
+
+                <label for="password">Password</label>
+                <input id="password" type="password" autocomplete="current-password" required>
+
+            <button id="login-button" type="submit">Sign in</button>
+            <button id="install-app-button" type="button" hidden>Install app</button>
+                <p id="login-error" role="alert"></p>
+            </form>
+        </section>
+    </main>
+
+    <script src="js/auth.js?v=3"></script>
+    <script src="js/login.js?v=3"></script>
+    <script src="js/pwa.js?v=2"></script>
+</body>
+</html>
+
+====================================================================================================
+FILE: investor-frontend\index.html
+====================================================================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Bethel Investor">
+    <title>Bethel Trading | Institutional Dashboard</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/app-icon.svg">
+    <link rel="stylesheet" href="css/investor.css?v=2">
+</head>
+<body>
+
+<div class="dashboard-wrapper">
+    <!-- Top Nav / Header -->
+    <header class="top-nav">
+        <div class="brand">
+            <h1>Bethel Trading</h1>
+        </div>
+        <div class="system-status">
+            <span>Status:</span> <strong id="status">CONNECTING...</strong>
+            <button id="install-app-button" type="button" hidden>Install app</button>
+            <button id="logout-button" type="button">Log out</button>
+        </div>
+    </header>
+
+    <main class="container">
+        
+        <!-- TOP KPI ROW -->
+        <section class="kpi-grid">
+            <div class="card highlight">
+                <h3>Current Equity</h3>
+                <p id="currentEquity">$0.00</p>
+            </div>
+            <div class="card">
+                <h3>Floating P/L</h3>
+                <p id="profit" class="text-up">--</p>
+            </div>
+            <div class="card">
+                <h3>Drawdown</h3>
+                <p id="drawdown">--</p>
+            </div>
+        </section>
+
+        <!-- PRIMARY ANALYTICS GRID -->
+        <div class="main-grid">
+            <div class="left-col">
+                <section class="panel">
+                    <h2>Equity Growth Curve</h2>
+                    <div class="chart-container">
+                        <p>Your private portfolio summary is shown from your assigned account.</p>
+                    </div>
+                </section>
+                
+                <section class="panel">
+                    <h2>Trade History</h2>
+                    <table id="historyTable">
+                        <thead>
+                            <tr><th>Symbol</th><th>Dir</th><th>Vol</th><th>Profit</th><th>Date</th></tr>
+                        </thead>
+                        <tbody><!-- JS populated --></tbody>
+                    </table>
+                </section>
+            </div>
+
+            <aside class="right-col">
+                <section class="panel">
+                    <h2>Account Details</h2>
+                    <div class="profile-list">
+                        <div><span>Investor</span><strong id="investorName">--</strong></div>
+                        <div><span>Portfolio</span><strong id="portfolioName">--</strong></div>
+                        <div><span>Balance</span><strong id="balance">--</strong></div>
+                    </div>
+                </section>
+                
+                <section class="panel">
+                    <h2>Risk Metrics</h2>
+                    <table>
+                        <tr><td>Sharpe Ratio</td><td id="sharpe">--</td></tr>
+                        <tr><td>Profit Factor</td><td id="profitfactor">--</td></tr>
+                        <tr><td>Volatilty</td><td id="volatility">--</td></tr>
+                    </table>
+                </section>
+            </aside>
+        </div>
+
+    </main>
+</div>
+
+<script src="js/auth.js?v=3"></script>
+<script src="js/investor.js?v=3"></script>
+<script src="js/pwa.js?v=2"></script>
+</body>
+</html>
+
+====================================================================================================
+FILE: investor-frontend\js\auth.js
+====================================================================================================
+const INVESTOR_TOKEN_KEY = "bethel_investor_access_token";
+
+
+function getInvestorToken(){
+    return localStorage.getItem(INVESTOR_TOKEN_KEY);
+}
+
+
+function saveInvestorToken(token){
+    localStorage.setItem(INVESTOR_TOKEN_KEY, token);
+}
+
+
+function clearInvestorToken(){
+    localStorage.removeItem(INVESTOR_TOKEN_KEY);
+}
+
+
+function decodeInvestorToken(){
+    const token = getInvestorToken();
+    if(!token){
+        return null;
+    }
+
+    try {
+        const segment = token
+            .split(".")[1]
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
+        const padded = segment.padEnd(
+            Math.ceil(segment.length / 4) * 4,
+            "="
+        );
+        return JSON.parse(atob(padded));
+    } catch(error) {
+        return null;
+    }
+}
+
+
+function getInvestorSession(){
+    const payload = decodeInvestorToken();
+    if(
+        !payload ||
+        payload.role !== "investor" ||
+        !payload.investor_id ||
+        (payload.exp && payload.exp < Math.floor(Date.now() / 1000))
+    ){
+        clearInvestorToken();
+        return null;
+    }
+    return payload;
+}
+
+
+function investorLogout(){
+    clearInvestorToken();
+    window.location.replace("login.html");
+}
+
+====================================================================================================
+FILE: investor-frontend\js\login.js
+====================================================================================================
+const INVESTOR_API =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.startsWith("192.168.")
+        ? `${window.location.protocol}//${window.location.hostname}:8000`
+        : "https://api.betheltradingtechnologies.com";
+
+
+if(getInvestorSession()){
+    window.location.replace("index.html");
+}
+
+
+document.getElementById("login-form").addEventListener(
+    "submit",
+    async (event) => {
+        event.preventDefault();
+
+        const button = document.getElementById("login-button");
+        const error = document.getElementById("login-error");
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+
+        button.disabled = true;
+        button.textContent = "Signing in...";
+        error.textContent = "";
+
+        try {
+            const query = new URLSearchParams({email, password});
+            const response = await fetch(
+                INVESTOR_API + "/investor/auth/login?" + query,
+                {
+                    method: "POST",
+                    headers: {"Accept": "application/json"}
+                }
+            );
+            const data = await response.json();
+
+            if(!response.ok || !data.access_token){
+                throw new Error(data.detail || "Unable to sign in");
+            }
+
+            saveInvestorToken(data.access_token);
+
+            if(!getInvestorSession()){
+                throw new Error("Invalid investor session");
+            }
+
+            window.location.replace("index.html");
+        } catch(loginError) {
+            clearInvestorToken();
+            error.textContent = loginError.message || "Unable to sign in";
+            button.disabled = false;
+            button.textContent = "Sign in";
+        }
+    }
+);
+
+====================================================================================================
+FILE: investor-frontend\js\investor.js
+====================================================================================================
+const API =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.startsWith("192.168.")
+        ? `${window.location.protocol}//${window.location.hostname}:8000`
+        : "https://api.betheltradingtechnologies.com";
+
+
+function safe(id, value){
+    const element = document.getElementById(id);
+    if(element){
+        element.textContent = value ?? "--";
+    }
+}
+
+
+function money(value){
+    return Number(value || 0).toLocaleString(
+        undefined,
+        {style: "currency", currency: "USD"}
+    );
+}
+
+
+async function loadInvestorDashboard(){
+    const session = getInvestorSession();
+
+    if(!session){
+        window.location.replace("login.html");
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            API + "/investor/api/dashboard/" + session.investor_id,
+            {
+                headers: {
+                    "Accept": "application/json",
+                    "Authorization": "Bearer " + getInvestorToken()
+                }
+            }
+        );
+
+        if(response.status === 401 || response.status === 403){
+            clearInvestorToken();
+            window.location.replace("login.html");
+            return;
+        }
+
+        if(!response.ok){
+            throw new Error("Dashboard request failed");
+        }
+
+        const data = await response.json();
+        const portfolio = data.portfolio || {};
+
+        safe("status", "ONLINE");
+        safe("investorName", data.investor?.name);
+        safe("portfolioName", portfolio.name);
+        safe("balance", money(portfolio.capital));
+        safe("currentEquity", money(portfolio.current_value));
+        safe(
+            "profit",
+            money(
+                Number(portfolio.current_value || 0) -
+                Number(portfolio.capital || 0)
+            )
+        );
+        safe("drawdown", "--");
+    } catch(error) {
+        safe("status", "UNAVAILABLE");
+    }
+}
+
+
+document.getElementById("logout-button").addEventListener(
+    "click",
+    investorLogout
+);
+
+loadInvestorDashboard();
+setInterval(loadInvestorDashboard, 30000);
+
+====================================================================================================
+FILE: investor-frontend\css\investor.css
+====================================================================================================
+:root {
+  --bg: #0f172a;           /* Deep dark slate */
+  --card-bg: #1e293b;      /* Slightly lighter slate */
+  --accent: #38bdf8;       /* Tech blue */
+  --text-main: #f8fafc;
+  --text-dim: #94a3b8;
+  --border: #334155;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 40px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+form label {
+    display:block;
+    margin:18px 0 6px;
+}
+
+form input {
+    width:100%;
+    padding:12px;
+    box-sizing:border-box;
+    border:1px solid #d1d5db;
+    border-radius:8px;
+}
+
+button {
+    padding:10px 16px;
+    border:0;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+form button {
+    width:100%;
+    margin-top:22px;
+}
+
+#login-error {
+    color:#dc2626;
+    min-height:20px;
+}
+
+.container { max-width: 1300px; margin: auto; }
+
+/* HEADER - Minimalist */
+header { margin-bottom: 50px; }
+header h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.5px; margin: 0; }
+header h2 { font-size: 14px; font-weight: 400; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+
+/* STATUS - Neo-badge */
+#status {
+  display: inline-block;
+  margin-top: 15px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+/* METRIC CARDS - Soft Glow */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 40px; }
+
+.card {
+  background: var(--card-bg);
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.card:hover { border-color: var(--accent); }
+
+.card h3 { margin: 0 0 8px; color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.card p { margin: 0; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* PANELS - Elevated */
+.panel {
+  background: var(--card-bg);
+  padding: 30px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+}
+
+.panel h2 { font-size: 18px; margin-bottom: 25px; }
+
+/* TABLES - Data Grid style */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; color: var(--text-dim); padding: 12px; border-bottom: 1px solid var(--border); text-transform: uppercase; }
+td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+tr:hover { background: rgba(255,255,255,0.03); }
+
+.last-update{
+    margin-top:10px;
+    color:var(--text-dim);
+    font-size:12px;
+    letter-spacing:.5px;
+}
+
+====================================================================================================
+FILE: investor-frontend\sw.js
+====================================================================================================
+const CACHE_NAME = "bethel-investor-v2";
+const APP_SHELL = [
+    "./",
+    "./login.html",
+    "./offline.html",
+    "./css/investor.css?v=3",
+    "./js/auth.js?v=3",
+    "./js/login.js?v=3",
+    "./js/investor.js?v=3",
+    "./icons/app-icon.svg"
+];
+
+self.addEventListener("install", event => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
+    );
+    self.skipWaiting();
+});
+
+self.addEventListener("activate", event => {
+    event.waitUntil(
+        caches.keys().then(keys => Promise.all(
+            keys
+                .filter(key => key.startsWith("bethel-investor-") && key !== CACHE_NAME)
+                .map(key => caches.delete(key))
+        ))
+    );
+    self.clients.claim();
+});
+
+self.addEventListener("fetch", event => {
+    const requestUrl = new URL(event.request.url);
+
+    if(
+        event.request.method !== "GET" ||
+        requestUrl.pathname.startsWith("/api/") ||
+        requestUrl.pathname.startsWith("/auth/") ||
+        requestUrl.pathname.startsWith("/investor/api/") ||
+        requestUrl.pathname.startsWith("/investor/auth/")
+    ){
+        return;
+    }
+
+    if(event.request.mode === "navigate"){
+        event.respondWith(
+            fetch(event.request).catch(() => caches.match("./offline.html"))
+        );
+        return;
+    }
+
+    event.respondWith(
+        caches.match(event.request).then(cached => cached || fetch(event.request))
+    );
+});
+

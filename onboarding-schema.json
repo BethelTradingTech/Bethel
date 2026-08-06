@@ -1,0 +1,990 @@
+C:\BethelTradingTech\.venv\Lib\site-packages\fastapi\openapi\utils.py:252: UserWarning: Duplicate Operation ID get_subscriber_copytrading_subscribers__subscriber_id__get for function get_subscriber at C:\BethelTradingTech\api\copytrading\subscriber_routes.py
+  warnings.warn(message, stacklevel=1)
+Bethel Trading Technologies Configuration Loaded
+✓ Authentication API Loaded
+✓ Subscriber Authentication API Loaded
+✓ Copy Trading API Loaded
+✓ Subscriber API Loaded
+✓ Copy Orders API Loaded
+✓ Copy Dashboard API Loaded
+✓ Subscriber Onboarding Loaded
+✓ Broker Accounts API Loaded
+✓ Client Onboarding Workflow Loaded
+✓ Performance API Loaded
+✓ Investor API Loaded
+Dashboard Data API Loaded
+✓ MT5 API Loaded
+✓ Admin Management Control Loaded
+{
+  "paths": {
+    "/onboarding/plans": {
+      "get": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "List Plans",
+        "operationId": "list_plans_onboarding_plans_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "Create Plan",
+        "operationId": "create_plan_onboarding_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/{subscriber_id}": {
+      "get": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "Get Status",
+        "operationId": "get_status_onboarding__subscriber_id__get",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/{subscriber_id}/subscription": {
+      "post": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "Select Subscription",
+        "operationId": "select_subscription_onboarding__subscriber_id__subscription_post",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanSelection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/{subscriber_id}/kyc/submit": {
+      "post": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "Submit Kyc",
+        "operationId": "submit_kyc_onboarding__subscriber_id__kyc_submit_post",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/{subscriber_id}/payment/confirm": {
+      "post": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "Confirm Payment",
+        "operationId": "confirm_payment_onboarding__subscriber_id__payment_confirm_post",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentConfirmation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/{subscriber_id}/broker/refresh": {
+      "post": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "Confirm Broker",
+        "operationId": "confirm_broker_onboarding__subscriber_id__broker_refresh_post",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/onboarding/{subscriber_id}/approval": {
+      "post": {
+        "tags": [
+          "Client Onboarding"
+        ],
+        "summary": "Decide Approval",
+        "operationId": "decide_approval_onboarding__subscriber_id__approval_post",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broker-accounts/link": {
+      "post": {
+        "tags": [
+          "Broker Accounts"
+        ],
+        "summary": "Link Broker Account",
+        "operationId": "link_broker_account_broker_accounts_link_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrokerAccountCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrokerAccountResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broker-accounts/subscriber/{subscriber_id}": {
+      "get": {
+        "tags": [
+          "Broker Accounts"
+        ],
+        "summary": "Get Subscriber Broker Account",
+        "operationId": "get_subscriber_broker_account_broker_accounts_subscriber__subscriber_id__get",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/copytrading/onboarding/connect-mt5/{subscriber_id}": {
+      "post": {
+        "tags": [
+          "Subscriber Onboarding"
+        ],
+        "summary": "Connect Mt5",
+        "operationId": "connect_mt5_copytrading_onboarding_connect_mt5__subscriber_id__post",
+        "parameters": [
+          {
+            "name": "subscriber_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscriber Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api__copytrading__onboarding_routes__MT5ConnectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "schemas": {
+    "ApprovalDecision": {
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "APPROVED",
+            "REJECTED"
+          ],
+          "title": "Decision"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        }
+      },
+      "type": "object",
+      "required": [
+        "decision"
+      ],
+      "title": "ApprovalDecision"
+    },
+    "BrokerAccountCreate": {
+      "properties": {
+        "subscriber_id": {
+          "type": "integer",
+          "title": "Subscriber Id"
+        },
+        "broker": {
+          "type": "string",
+          "title": "Broker",
+          "default": "MT5"
+        },
+        "login": {
+          "type": "string",
+          "title": "Login"
+        },
+        "server": {
+          "type": "string",
+          "title": "Server"
+        }
+      },
+      "type": "object",
+      "required": [
+        "subscriber_id",
+        "login",
+        "server"
+      ],
+      "title": "BrokerAccountCreate"
+    },
+    "BrokerAccountResponse": {
+      "properties": {
+        "id": {
+          "type": "integer",
+          "title": "Id"
+        },
+        "subscriber_id": {
+          "type": "integer",
+          "title": "Subscriber Id"
+        },
+        "broker": {
+          "type": "string",
+          "title": "Broker"
+        },
+        "login": {
+          "type": "string",
+          "title": "Login"
+        },
+        "server": {
+          "type": "string",
+          "title": "Server"
+        },
+        "status": {
+          "type": "string",
+          "title": "Status"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currency"
+        },
+        "leverage": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Leverage"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "subscriber_id",
+        "broker",
+        "login",
+        "server",
+        "status"
+      ],
+      "title": "BrokerAccountResponse"
+    },
+    "HTTPValidationError": {
+      "properties": {
+        "detail": {
+          "items": {
+            "$ref": "#/components/schemas/ValidationError"
+          },
+          "type": "array",
+          "title": "Detail"
+        }
+      },
+      "type": "object",
+      "title": "HTTPValidationError"
+    },
+    "KycReview": {
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "APPROVED",
+            "REJECTED"
+          ],
+          "title": "Decision"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reason"
+        }
+      },
+      "type": "object",
+      "required": [
+        "decision"
+      ],
+      "title": "KycReview"
+    },
+    "LoginRequest": {
+      "properties": {
+        "email": {
+          "type": "string",
+          "title": "Email"
+        },
+        "password": {
+          "type": "string",
+          "title": "Password"
+        }
+      },
+      "type": "object",
+      "required": [
+        "email",
+        "password"
+      ],
+      "title": "LoginRequest"
+    },
+    "MasterTradeCreate": {
+      "properties": {
+        "ticket": {
+          "type": "integer",
+          "title": "Ticket"
+        },
+        "symbol": {
+          "type": "string",
+          "title": "Symbol"
+        },
+        "direction": {
+          "type": "string",
+          "title": "Direction"
+        },
+        "volume": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "title": "Volume"
+        },
+        "entry_price": {
+          "type": "number",
+          "title": "Entry Price"
+        },
+        "stop_loss": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stop Loss"
+        },
+        "take_profit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Take Profit"
+        }
+      },
+      "type": "object",
+      "required": [
+        "ticket",
+        "symbol",
+        "direction",
+        "volume",
+        "entry_price"
+      ],
+      "title": "MasterTradeCreate"
+    },
+    "PaymentConfirmation": {
+      "properties": {
+        "reference": {
+          "type": "string",
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference"
+        }
+      },
+      "type": "object",
+      "required": [
+        "reference"
+      ],
+      "title": "PaymentConfirmation"
+    },
+    "PlanCreate": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 2,
+          "title": "Name"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Description"
+        },
+        "price": {
+          "type": "number",
+          "minimum": 0.0,
+          "title": "Price"
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 3,
+          "minLength": 3,
+          "title": "Currency",
+          "default": "USD"
+        },
+        "billing_interval": {
+          "type": "string",
+          "enum": [
+            "MONTHLY",
+            "QUARTERLY",
+            "ANNUAL"
+          ],
+          "title": "Billing Interval",
+          "default": "MONTHLY"
+        },
+        "allocation_percent": {
+          "type": "number",
+          "maximum": 100.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Allocation Percent",
+          "default": 100.0
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "price"
+      ],
+      "title": "PlanCreate"
+    },
+    "PlanSelection": {
+      "properties": {
+        "plan_id": {
+          "type": "integer",
+          "title": "Plan Id"
+        }
+      },
+      "type": "object",
+      "required": [
+        "plan_id"
+      ],
+      "title": "PlanSelection"
+    },
+    "RegisterRequest": {
+      "properties": {
+        "email": {
+          "type": "string",
+          "title": "Email"
+        },
+        "password": {
+          "type": "string",
+          "title": "Password"
+        }
+      },
+      "type": "object",
+      "required": [
+        "email",
+        "password"
+      ],
+      "title": "RegisterRequest"
+    },
+    "SubscriberCreate": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 2,
+          "title": "Name"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email"
+        },
+        "account_number": {
+          "type": "string",
+          "title": "Account Number"
+        },
+        "allocation_percent": {
+          "type": "number",
+          "maximum": 100.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Allocation Percent",
+          "default": 100.0
+        }
+      },
+      "type": "object",
+      "required": [
+        "name",
+        "email",
+        "account_number"
+      ],
+      "title": "SubscriberCreate"
+    },
+    "SubscriberResponse": {
+      "properties": {
+        "id": {
+          "type": "integer",
+          "title": "Id"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email"
+        },
+        "mt5_account": {
+          "type": "string",
+          "title": "Mt5 Account"
+        },
+        "allocation_percent": {
+          "type": "number",
+          "title": "Allocation Percent"
+        },
+        "status": {
+          "type": "string",
+          "title": "Status"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Created At"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "email",
+        "mt5_account",
+        "allocation_percent",
+        "status"
+      ],
+      "title": "SubscriberResponse"
+    },
+    "ValidationError": {
+      "properties": {
+        "loc": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array",
+          "title": "Location"
+        },
+        "msg": {
+          "type": "string",
+          "title": "Message"
+        },
+        "type": {
+          "type": "string",
+          "title": "Error Type"
+        },
+        "input": {
+          "title": "Input"
+        },
+        "ctx": {
+          "type": "object",
+          "title": "Context"
+        }
+      },
+      "type": "object",
+      "required": [
+        "loc",
+        "msg",
+        "type"
+      ],
+      "title": "ValidationError"
+    },
+    "api__copytrading__onboarding_routes__MT5ConnectionRequest": {
+      "properties": {
+        "broker": {
+          "type": "string",
+          "title": "Broker"
+        },
+        "mt5_account": {
+          "type": "string",
+          "title": "Mt5 Account"
+        },
+        "mt5_account_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mt5 Account Id"
+        }
+      },
+      "type": "object",
+      "required": [
+        "broker",
+        "mt5_account"
+      ],
+      "title": "MT5ConnectionRequest"
+    },
+    "api__schemas__MT5ConnectionRequest": {
+      "properties": {
+        "account_number": {
+          "type": "string",
+          "title": "Account Number"
+        },
+        "server": {
+          "type": "string",
+          "title": "Server"
+        },
+        "password": {
+          "type": "string",
+          "title": "Password"
+        }
+      },
+      "type": "object",
+      "required": [
+        "account_number",
+        "server",
+        "password"
+      ],
+      "title": "MT5ConnectionRequest"
+    }
+  }
+}

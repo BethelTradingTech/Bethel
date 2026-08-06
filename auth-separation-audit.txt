@@ -1,0 +1,449 @@
+==============================================================================================================
+FILE: api\admin\router.py
+==============================================================================================================
+5: from fastapi import APIRouter, Depends, HTTPException, Request
+6: from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+8: from api.auth.services.jwt import decode_token
+11: security = HTTPBearer(auto_error=True)
+48: def require_admin(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict[str, Any]:
+50: payload = decode_token(credentials.credentials)
+52: raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
+53: if str(payload.get("role", "")).lower() != "admin":
+54: raise HTTPException(status_code=403, detail="Administrator role required")
+78: def get_settings(_: dict = Depends(require_admin)):
+82: def update_website(payload: dict[str, Any], _: dict = Depends(require_admin)):
+89: def update_system(payload: dict[str, Any], _: dict = Depends(require_admin)):
+97: def list_routes(request: Request, _: dict = Depends(require_admin)):
+
+==============================================================================================================
+FILE: api\auth\models\investor_user.py
+==============================================================================================================
+16: investor_id = Column(
+35: role = Column(
+
+==============================================================================================================
+FILE: api\auth\models\user.py
+==============================================================================================================
+21: role = Column(
+
+==============================================================================================================
+FILE: api\auth\routes\auth.py
+==============================================================================================================
+12: from fastapi import APIRouter, HTTPException
+76: raise HTTPException(
+86: raise HTTPException(
+88: status_code=403,
+111: raise HTTPException(
+129: "role": user.role,
+151: "token_type": "bearer",
+161: "role": user.role
+
+==============================================================================================================
+FILE: api\auth\routes\auth_backup.py
+==============================================================================================================
+12: from fastapi import APIRouter, HTTPException
+76: raise HTTPException(
+101: raise HTTPException(
+119: "role": user.role,
+141: "token_type": "bearer",
+151: "role": user.role
+
+==============================================================================================================
+FILE: api\auth\routes\investor_login.py
+==============================================================================================================
+1: from fastapi import APIRouter, HTTPException, Response
+34: raise HTTPException(
+44: raise HTTPException(
+51: "investor_id": user.investor_id,
+52: "role": "investor"
+68: "token_type": "bearer"
+
+==============================================================================================================
+FILE: api\auth\services\jwt.py
+==============================================================================================================
+23: return jwt.encode(
+30: def decode_token(token):
+
+==============================================================================================================
+FILE: api\auth\dependency.py
+==============================================================================================================
+1: from fastapi import HTTPException, Request
+4: from api.auth.services.jwt import decode_token
+16: authorization = request.headers.get("Authorization")
+17: if authorization and authorization.startswith("Bearer "):
+18: token = authorization.split(" ", 1)[1]
+27: raise HTTPException(status_code=401, detail="Authentication required")
+30: payload = decode_token(token)
+32: raise HTTPException(status_code=401, detail="Invalid or expired token")
+34: if payload.get("role") != "admin":
+35: raise HTTPException(status_code=403, detail="Admin access required")
+40: def require_subscriber_or_admin(request: Request, subscriber_id: int):
+44: raise HTTPException(status_code=401, detail="Authentication required")
+47: admin_payload = decode_token(token)
+48: if admin_payload.get("role") == "admin":
+60: raise HTTPException(status_code=401, detail="Invalid or expired token")
+62: if subscriber_payload.get("subscriber_id") != subscriber_id:
+63: raise HTTPException(status_code=403, detail="Subscriber access denied")
+86: decode_token(token)
+
+==============================================================================================================
+FILE: api\auth\investor_dependency.py
+==============================================================================================================
+1: from fastapi import Depends, HTTPException
+2: from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+4: from api.auth.services.jwt import decode_token
+7: security = HTTPBearer()
+11: credentials: HTTPAuthorizationCredentials = Depends(security)
+16: payload = decode_token(
+20: if payload.get("role") not in {"investor", "admin"}:
+21: raise HTTPException(
+22: status_code=403,
+23: detail="Invalid role"
+31: raise HTTPException(
+37: def get_current_investor(
+38: current=Depends(get_current_user)
+40: if current.get("role") != "investor":
+41: raise HTTPException(status_code=403, detail="Investor access required")
+
+==============================================================================================================
+FILE: api\auth\security.py
+==============================================================================================================
+63: token = jwt.encode(
+
+==============================================================================================================
+FILE: api\broker_accounts\models.py
+==============================================================================================================
+31: subscriber_id = Column(
+
+==============================================================================================================
+FILE: api\broker_accounts\routes.py
+==============================================================================================================
+13: from fastapi import APIRouter, Depends, HTTPException
+41: db: Session = Depends(get_db)
+48: raise HTTPException(
+60: raise HTTPException(
+90: subscriber_id=data.subscriber_id,
+119: "/subscriber/{subscriber_id}"
+122: subscriber_id: int,
+123: db: Session = Depends(get_db)
+129: BrokerAccount.subscriber_id == subscriber_id
+
+==============================================================================================================
+FILE: api\broker_accounts\schemas.py
+==============================================================================================================
+16: subscriber_id: int
+30: subscriber_id: int
+
+==============================================================================================================
+FILE: api\copytrading\allocation.py
+==============================================================================================================
+88: subscriber_id=subscriber.id,
+
+==============================================================================================================
+FILE: api\copytrading\dashboard_routes.py
+==============================================================================================================
+17: from fastapi import APIRouter, Depends
+47: db: Session = Depends(get_db)
+
+==============================================================================================================
+FILE: api\copytrading\models.py
+==============================================================================================================
+105: investor_id = Column(
+179: subscriber_id = Column(
+248: subscriber_id = Column(
+291: investor_id = Column(
+301: subscriber_id = Column(
+352: subscriber_id = Column(
+
+==============================================================================================================
+FILE: api\copytrading\onboarding_routes.py
+==============================================================================================================
+15: from fastapi import APIRouter, Depends, HTTPException
+45: @router.post("/connect-mt5/{subscriber_id}")
+47: subscriber_id: int,
+49: _actor=Depends(require_subscriber_or_admin),
+59: CopySubscriber.id == subscriber_id
+65: raise HTTPException(
+89: "subscriber_id": subscriber.id
+104: @router.post("/activate/{subscriber_id}")
+106: subscriber_id: int,
+107: _admin=Depends(require_admin),
+109: raise HTTPException(
+113: "broker verification, and use /onboarding/{subscriber_id}/approval."
+123: @router.get("/status/{subscriber_id}")
+125: subscriber_id: int,
+126: _actor=Depends(require_subscriber_or_admin),
+136: CopySubscriber.id == subscriber_id
+142: raise HTTPException(
+150: "subscriber_id": subscriber.id,
+179: @router.post("/payment-confirm/{subscriber_id}")
+181: subscriber_id: int,
+182: _admin=Depends(require_admin),
+184: raise HTTPException(
+188: "Use /onboarding/{subscriber_id}/payment/confirm."
+
+==============================================================================================================
+FILE: api\copytrading\order_routes.py
+==============================================================================================================
+1: from fastapi import APIRouter, Depends, HTTPException
+8: @router.get("/investors/{investor_id}/orders")
+9: def get_investor_copy_orders(investor_id: int, db: Session = Depends(get_db)):
+10: # Strict lookup mapping investor_id to their copy subscriber record
+12: CopySubscriber.investor_id == investor_id
+16: raise HTTPException(
+23: CopyOrder.subscriber_id == subscriber.id
+44: "subscriber_id": subscriber.id,
+
+==============================================================================================================
+FILE: api\copytrading\performance_service.py
+==============================================================================================================
+35: subscriber_id=order.subscriber_id,
+
+==============================================================================================================
+FILE: api\copytrading\routes.py
+==============================================================================================================
+36: from fastapi import APIRouter, Depends
+73: db: Session = Depends(get_db)
+115: db: Session = Depends(get_db)
+136: db: Session = Depends(get_db)
+251: db:Session=Depends(get_db)
+307: db:Session=Depends(get_db)
+337: db:Session=Depends(get_db)
+363: "subscriber_id":o.subscriber_id,
+398: "/subscribers/{subscriber_id}"
+401: subscriber_id:int,
+402: db:Session=Depends(get_db)
+410: models.CopySubscriber.id==subscriber_id
+461: "/subscribers/{subscriber_id}/orders"
+464: subscriber_id:int,
+465: db:Session=Depends(get_db)
+474: models.CopyOrder.subscriber_id==subscriber_id
+486: "subscriber_id":subscriber_id,
+
+==============================================================================================================
+FILE: api\copytrading\schemas.py
+==============================================================================================================
+101: subscriber_id: int
+
+==============================================================================================================
+FILE: api\copytrading\service.py
+==============================================================================================================
+89: models.CopyOrder.subscriber_id
+124: subscriber_id=subscriber.id,
+
+==============================================================================================================
+FILE: api\copytrading\subscriber_auth_routes.py
+==============================================================================================================
+18: from fastapi import APIRouter, HTTPException
+27: create_access_token
+86: raise HTTPException(
+109: "subscriber_id":
+148: raise HTTPException(
+157: raise HTTPException(
+169: raise HTTPException(
+176: token = create_access_token(
+178: "subscriber_id":
+194: "bearer",
+196: "subscriber_id":
+
+==============================================================================================================
+FILE: api\copytrading\subscriber_bridge.py
+==============================================================================================================
+128: copy_order.subscriber_id
+274: subscriber_id=subscriber.id,
+
+==============================================================================================================
+FILE: api\copytrading\subscriber_routes.py
+==============================================================================================================
+18: Depends,
+19: HTTPException
+53: db: Session = Depends(get_db)
+105: @router.get("/{subscriber_id}")
+107: subscriber_id: int,
+108: db: Session = Depends(get_db)
+118: CopySubscriber.id == subscriber_id
+128: raise HTTPException(
+173: @router.get("/{subscriber_id}/dashboard")
+176: subscriber_id: int,
+178: db: Session = Depends(get_db)
+190: CopySubscriber.id == subscriber_id
+201: raise HTTPException(
+218: CopyOrder.subscriber_id ==
+219: subscriber_id
+236: CopyOrder.subscriber_id ==
+237: subscriber_id,
+258: CopyOrder.subscriber_id ==
+259: subscriber_id,
+280: CopyExecutionLog.subscriber_id ==
+281: subscriber_id
+370: @router.get("/{subscriber_id}/performance")
+372: subscriber_id: int,
+373: db: Session = Depends(get_db)
+377: CopySubscriber.id == subscriber_id
+381: raise HTTPException(
+390: CopyTradePerformance.subscriber_id == subscriber_id
+463: "subscriber_id": subscriber_id,
+509: @router.get("/{subscriber_id}/performance")
+511: subscriber_id: int,
+512: db: Session = Depends(get_db)
+518: CopySubscriber.id == subscriber_id
+524: raise HTTPException(
+532: CopyOrder.subscriber_id == subscriber_id
+593: db: Session = Depends(get_db)
+606: db: Session = Depends(get_db)
+
+==============================================================================================================
+FILE: api\copytrading\sync_engine.py
+==============================================================================================================
+75: models.CopyOrder.subscriber_id
+112: subscriber_id=subscriber.id,
+
+==============================================================================================================
+FILE: api\investors\routes\admin.py
+==============================================================================================================
+1: from fastapi import APIRouter, Depends, HTTPException
+13: dependencies=[Depends(require_admin)],
+20: .filter(Portfolio.investor_id == investor.id)
+25: .filter(MT5Account.investor_id == investor.id)
+54: def list_investors(db: Session = Depends(get_db)):
+62: @router.get("/{investor_id}")
+63: def get_investor(investor_id: int, db: Session = Depends(get_db)):
+66: .filter(Investor.id == investor_id)
+70: raise HTTPException(status_code=404, detail="Investor not found")
+
+==============================================================================================================
+FILE: api\investors\routes\dashboard.py
+==============================================================================================================
+7: from fastapi import APIRouter, HTTPException, Depends
+31: @router.get("/dashboard/{investor_id}")
+34: investor_id: int,
+36: current = Depends(get_current_user)
+43: current.get("role") != "admin"
+44: and current.get("investor_id") != investor_id
+47: raise HTTPException(
+49: status_code=403,
+65: Investor.id == investor_id
+73: raise HTTPException(
+85: Portfolio.investor_id == investor_id
+93: MT5Account.investor_id == investor_id
+
+==============================================================================================================
+FILE: api\investors\routes\mt5_accounts.py
+==============================================================================================================
+7: from fastapi import APIRouter, HTTPException
+35: investor_id:int,
+58: investor_id=investor_id,
+112: @router.get("/{investor_id}")
+115: investor_id:int
+125: MT5Account.investor_id == investor_id
+140: "investor_id":investor_id,
+
+==============================================================================================================
+FILE: api\investors\routes\portfolio.py
+==============================================================================================================
+7: from fastapi import APIRouter, HTTPException
+35: investor_id:int,
+48: investor_id=investor_id,
+75: "investor_id":portfolio.investor_id,
+90: @router.get("/{investor_id}")
+93: investor_id:int
+103: Portfolio.investor_id == investor_id
+118: "investor_id":investor_id,
+188: raise HTTPException(
+
+==============================================================================================================
+FILE: api\investors\models.py
+==============================================================================================================
+131: investor_id = Column(
+
+==============================================================================================================
+FILE: api\investors\models_backup.py
+==============================================================================================================
+131: investor_id = Column(
+
+==============================================================================================================
+FILE: api\investors\mt5_account.py
+==============================================================================================================
+37: investor_id = Column(
+
+==============================================================================================================
+FILE: api\investors\mt5_account_backup.py
+==============================================================================================================
+37: investor_id = Column(
+
+==============================================================================================================
+FILE: api\onboarding\models.py
+==============================================================================================================
+26: subscriber_id = Column(Integer, unique=True, index=True, nullable=False)
+
+==============================================================================================================
+FILE: api\onboarding\routes.py
+==============================================================================================================
+4: from fastapi import APIRouter, Depends, HTTPException
+64: def list_plans(db: Session = Depends(get_db)):
+77: db: Session = Depends(get_db),
+78: _admin=Depends(require_admin),
+86: raise HTTPException(status_code=409, detail="Plan name already exists")
+102: @router.get("/{subscriber_id}")
+104: subscriber_id: int,
+105: db: Session = Depends(get_db),
+106: _actor=Depends(require_subscriber_or_admin),
+108: onboarding = get_or_create_onboarding(db, subscriber_id)
+114: @router.post("/{subscriber_id}/subscription")
+116: subscriber_id: int,
+118: db: Session = Depends(get_db),
+119: _actor=Depends(require_subscriber_or_admin),
+130: raise HTTPException(status_code=404, detail="Subscription plan not found")
+132: subscriber = get_subscriber(db, subscriber_id)
+133: onboarding = get_or_create_onboarding(db, subscriber_id)
+145: @router.post("/{subscriber_id}/kyc/submit")
+147: subscriber_id: int,
+148: db: Session = Depends(get_db),
+149: _actor=Depends(require_subscriber_or_admin),
+151: onboarding = get_or_create_onboarding(db, subscriber_id)
+161: @router.post("/{subscriber_id}/kyc/review")
+163: subscriber_id: int,
+165: db: Session = Depends(get_db),
+166: _admin=Depends(require_admin),
+168: onboarding = get_or_create_onboarding(db, subscriber_id)
+170: raise HTTPException(status_code=409, detail="KYC is not pending review")
+181: @router.post("/{subscriber_id}/payment/confirm")
+183: subscriber_id: int,
+185: db: Session = Depends(get_db),
+186: _admin=Depends(require_admin),
+188: onboarding = get_or_create_onboarding(db, subscriber_id)
+190: raise HTTPException(
+198: subscriber = get_subscriber(db, subscriber_id)
+205: @router.post("/{subscriber_id}/broker/refresh")
+207: subscriber_id: int,
+208: db: Session = Depends(get_db),
+209: _actor=Depends(require_subscriber_or_admin),
+211: onboarding = get_or_create_onboarding(db, subscriber_id)
+218: @router.post("/{subscriber_id}/approval")
+220: subscriber_id: int,
+222: db: Session = Depends(get_db),
+223: _admin=Depends(require_admin),
+225: onboarding = get_or_create_onboarding(db, subscriber_id)
+238: raise HTTPException(
+
+==============================================================================================================
+FILE: api\onboarding\service.py
+==============================================================================================================
+3: from fastapi import HTTPException
+11: def get_subscriber(db: Session, subscriber_id: int):
+14: .filter(CopySubscriber.id == subscriber_id)
+18: raise HTTPException(status_code=404, detail="Subscriber not found")
+22: def get_or_create_onboarding(db: Session, subscriber_id: int):
+23: get_subscriber(db, subscriber_id)
+26: .filter(ClientOnboarding.subscriber_id == subscriber_id)
+30: onboarding = ClientOnboarding(subscriber_id=subscriber_id)
+40: BrokerAccount.subscriber_id == onboarding.subscriber_id,
+49: subscriber = get_subscriber(db, onboarding.subscriber_id)
+88: "subscriber_id": onboarding.subscriber_id,
+
+==============================================================================================================
+FILE: api\security.py
+==============================================================================================================
+38: def create_access_token(
+51: return jwt.encode(
+

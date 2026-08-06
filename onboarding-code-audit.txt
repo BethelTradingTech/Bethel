@@ -1,0 +1,334 @@
+﻿FILE: C:\BethelTradingTech\api\broker_accounts\routes.py
+@router.post(
+    "/link",
+    response_model=BrokerAccountResponse
+)
+def link_broker_account(
+    data: BrokerAccountCreate,
+    db: Session = Depends(get_db)
+):
+
+    # Ensure MT5 terminal is available
+    connected = MT5Manager.ensure_connection()
+
+    if not connected:
+        raise HTTPException(
+            status_code=500,
+            detail="MT5 connection unavailable"
+        )
+
+
+    # Check subscriber account information
+    account = mt5.account_info()
+
+
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\broker_accounts\routes.py
+
+@router.get(
+    "/subscriber/{subscriber_id}"
+)
+def get_subscriber_broker_account(
+    subscriber_id: int,
+    db: Session = Depends(get_db)
+):
+
+    account = (
+        db.query(BrokerAccount)
+        .filter(
+            BrokerAccount.subscriber_id == subscriber_id
+        )
+        .first()
+    )
+
+
+    if not account:
+
+        return {
+            "status": "not_found"
+        }
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\copytrading\onboarding_routes.py
+# ==============================
+# MARK SUBSCRIBER AS READY
+# ==============================
+
+@router.post("/connect-mt5/{subscriber_id}")
+def connect_mt5(
+    subscriber_id: int,
+    data: MT5ConnectionRequest,
+    _actor=Depends(require_subscriber_or_admin),
+):
+
+    db = SessionLocal()
+
+    try:
+
+        subscriber = db.query(
+            CopySubscriber
+        ).filter(
+            CopySubscriber.id == subscriber_id
+        ).first()
+
+
+        if not subscriber:
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\copytrading\onboarding_routes.py
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Legacy activation is disabled. Complete KYC, subscription, payment, "
+            "broker verification, and use /onboarding/{subscriber_id}/approval."
+        ),
+    )
+
+
+
+# ==============================
+# CHECK ONBOARDING STATUS
+# ==============================
+
+@router.get("/status/{subscriber_id}")
+def onboarding_status(
+    subscriber_id: int,
+    _actor=Depends(require_subscriber_or_admin),
+):
+
+    db = SessionLocal()
+
+    try:
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\copytrading\onboarding_routes.py
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Legacy payment confirmation is disabled. "
+            "Use /onboarding/{subscriber_id}/payment/confirm."
+        ),
+    )
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    decision: Literal["APPROVED", "REJECTED"]
+    reason: str | None = Field(default=None, max_length=500)
+
+
+def _plan_dict(plan: SubscriptionPlan):
+    return {
+        "id": plan.id,
+        "name": plan.name,
+        "description": plan.description,
+        "price": plan.price,
+        "currency": plan.currency,
+        "billing_interval": plan.billing_interval,
+        "allocation_percent": plan.allocation_percent,
+        "active": plan.active,
+    }
+
+
+@router.get("/plans")
+def list_plans(db: Session = Depends(get_db)):
+    plans = (
+        db.query(SubscriptionPlan)
+        .filter(SubscriptionPlan.active.is_(True))
+        .order_by(SubscriptionPlan.price)
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    db.commit()
+    return result
+
+
+@router.post("/{subscriber_id}/subscription")
+def select_subscription(
+    subscriber_id: int,
+    data: PlanSelection,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    plan = (
+        db.query(SubscriptionPlan)
+        .filter(
+            SubscriptionPlan.id == data.plan_id,
+            SubscriptionPlan.active.is_(True),
+        )
+        .first()
+    )
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Subscription plan not found")
+
+    subscriber = get_subscriber(db, subscriber_id)
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    return result
+
+
+@router.post("/{subscriber_id}/subscription")
+def select_subscription(
+    subscriber_id: int,
+    data: PlanSelection,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    plan = (
+        db.query(SubscriptionPlan)
+        .filter(
+            SubscriptionPlan.id == data.plan_id,
+            SubscriptionPlan.active.is_(True),
+        )
+        .first()
+    )
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Subscription plan not found")
+
+    subscriber = get_subscriber(db, subscriber_id)
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    db.commit()
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/kyc/submit")
+def submit_kyc(
+    subscriber_id: int,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+    onboarding.kyc_status = "PENDING"
+    onboarding.kyc_submitted_at = datetime.utcnow()
+    onboarding.rejection_reason = None
+    onboarding.admin_approval = "PENDING"
+    recompute_activation(db, onboarding)
+    db.commit()
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/kyc/review")
+def review_kyc(
+    subscriber_id: int,
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/kyc/submit")
+def submit_kyc(
+    subscriber_id: int,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+    onboarding.kyc_status = "PENDING"
+    onboarding.kyc_submitted_at = datetime.utcnow()
+    onboarding.rejection_reason = None
+    onboarding.admin_approval = "PENDING"
+    recompute_activation(db, onboarding)
+    db.commit()
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/kyc/review")
+def review_kyc(
+    subscriber_id: int,
+    data: KycReview,
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/kyc/review")
+def review_kyc(
+    subscriber_id: int,
+    data: KycReview,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+    if onboarding.kyc_status != "PENDING":
+        raise HTTPException(status_code=409, detail="KYC is not pending review")
+    onboarding.kyc_status = data.decision
+    onboarding.kyc_reviewed_at = datetime.utcnow()
+    onboarding.rejection_reason = (
+        data.reason if data.decision == "REJECTED" else None
+    )
+    recompute_activation(db, onboarding)
+    db.commit()
+    return serialize_onboarding(db, onboarding)
+
+
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    db.commit()
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/payment/confirm")
+def confirm_payment(
+    subscriber_id: int,
+    data: PaymentConfirmation,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+    if onboarding.plan_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Select a subscription plan before confirming payment",
+        )
+    onboarding.payment_status = "PAID"
+    onboarding.subscription_status = "ACTIVE"
+    onboarding.payment_reference = data.reference
+    onboarding.payment_confirmed_at = datetime.utcnow()
+    subscriber = get_subscriber(db, subscriber_id)
+    subscriber.payment_status = "PAID"
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\routes.py
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/broker/refresh")
+def confirm_broker(
+    subscriber_id: int,
+    db: Session = Depends(get_db),
+    _actor=Depends(require_subscriber_or_admin),
+):
+    onboarding = get_or_create_onboarding(db, subscriber_id)
+    refresh_broker_status(db, onboarding)
+    recompute_activation(db, onboarding)
+    db.commit()
+    return serialize_onboarding(db, onboarding)
+
+
+@router.post("/{subscriber_id}/approval")
+def decide_approval(
+    subscriber_id: int,
+    data: ApprovalDecision,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+------------------------------------------------------------
+FILE: C:\BethelTradingTech\api\onboarding\service.py
+        db.flush()
+    return onboarding
+
+
+def refresh_broker_status(db: Session, onboarding: ClientOnboarding):
+    account = (
+        db.query(BrokerAccount)
+        .filter(
+            BrokerAccount.subscriber_id == onboarding.subscriber_id,
+            BrokerAccount.status == "CONNECTED",
+        )
+        .first()
+    )
+    onboarding.broker_status = "CONNECTED" if account else "NOT_CONNECTED"
+
+
+def recompute_activation(db: Session, onboarding: ClientOnboarding):
+    subscriber = get_subscriber(db, onboarding.subscriber_id)
+    ready = all(
+        (
+            onboarding.subscription_status == "ACTIVE",
+            onboarding.kyc_status == "APPROVED",
+            onboarding.payment_status == "PAID",
+------------------------------------------------------------

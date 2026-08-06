@@ -1,0 +1,61 @@
+BETHEL TRADING TECHNOLOGIES - SYSTEM TEST REPORT
+Generated: 2026-07-26T14:20:38.530194
+PASS: 51  FAIL: 1  SKIP: 5
+
+PASS | Source | Python syntax | 105 Python files
+PASS | Source | JavaScript syntax | 5 JavaScript files
+PASS | Application | Import and OpenAPI generation | 101 OpenAPI paths
+PASS | Routes | Authentication | 3 required routes
+PASS | Routes | Onboarding | 4 required routes
+PASS | Routes | MT5 | 3 required routes
+PASS | Routes | KYC | 2 required routes
+PASS | Routes | Payments | 5 required routes
+PASS | Routes | Subscriptions | 3 required routes
+PASS | Routes | Profit share | 3 required routes
+PASS | Routes | Legal consent | 4 required routes
+PASS | Database | Core | 3 required tables
+PASS | Database | Invitations | 1 required tables
+PASS | Database | KYC | provider stores use onboarding record
+PASS | Database | Payments | 5 required tables
+PASS | Database | Subscriptions | 2 required tables
+PASS | Database | Profit share | 4 required tables
+PASS | Database | Legal consent | 2 required tables
+PASS | Legal | Document integrity | 5 active documents with valid SHA-256 hashes
+PASS | Accounting | 20% profit-share calculations | 20/80 split and high-water mark
+PASS | Subscriptions | Calendar period logic | monthly period rollover
+PASS | Onboarding | Activation gates | 4 activation gates
+PASS | Copy trading | Subscription enforcement | allocation, synchronization and execution
+PASS | HTTP public | Health | HTTP 200
+PASS | HTTP public | Plans | HTTP 200
+PASS | HTTP public | Legal documents | HTTP 200
+PASS | HTTP public | Profit-share terms | HTTP 200
+PASS | HTTP authentication | Onboarding | HTTP 401
+PASS | HTTP authentication | Legal status | HTTP 401
+PASS | HTTP authentication | Profit share | HTTP 401
+PASS | HTTP authentication | Subscription | HTTP 401
+PASS | HTTP authentication | Admin payments | HTTP 401
+PASS | HTTP authentication | Admin legal | HTTP 401
+PASS | HTTP authentication | Admin subscriptions | HTTP 401
+PASS | HTTP authentication | Admin profit share | HTTP 401
+PASS | HTTP authentication | Public password overwrite disabled | HTTP 410
+PASS | Authenticated workflow | Subscriber login | subscriber 5
+FAIL | Subscriber scope | Onboarding status | AssertionError: HTTP 500; expected [200]; response=Internal Server Error
+PASS | Subscriber scope | Legal consent status | HTTP 200
+PASS | Subscriber scope | Profit-share status | HTTP 200
+PASS | Subscriber scope | Subscription lifecycle | HTTP 200
+PASS | Subscriber scope | Subscriber record | HTTP 200
+PASS | Subscriber isolation | Other onboarding | HTTP 403
+PASS | Subscriber isolation | Other legal status | HTTP 403
+PASS | Subscriber isolation | Other profit share | HTTP 403
+PASS | Subscriber isolation | Other subscription | HTTP 403
+PASS | Subscriber isolation | Other subscriber record | HTTP 403
+PASS | Role separation | Payment administration | HTTP 401
+PASS | Role separation | Legal administration | HTTP 401
+PASS | Role separation | Subscription administration | HTTP 401
+PASS | Role separation | Profit-share administration | HTTP 401
+PASS | Role separation | System settings | HTTP 401
+SKIP | External configuration | Sumsub | test credentials not configured
+SKIP | External configuration | Stripe | test credentials not configured
+SKIP | External configuration | Binance Pay | test credentials not configured
+SKIP | External configuration | PayPal | test credentials not configured
+SKIP | External configuration | Wise | test credentials not configured

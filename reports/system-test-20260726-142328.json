@@ -1,0 +1,354 @@
+{
+  "generated_at": "2026-07-26T14:23:28.047001",
+  "base_url": "http://127.0.0.1:8000",
+  "mode": "safe-read-only-and-negative-security",
+  "summary": {
+    "PASS": 52,
+    "FAIL": 0,
+    "SKIP": 5
+  },
+  "results": [
+    {
+      "area": "Source",
+      "test": "Python syntax",
+      "status": "PASS",
+      "detail": "105 Python files"
+    },
+    {
+      "area": "Source",
+      "test": "JavaScript syntax",
+      "status": "PASS",
+      "detail": "5 JavaScript files"
+    },
+    {
+      "area": "Application",
+      "test": "Import and OpenAPI generation",
+      "status": "PASS",
+      "detail": "101 OpenAPI paths"
+    },
+    {
+      "area": "Routes",
+      "test": "Authentication",
+      "status": "PASS",
+      "detail": "3 required routes"
+    },
+    {
+      "area": "Routes",
+      "test": "Onboarding",
+      "status": "PASS",
+      "detail": "4 required routes"
+    },
+    {
+      "area": "Routes",
+      "test": "MT5",
+      "status": "PASS",
+      "detail": "3 required routes"
+    },
+    {
+      "area": "Routes",
+      "test": "KYC",
+      "status": "PASS",
+      "detail": "2 required routes"
+    },
+    {
+      "area": "Routes",
+      "test": "Payments",
+      "status": "PASS",
+      "detail": "5 required routes"
+    },
+    {
+      "area": "Routes",
+      "test": "Subscriptions",
+      "status": "PASS",
+      "detail": "3 required routes"
+    },
+    {
+      "area": "Routes",
+      "test": "Profit share",
+      "status": "PASS",
+      "detail": "3 required routes"
+    },
+    {
+      "area": "Routes",
+      "test": "Legal consent",
+      "status": "PASS",
+      "detail": "4 required routes"
+    },
+    {
+      "area": "Database",
+      "test": "Core",
+      "status": "PASS",
+      "detail": "3 required tables"
+    },
+    {
+      "area": "Database",
+      "test": "Invitations",
+      "status": "PASS",
+      "detail": "1 required tables"
+    },
+    {
+      "area": "Database",
+      "test": "KYC",
+      "status": "PASS",
+      "detail": "provider stores use onboarding record"
+    },
+    {
+      "area": "Database",
+      "test": "Payments",
+      "status": "PASS",
+      "detail": "5 required tables"
+    },
+    {
+      "area": "Database",
+      "test": "Subscriptions",
+      "status": "PASS",
+      "detail": "2 required tables"
+    },
+    {
+      "area": "Database",
+      "test": "Profit share",
+      "status": "PASS",
+      "detail": "4 required tables"
+    },
+    {
+      "area": "Database",
+      "test": "Legal consent",
+      "status": "PASS",
+      "detail": "2 required tables"
+    },
+    {
+      "area": "Legal",
+      "test": "Document integrity",
+      "status": "PASS",
+      "detail": "5 active documents with valid SHA-256 hashes"
+    },
+    {
+      "area": "Accounting",
+      "test": "20% profit-share calculations",
+      "status": "PASS",
+      "detail": "20/80 split and high-water mark"
+    },
+    {
+      "area": "Subscriptions",
+      "test": "Calendar period logic",
+      "status": "PASS",
+      "detail": "monthly period rollover"
+    },
+    {
+      "area": "Onboarding",
+      "test": "Activation gates",
+      "status": "PASS",
+      "detail": "4 activation gates"
+    },
+    {
+      "area": "Copy trading",
+      "test": "Subscription enforcement",
+      "status": "PASS",
+      "detail": "allocation, synchronization and execution"
+    },
+    {
+      "area": "HTTP public",
+      "test": "Health",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "HTTP public",
+      "test": "Plans",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "HTTP public",
+      "test": "Legal documents",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "HTTP public",
+      "test": "Profit-share terms",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Onboarding",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Legal status",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Profit share",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Subscription",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Admin payments",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Admin legal",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Admin subscriptions",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Admin profit share",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "HTTP authentication",
+      "test": "Public password overwrite disabled",
+      "status": "PASS",
+      "detail": "HTTP 410"
+    },
+    {
+      "area": "Authenticated workflow",
+      "test": "Subscriber login",
+      "status": "PASS",
+      "detail": "subscriber 5"
+    },
+    {
+      "area": "Subscriber scope",
+      "test": "Onboarding status",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "Subscriber scope",
+      "test": "Legal consent status",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "Subscriber scope",
+      "test": "Profit-share status",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "Subscriber scope",
+      "test": "Subscription lifecycle",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "Subscriber scope",
+      "test": "Subscriber record",
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "area": "Subscriber isolation",
+      "test": "Other onboarding",
+      "status": "PASS",
+      "detail": "HTTP 403"
+    },
+    {
+      "area": "Subscriber isolation",
+      "test": "Other legal status",
+      "status": "PASS",
+      "detail": "HTTP 403"
+    },
+    {
+      "area": "Subscriber isolation",
+      "test": "Other profit share",
+      "status": "PASS",
+      "detail": "HTTP 403"
+    },
+    {
+      "area": "Subscriber isolation",
+      "test": "Other subscription",
+      "status": "PASS",
+      "detail": "HTTP 403"
+    },
+    {
+      "area": "Subscriber isolation",
+      "test": "Other subscriber record",
+      "status": "PASS",
+      "detail": "HTTP 403"
+    },
+    {
+      "area": "Role separation",
+      "test": "Payment administration",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "Role separation",
+      "test": "Legal administration",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "Role separation",
+      "test": "Subscription administration",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "Role separation",
+      "test": "Profit-share administration",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "Role separation",
+      "test": "System settings",
+      "status": "PASS",
+      "detail": "HTTP 401"
+    },
+    {
+      "area": "External configuration",
+      "test": "Sumsub",
+      "status": "SKIP",
+      "detail": "test credentials not configured"
+    },
+    {
+      "area": "External configuration",
+      "test": "Stripe",
+      "status": "SKIP",
+      "detail": "test credentials not configured"
+    },
+    {
+      "area": "External configuration",
+      "test": "Binance Pay",
+      "status": "SKIP",
+      "detail": "test credentials not configured"
+    },
+    {
+      "area": "External configuration",
+      "test": "PayPal",
+      "status": "SKIP",
+      "detail": "test credentials not configured"
+    },
+    {
+      "area": "External configuration",
+      "test": "Wise",
+      "status": "SKIP",
+      "detail": "test credentials not configured"
+    }
+  ]
+}
