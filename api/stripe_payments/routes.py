@@ -1,5 +1,4 @@
 from datetime import datetime
-import os
 import secrets
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -10,47 +9,11 @@ from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.onboarding.models import ClientOnboarding, SubscriptionPlan
 from api.onboarding.service import get_or_create_onboarding, recompute_activation
-from api.payment_admin.models import PromoRedemption
 from api.stripe_payments.models import StripePayment
 from api.stripe_payments.stripe_api import create_checkout_session, verify_webhook
 
 
 router = APIRouter(prefix="/payments/stripe", tags=["Stripe Card Payments"])
-
-
-def public_base_url(request: Request) -> str:
-    configured = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
-    if configured:
-        return configured
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
-    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
-    if host:
-        if host in {"bethel-api.onrender.com", "api.betheltradingtechnologies.com"}:
-            proto = "https"
-        return f"{proto}://{host}".rstrip("/")
-    return str(request.base_url).rstrip("/")
-
-
-def payable_amount(db: Session, subscriber_id: int, plan: SubscriptionPlan) -> tuple[float, str | None]:
-    redemption = (
-        db.query(PromoRedemption)
-        .filter(
-            PromoRedemption.subscriber_id == subscriber_id,
-            PromoRedemption.plan_id == plan.id,
-            PromoRedemption.status == "APPLIED",
-        )
-        .order_by(PromoRedemption.id.desc())
-        .first()
-    )
-    if redemption is None:
-        return round(float(plan.price), 2), None
-    amount = round(float(redemption.final_amount), 2)
-    if amount <= 0:
-        raise HTTPException(
-            status_code=409,
-            detail="This promo fully waives payment. Refresh your onboarding status.",
-        )
-    return amount, str(redemption.id)
 
 
 def reconcile_paid_checkout(
@@ -60,7 +23,12 @@ def reconcile_paid_checkout(
     subscriber_id: int,
     plan_id: int,
 ):
-    """Idempotently reconcile every Bethel payment status from a paid Stripe session."""
+    """Idempotently reconcile every Bethel payment status from a paid Stripe session.
+
+    A previous delivery may have marked only the StripePayment row as PAID. Never
+    return early solely because that row is already paid; always repair the
+    onboarding and subscriber records from the verified Stripe event.
+    """
     if payment.subscriber_id != subscriber_id or payment.plan_id != plan_id:
         raise HTTPException(status_code=409, detail="Stripe payment identity mismatch")
 
@@ -129,13 +97,12 @@ def create_card_checkout(
     if plan is None:
         raise HTTPException(status_code=409, detail="Subscription plan is unavailable")
 
-    amount, promo_redemption_id = payable_amount(db, subscriber_id, plan)
     currency = (plan.currency or "USD").lower()
-    amount_minor = int(round(amount * 100))
+    amount_minor = int(round(float(plan.price) * 100))
     if amount_minor <= 0:
         raise HTTPException(status_code=409, detail="Invalid subscription price")
     reference = f"BTT-{subscriber_id}-{secrets.token_hex(8)}"
-    base = public_base_url(request)
+    base = str(request.base_url).rstrip("/")
     fields = {
         "mode": "payment",
         "payment_method_types[0]": "card",
@@ -158,8 +125,6 @@ def create_card_checkout(
         "metadata[plan_id]": str(plan.id),
         "metadata[reference]": reference,
     }
-    if promo_redemption_id:
-        fields["metadata[promo_redemption_id]"] = promo_redemption_id
     session = create_checkout_session(fields)
     session_id = session.get("id")
     checkout_url = session.get("url")
@@ -170,7 +135,7 @@ def create_card_checkout(
         subscriber_id=subscriber_id,
         plan_id=plan.id,
         checkout_session_id=session_id,
-        amount=amount,
+        amount=float(plan.price),
         currency=currency.upper(),
         status="PENDING",
         checkout_url=checkout_url,
@@ -183,7 +148,6 @@ def create_card_checkout(
         "checkout_url": checkout_url,
         "amount": payment.amount,
         "currency": payment.currency,
-        "discount_applied": promo_redemption_id is not None,
     }
 
 
