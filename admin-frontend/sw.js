@@ -1,4 +1,4 @@
-const CACHE_NAME = "bethel-admin-v2";
+const CACHE_NAME = "bethel-admin-v3-actions";
 const APP_SHELL = [
     "./",
     "./login.html",
@@ -36,14 +36,35 @@ self.addEventListener("fetch", event => {
         requestUrl.pathname.startsWith("/auth/") ||
         requestUrl.pathname.startsWith("/admin/") ||
         requestUrl.pathname.startsWith("/mt5/") ||
-        requestUrl.pathname.startsWith("/onboarding/")
+        requestUrl.pathname.startsWith("/onboarding/") ||
+        requestUrl.pathname.startsWith("/payments/") ||
+        requestUrl.pathname.startsWith("/broker-accounts/") ||
+        requestUrl.pathname.startsWith("/copyhub/") ||
+        requestUrl.pathname.startsWith("/copytrading/")
     ){
         return;
     }
 
     if(event.request.mode === "navigate"){
         event.respondWith(
-            fetch(event.request).catch(() => caches.match("./offline.html"))
+            fetch(event.request, {cache: "no-store"})
+                .catch(() => caches.match("./offline.html"))
+        );
+        return;
+    }
+
+    const isFrontendAsset = /\.(?:js|css)$/i.test(requestUrl.pathname);
+    if(isFrontendAsset){
+        event.respondWith(
+            fetch(event.request, {cache: "no-store"})
+                .then(response => {
+                    if(response && response.ok){
+                        const copy = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
         );
         return;
     }
