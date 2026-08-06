@@ -116,13 +116,55 @@ function improveRegistrationVerificationMessage(){
 }
 
 
-window.addEventListener("DOMContentLoaded",()=>{
-    const message=document.getElementById("subscriber-login-error");
+function ensureSubscriptionContinueButton(){
+    const message=document.getElementById("subscription-message");
     if(!message)return;
-    improveRegistrationVerificationMessage();
-    new MutationObserver(improveRegistrationVerificationMessage).observe(message,{
-        childList:true,
-        characterData:true,
-        subtree:true
+    const saved=/subscription saved/i.test(String(message.textContent||""));
+    let button=document.getElementById("subscription-continue-button");
+    if(!saved){
+        button?.remove();
+        return;
+    }
+    if(button)return;
+    button=document.createElement("button");
+    button.id="subscription-continue-button";
+    button.type="button";
+    button.className="primary-button";
+    button.textContent="Continue to identity verification";
+    button.addEventListener("click",()=>{
+        if(typeof openRegistrationStep === "function"){
+            openRegistrationStep(4);
+        }else{
+            const identityPanel=document.getElementById("registration-step-4");
+            if(identityPanel){
+                document.querySelectorAll(".registration-step-panel").forEach(panel=>panel.hidden=true);
+                identityPanel.hidden=false;
+                identityPanel.scrollIntoView({behavior:"smooth",block:"start"});
+            }
+        }
     });
+    message.insertAdjacentElement("afterend",button);
+}
+
+
+window.addEventListener("DOMContentLoaded",()=>{
+    const loginMessage=document.getElementById("subscriber-login-error");
+    if(loginMessage){
+        improveRegistrationVerificationMessage();
+        new MutationObserver(improveRegistrationVerificationMessage).observe(loginMessage,{
+            childList:true,
+            characterData:true,
+            subtree:true
+        });
+    }
+
+    const subscriptionMessage=document.getElementById("subscription-message");
+    if(subscriptionMessage){
+        ensureSubscriptionContinueButton();
+        new MutationObserver(ensureSubscriptionContinueButton).observe(subscriptionMessage,{
+            childList:true,
+            characterData:true,
+            subtree:true
+        });
+    }
 });
