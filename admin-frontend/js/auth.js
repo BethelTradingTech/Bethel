@@ -69,6 +69,7 @@ function logout(){
 
 function decodeToken(){
 
+
     const token = getToken();
 
 
@@ -230,7 +231,7 @@ function loadAdminExtensions(){
         "Unable to load Bethel Super Admin risk monitor"
     );
     loadAdminExtension(
-        "js/performance-growth.js?v=20260807-growth4",
+        "js/performance-growth.js?v=20260807-growth5",
         "bethel-performance-growth",
         "Unable to load Bethel Super Admin account growth chart"
     );
