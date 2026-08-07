@@ -230,7 +230,7 @@ function loadAdminExtensions(){
         "Unable to load Bethel Super Admin risk monitor"
     );
     loadAdminExtension(
-        "js/performance-growth.js?v=20260806-growth1",
+        "js/performance-growth.js?v=20260806-growth2",
         "bethel-performance-growth",
         "Unable to load Bethel Super Admin account growth chart"
     );
