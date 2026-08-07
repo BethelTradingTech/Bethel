@@ -91,6 +91,94 @@ def _apply_fxblue_total_return(data: dict) -> dict:
     return data
 
 
+def _apply_audited_var(data: dict) -> dict:
+    """Promote the existing audited monthly percentage VaR into production output.
+
+    The audited engine uses the active master's cash-flow-adjusted equity returns,
+    the latest 45 exposed-market days, a 21-trading-day horizon and 10,000 block
+    bootstrap Monte Carlo scenarios. The legacy trade-percentile VaR is retained
+    under explicitly named legacy fields for audit compatibility, but it is no
+    longer presented as the primary VaR.
+
+    If the audited engine does not yet have enough exposed history, the primary
+    VaR is deliberately unavailable rather than replaced with a guessed value.
+    """
+    if data.get("status") != "success":
+        return data
+
+    account = str(data.get("master_account") or "").strip()
+    if not account:
+        return data
+
+    data["legacy_value_at_risk_95_percent"] = data.get("value_at_risk_95_percent")
+    data["legacy_value_at_risk_95_amount"] = data.get("value_at_risk_95_amount")
+
+    try:
+        audited = get_audited_analytics(account)
+        risk = audited.get("risk_analytics", {}) if isinstance(audited, dict) else {}
+    except Exception as exc:
+        data["var_status"] = "error"
+        data["var_reason"] = "audited_risk_engine_unavailable"
+        data["var_method"] = "monthly_95_var_block_bootstrap_monte_carlo"
+        data["value_at_risk_95_percent"] = None
+        data["value_at_risk_95_amount"] = None
+        data["expected_shortfall_95_percent"] = None
+        data["expected_shortfall_95_amount"] = None
+        return data
+
+    data["var_status"] = risk.get("status", "not_available")
+    data["var_reason"] = risk.get("reason")
+    data["var_method"] = risk.get("method", "monthly_95_var_block_bootstrap_monte_carlo")
+    data["var_source"] = risk.get(
+        "source",
+        "signed_mt5_cash_flow_adjusted_exposed_day_equity_returns",
+    )
+    data["var_confidence_percent"] = risk.get("confidence_percent", 95)
+    data["var_horizon_trading_days"] = risk.get("monthly_horizon_trading_days", 21)
+    data["var_required_exposed_days"] = risk.get("required_exposed_days", 45)
+    data["var_available_exposed_days"] = risk.get(
+        "available_exposed_days",
+        risk.get("lookback_exposed_days"),
+    )
+    data["var_scenario_count"] = risk.get("scenario_count", 10000)
+
+    if risk.get("status") != "available":
+        data["value_at_risk_95_percent"] = None
+        data["value_at_risk_95_amount"] = None
+        data["expected_shortfall_95_percent"] = None
+        data["expected_shortfall_95_amount"] = None
+        return data
+
+    try:
+        var_percent = float(risk["monthly_var_95_percent"])
+        expected_shortfall_percent = float(
+            risk["monthly_expected_shortfall_95_percent"]
+        )
+        current_equity = float(data.get("current_equity") or 0.0)
+    except (KeyError, TypeError, ValueError):
+        data["var_status"] = "error"
+        data["var_reason"] = "invalid_audited_risk_output"
+        data["value_at_risk_95_percent"] = None
+        data["value_at_risk_95_amount"] = None
+        data["expected_shortfall_95_percent"] = None
+        data["expected_shortfall_95_amount"] = None
+        return data
+
+    data["value_at_risk_95_percent"] = round(var_percent, 2)
+    data["expected_shortfall_95_percent"] = round(expected_shortfall_percent, 2)
+    data["value_at_risk_95_amount"] = (
+        round(current_equity * (var_percent / 100.0), 2)
+        if current_equity > 0
+        else None
+    )
+    data["expected_shortfall_95_amount"] = (
+        round(current_equity * (expected_shortfall_percent / 100.0), 2)
+        if current_equity > 0
+        else None
+    )
+    return data
+
+
 @router.get("/equity-history")
 def equity_history(request: Request, _admin=Depends(require_admin)):
     db = SessionLocal()
@@ -117,6 +205,7 @@ def equity_history(request: Request, _admin=Depends(require_admin)):
 def analytics(request: Request, _admin=Depends(require_admin)):
     """Current protected production analytics endpoint."""
     data = _apply_fxblue_total_return(get_performance_analytics())
+    data = _apply_audited_var(data)
     if "consistency_score" in data:
         data["consistency_score"] = float(data["consistency_score"])
     return data
