@@ -128,6 +128,8 @@ async function refreshCompletePerformance(){
  }
 }
 
+window.apiGet=apiGet;
+
 window.addEventListener("DOMContentLoaded",()=>{
  document.querySelector('[data-view="analytics"]')?.addEventListener("click",()=>setTimeout(refreshCompletePerformance,50));
  document.querySelector('#refresh-button')?.addEventListener("click",()=>setTimeout(refreshCompletePerformance,50));
