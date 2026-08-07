@@ -116,7 +116,7 @@ def _apply_audited_var(data: dict) -> dict:
     try:
         audited = get_audited_analytics(account)
         risk = audited.get("risk_analytics", {}) if isinstance(audited, dict) else {}
-    except Exception as exc:
+    except Exception:
         data["var_status"] = "error"
         data["var_reason"] = "audited_risk_engine_unavailable"
         data["var_method"] = "monthly_95_var_block_bootstrap_monte_carlo"
@@ -179,6 +179,35 @@ def _apply_audited_var(data: dict) -> dict:
     return data
 
 
+def _prioritize_dashboard_analytics(data: dict) -> dict:
+    """Place headline return and risk fields first for the existing admin renderer."""
+    priority = (
+        "status",
+        "master_account",
+        "total_return_percent",
+        "banked_return_percent",
+        "daily_return_percent",
+        "weekly_return_percent",
+        "monthly_return_percent",
+        "value_at_risk_95_percent",
+        "expected_shortfall_95_percent",
+        "var_status",
+        "var_confidence_percent",
+        "var_horizon_trading_days",
+        "var_available_exposed_days",
+        "var_required_exposed_days",
+        "var_scenario_count",
+        "maximum_drawdown_percent",
+        "volatility",
+        "sharpe_ratio",
+        "sortino_ratio",
+        "risk_level",
+    )
+    ordered = {key: data[key] for key in priority if key in data}
+    ordered.update(data)
+    return ordered
+
+
 @router.get("/equity-history")
 def equity_history(request: Request, _admin=Depends(require_admin)):
     db = SessionLocal()
@@ -208,7 +237,7 @@ def analytics(request: Request, _admin=Depends(require_admin)):
     data = _apply_audited_var(data)
     if "consistency_score" in data:
         data["consistency_score"] = float(data["consistency_score"])
-    return data
+    return _prioritize_dashboard_analytics(data)
 
 
 @router.get("/analytics-period-returns-preview")
