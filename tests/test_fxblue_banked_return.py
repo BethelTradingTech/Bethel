@@ -94,3 +94,56 @@ def test_reconciliation_failure_is_flagged_instead_of_published_as_available():
     # being silently discarded.
     assert report["status"] in {"available", "review_required"}
     assert report["banked_return_percent"] is not None
+
+
+def test_total_return_uses_dynamic_master_values_without_hardcoding(monkeypatch):
+    """A different master and arbitrary balances must produce its own total return."""
+    from api.routes.performance import router as performance_router
+
+    stable = {
+        "status": "success",
+        "master_account": "FUTURE-MASTER-987654",
+        "current_balance": 25000.0,
+        "current_equity": 24000.0,
+        "total_return_percent": 999.0,
+    }
+    audit = {
+        "status": "available",
+        "master_account": "FUTURE-MASTER-987654",
+        "banked_return_percent": 40.0,
+    }
+    monkeypatch.setattr(
+        performance_router,
+        "get_fxblue_banked_return_preview",
+        lambda: audit,
+    )
+
+    result = performance_router._apply_fxblue_total_return(stable.copy())
+
+    # (1 + 40%) * (24000 / 25000) - 1 = 34.4%
+    assert result["total_return_percent"] == 34.4
+    assert result["master_account"] == "FUTURE-MASTER-987654"
+
+
+def test_total_return_refuses_cross_account_audit(monkeypatch):
+    from api.routes.performance import router as performance_router
+
+    stable = {
+        "status": "success",
+        "master_account": "MASTER-A",
+        "current_balance": 10000.0,
+        "current_equity": 10000.0,
+        "total_return_percent": 12.34,
+    }
+    monkeypatch.setattr(
+        performance_router,
+        "get_fxblue_banked_return_preview",
+        lambda: {
+            "status": "available",
+            "master_account": "MASTER-B",
+            "banked_return_percent": 80.0,
+        },
+    )
+
+    result = performance_router._apply_fxblue_total_return(stable.copy())
+    assert result["total_return_percent"] == 12.34
