@@ -10,8 +10,11 @@ resolved active master. Internal engine diagnostics are intentionally not shown.
 
     const POLL_MS = 100;
     const MAX_WAIT_MS = 10000;
+    const AUTO_REFRESH_MS = 15000;
     let initialized = false;
     let lastHistory = [];
+    let refreshTimer = null;
+    let loading = false;
 
     function waitForAdminRuntime(){
         const started = Date.now();
@@ -34,6 +37,9 @@ resolved active master. Internal engine diagnostics are intentionally not shown.
         document.querySelector("#refresh-button")?.addEventListener("click",()=>{
             if(document.querySelector("#view-analytics")?.classList.contains("active")) setTimeout(loadRisk,100);
         });
+        refreshTimer = window.setInterval(()=>{
+            if(document.querySelector("#view-analytics")?.classList.contains("active")) loadRisk();
+        },AUTO_REFRESH_MS);
         if(document.querySelector("#view-analytics")?.classList.contains("active")) loadRisk();
     }
 
@@ -43,15 +49,40 @@ resolved active master. Internal engine diagnostics are intentionally not shown.
         style.id="bethel-risk-monitor-style";
         style.textContent=`
             .bethel-risk-shell{display:grid;gap:18px;margin-top:18px}
-            .bethel-risk-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
-            .bethel-risk-card{background:rgba(8,18,33,.72);border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:14px;min-height:88px}
-            .bethel-risk-card small{display:block;color:#94a3b8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;font-size:.72rem}
-            .bethel-risk-card strong{display:block;font-size:1.35rem;line-height:1.2}
-            .bethel-risk-panel{background:rgba(8,18,33,.62);border:1px solid rgba(148,163,184,.16);border-radius:14px;padding:16px}
-            .bethel-risk-chart{width:100%;height:330px;display:block;background:rgba(2,6,23,.45);border-radius:10px}
+            .bethel-risk-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:14px}
+            .bethel-risk-card{position:relative;overflow:hidden;background:linear-gradient(145deg,rgba(8,18,33,.92),rgba(15,23,42,.84));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:16px;min-height:96px;box-shadow:0 10px 28px rgba(2,6,23,.20);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+            .bethel-risk-card:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(2,6,23,.28)}
+            .bethel-risk-card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:#64748b}
+            .bethel-risk-card small{display:block;color:#94a3b8;margin-bottom:9px;text-transform:uppercase;letter-spacing:.055em;font-size:.70rem;font-weight:700}
+            .bethel-risk-card strong{display:block;font-size:1.45rem;line-height:1.15;color:#f8fafc;font-weight:750;letter-spacing:-.02em}
+            .bethel-risk-card.tone-blue{border-color:rgba(59,130,246,.30)}
+            .bethel-risk-card.tone-blue:before{background:#3b82f6}
+            .bethel-risk-card.tone-blue strong{color:#bfdbfe}
+            .bethel-risk-card.tone-cyan{border-color:rgba(34,211,238,.30)}
+            .bethel-risk-card.tone-cyan:before{background:#22d3ee}
+            .bethel-risk-card.tone-cyan strong{color:#a5f3fc}
+            .bethel-risk-card.tone-amber{border-color:rgba(245,158,11,.32)}
+            .bethel-risk-card.tone-amber:before{background:#f59e0b}
+            .bethel-risk-card.tone-amber strong{color:#fde68a}
+            .bethel-risk-card.tone-green{border-color:rgba(34,197,94,.34)}
+            .bethel-risk-card.tone-green:before{background:#22c55e}
+            .bethel-risk-card.tone-green strong{color:#bbf7d0}
+            .bethel-risk-card.tone-purple{border-color:rgba(168,85,247,.32)}
+            .bethel-risk-card.tone-purple:before{background:#a855f7}
+            .bethel-risk-card.tone-purple strong{color:#e9d5ff}
+            .bethel-risk-card.tone-red{border-color:rgba(239,68,68,.38)}
+            .bethel-risk-card.tone-red:before{background:#ef4444}
+            .bethel-risk-card.tone-red strong{color:#fecaca}
+            .bethel-risk-card.tone-orange{border-color:rgba(249,115,22,.36)}
+            .bethel-risk-card.tone-orange:before{background:#f97316}
+            .bethel-risk-card.tone-orange strong{color:#fed7aa}
+            .bethel-risk-panel{background:linear-gradient(145deg,rgba(8,18,33,.78),rgba(15,23,42,.70));border:1px solid rgba(148,163,184,.16);border-radius:16px;padding:16px;box-shadow:0 12px 30px rgba(2,6,23,.18)}
+            .bethel-risk-chart{width:100%;height:330px;display:block;background:rgba(2,6,23,.45);border-radius:12px}
             .bethel-risk-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;color:#cbd5e1;font-size:.8rem}
             .bethel-risk-legend span:before{content:"";display:inline-block;width:12px;height:3px;margin-right:6px;vertical-align:middle;background:currentColor}
-            @media(max-width:900px){.bethel-risk-chart{height:280px}}
+            #bethel-risk-reload{border:1px solid rgba(59,130,246,.35);background:linear-gradient(135deg,rgba(37,99,235,.92),rgba(59,130,246,.78));color:#fff;border-radius:10px;padding:9px 14px;font-weight:700;box-shadow:0 7px 18px rgba(37,99,235,.20)}
+            #bethel-risk-reload:disabled{opacity:.65;cursor:wait}
+            @media(max-width:900px){.bethel-risk-chart{height:280px}.bethel-risk-metrics{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
         `;
         document.head.appendChild(style);
     }
@@ -81,6 +112,7 @@ resolved active master. Internal engine diagnostics are intentionally not shown.
     }
 
     async function loadRisk(){
+        if(loading) return;
         buildWorkspace();
         setLoading(true);
         try{
@@ -92,40 +124,61 @@ resolved active master. Internal engine diagnostics are intentionally not shown.
             lastHistory=selectActiveMasterHistory(history?.history||[],a.master_account);
             renderMetrics(a);
             drawRiskChart(buildHistoricalSeries(lastHistory));
+        }catch(error){
+            console.error("Unable to refresh Institutional Risk Analysis",error);
         }finally{
             setLoading(false);
         }
     }
 
-    function setLoading(loading){
+    function setLoading(state){
+        loading=state;
         const button=document.querySelector("#bethel-risk-reload");
         if(!button) return;
-        button.disabled=loading;
-        button.textContent=loading?"Refreshing…":"Refresh risk";
+        button.disabled=state;
+        button.textContent=state?"Refreshing…":"Refresh risk";
     }
 
-    function metric(label,value){
-        return `<div class="bethel-risk-card"><small>${escapeText(label)}</small><strong>${escapeText(value)}</strong></div>`;
+    function metric(label,value,tone){
+        return `<div class="bethel-risk-card ${escapeText(tone||"tone-blue")}"><small>${escapeText(label)}</small><strong>${escapeText(value)}</strong></div>`;
+    }
+
+    function riskTone(value){
+        const level=String(value||"").trim().toUpperCase();
+        if(level==="LOW") return "tone-green";
+        if(level==="MODERATE") return "tone-amber";
+        if(level==="ELEVATED") return "tone-orange";
+        if(level==="HIGH") return "tone-red";
+        return "tone-blue";
+    }
+
+    function gradeTone(value){
+        const grade=String(value||"").trim().toUpperCase();
+        if(grade.startsWith("A")) return "tone-green";
+        if(grade.startsWith("B")) return "tone-cyan";
+        if(grade.startsWith("C")) return "tone-amber";
+        if(grade) return "tone-orange";
+        return "tone-blue";
     }
 
     function renderMetrics(a){
         const target=document.querySelector("#bethel-risk-metrics");
         if(!target) return;
         target.innerHTML=[
-            metric("Monthly VaR (95%)",pct(a.value_at_risk_95_percent)),
-            metric("Expected Shortfall (95%)",pct(a.expected_shortfall_95_percent)),
-            metric("Maximum Drawdown",pct(a.maximum_drawdown_percent)),
-            metric("Recovery Factor",numberOrDash(a.recovery_factor)),
-            metric("Sharpe Ratio",numberOrDash(a.sharpe_ratio)),
-            metric("Sortino Ratio",numberOrDash(a.sortino_ratio)),
-            metric("Calmar Ratio",numberOrDash(a.calmar_ratio)),
-            metric("Volatility",pct(a.volatility)),
-            metric("Consistency Score",numberOrDash(a.consistency_score)),
-            metric("Risk Score",numberOrDash(a.risk_score)),
-            metric("Risk Level",String(a.risk_level||"—")),
-            metric("Performance Score",numberOrDash(a.performance_score)),
-            metric("Performance Grade",String(a.performance_grade||"—")),
-            metric("Master Account",String(a.master_account||"—"))
+            metric("Monthly VaR (95%)",pct(a.value_at_risk_95_percent),"tone-blue"),
+            metric("Expected Shortfall (95%)",pct(a.expected_shortfall_95_percent),"tone-purple"),
+            metric("Maximum Drawdown",pct(a.maximum_drawdown_percent),"tone-amber"),
+            metric("Recovery Factor",numberOrDash(a.recovery_factor),"tone-cyan"),
+            metric("Sharpe Ratio",numberOrDash(a.sharpe_ratio),"tone-green"),
+            metric("Sortino Ratio",numberOrDash(a.sortino_ratio),"tone-green"),
+            metric("Calmar Ratio",numberOrDash(a.calmar_ratio),"tone-cyan"),
+            metric("Volatility",pct(a.volatility),"tone-amber"),
+            metric("Consistency Score",numberOrDash(a.consistency_score),"tone-purple"),
+            metric("Risk Score",numberOrDash(a.risk_score),riskTone(a.risk_level)),
+            metric("Risk Level",String(a.risk_level||"—"),riskTone(a.risk_level)),
+            metric("Performance Score",numberOrDash(a.performance_score),gradeTone(a.performance_grade)),
+            metric("Performance Grade",String(a.performance_grade||"—"),gradeTone(a.performance_grade)),
+            metric("Master Account",String(a.master_account||"—"),"tone-purple")
         ].join("");
     }
 
@@ -202,6 +255,8 @@ resolved active master. Internal engine diagnostics are intentionally not shown.
     window.addEventListener("resize",()=>{
         if(lastHistory.length&&document.querySelector("#view-analytics")?.classList.contains("active")) drawRiskChart(buildHistoricalSeries(lastHistory));
     });
+
+    window.addEventListener("beforeunload",()=>{if(refreshTimer) window.clearInterval(refreshTimer);});
 
     if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",waitForAdminRuntime,{once:true});
     else waitForAdminRuntime();
