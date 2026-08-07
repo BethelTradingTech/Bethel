@@ -1,6 +1,6 @@
 """Bethel Trading Technologies - production trade and risk analytics.
 
-Statistics are calculated from signed MT5 closed deals stored in the production
+Statistics are calculated from signed MT5 deals stored in the production
 PostgreSQL database. Exit deals are aggregated by MT5 position so partial closes
 remain one completed trade.
 """
@@ -67,6 +67,23 @@ class TradePerformanceEngine:
         if not first_snapshot:
             return 0.0
         return float(first_snapshot.balance or first_snapshot.equity or 0)
+
+    def first_trade_at(self):
+        """Return the earliest signed MT5 deal timestamp for the active master.
+
+        This is intentionally account-specific and dynamic. It is used by admin
+        performance charts to begin at actual trading activity rather than at
+        account creation or the first telemetry snapshot.
+        """
+        if not self.account_number:
+            return None
+        first_deal = (
+            self.db.query(ConnectorDeal)
+            .filter(ConnectorDeal.account_number == self.account_number)
+            .order_by(ConnectorDeal.closed_at.asc(), ConnectorDeal.id.asc())
+            .first()
+        )
+        return first_deal.closed_at if first_deal else None
 
     def load_position_results(self) -> List[Tuple[str, float]]:
         """Return completed MT5 positions in chronological closing order."""
@@ -179,10 +196,12 @@ class TradePerformanceEngine:
         }
 
     def report(self) -> Dict:
+        first_trade = self.first_trade_at()
         return {
             "status": "success",
             "master_account": self.account_number,
             "starting_capital": round(self.starting_capital, 2),
+            "first_trade_at": first_trade.isoformat() if first_trade else None,
             "data_source": "signed_connector_deals",
             "performance": self.statistics(),
             "risk": self.risk_metrics(),
