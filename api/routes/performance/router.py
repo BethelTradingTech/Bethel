@@ -12,6 +12,7 @@ from api.auth.dependency import require_admin
 from api.models import EquitySnapshot
 from api.services.analytics_comparison import get_analytics_comparison
 from api.services.analytics_v2 import get_audited_analytics
+from api.services.ledger_var import get_signed_ledger_var
 from api.services.performance_engine import get_performance_analytics
 from api.services.performance_report import get_performance_analytics as get_period_return_preview
 from api.services.normalized_return_preview import get_normalized_return_preview
@@ -59,27 +60,44 @@ def _apply_fxblue_total_return(data: dict) -> dict:
 
 
 def _apply_audited_var(data: dict) -> dict:
+    """Apply primary equity VaR, falling back to reconciled signed-ledger VaR.
+
+    The equity-snapshot model is always preferred. When a newly selected master
+    has long signed MT5 history but fewer than 45 recorded equity-exposure days,
+    Bethel may use cash-flow-neutral realized daily ledger returns instead. This
+    avoids carrying forward stale values from a previous master without inventing
+    historical equity.
+    """
     if data.get("status") != "success":
         return data
     account = str(data.get("master_account") or "").strip()
     if not account:
         return data
+
     data["legacy_value_at_risk_95_percent"] = data.get("value_at_risk_95_percent")
     data["legacy_value_at_risk_95_amount"] = data.get("value_at_risk_95_amount")
+
     try:
         audited = get_audited_analytics(account)
         risk = audited.get("risk_analytics", {}) if isinstance(audited, dict) else {}
     except Exception:
-        data.update({
-            "var_status": "error",
-            "var_reason": "audited_risk_engine_unavailable",
-            "var_method": "monthly_95_var_block_bootstrap_monte_carlo",
-            "value_at_risk_95_percent": None,
-            "value_at_risk_95_amount": None,
-            "expected_shortfall_95_percent": None,
-            "expected_shortfall_95_amount": None,
-        })
-        return data
+        risk = {"status": "error", "reason": "audited_risk_engine_unavailable"}
+
+    # Prefer real equity-exposure VaR. If it cannot yet cover the newly switched
+    # master, use the separately verified signed-ledger return history.
+    if risk.get("status") != "available":
+        try:
+            ledger_risk = get_signed_ledger_var(account)
+        except Exception:
+            ledger_risk = {"status": "error", "reason": "signed_ledger_var_unavailable"}
+        if ledger_risk.get("status") == "available":
+            risk = ledger_risk
+        else:
+            # Preserve the most informative history counters/reason.
+            equity_days = int(risk.get("available_exposed_days") or risk.get("lookback_exposed_days") or 0)
+            ledger_days = int(ledger_risk.get("available_exposed_days") or 0)
+            if ledger_days > equity_days:
+                risk = ledger_risk
 
     data["var_status"] = risk.get("status", "not_available")
     data["var_reason"] = risk.get("reason")
@@ -107,7 +125,7 @@ def _apply_audited_var(data: dict) -> dict:
     except (KeyError, TypeError, ValueError):
         data.update({
             "var_status": "error",
-            "var_reason": "invalid_audited_risk_output",
+            "var_reason": "invalid_risk_output",
             "value_at_risk_95_percent": None,
             "value_at_risk_95_amount": None,
             "expected_shortfall_95_percent": None,
@@ -127,7 +145,7 @@ def _prioritize_dashboard_analytics(data: dict) -> dict:
         "status", "master_account", "total_return_percent", "banked_return_percent",
         "daily_return_percent", "weekly_return_percent", "monthly_return_percent",
         "value_at_risk_95_percent", "expected_shortfall_95_percent", "var_status",
-        "var_confidence_percent", "var_horizon_trading_days", "var_available_exposed_days",
+        "var_source", "var_confidence_percent", "var_horizon_trading_days", "var_available_exposed_days",
         "var_required_exposed_days", "var_scenario_count", "maximum_drawdown_percent",
         "volatility", "sharpe_ratio", "sortino_ratio", "risk_level",
     )
