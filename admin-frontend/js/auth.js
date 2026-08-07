@@ -226,7 +226,7 @@ function loadAdminExtension(src, dataKey, errorMessage){
 
 function loadAdminExtensions(){
     loadAdminExtension(
-        "js/risk-monitor.js?v=20260806-risk1",
+        "js/risk-monitor.js?v=20260807-risk2",
         "bethel-risk-monitor",
         "Unable to load Bethel Super Admin risk monitor"
     );
