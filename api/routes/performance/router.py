@@ -30,6 +30,13 @@ def _active_master_account() -> str | None:
         db.close()
 
 
+def _round_metric(value, digits: int = 2):
+    try:
+        return round(float(value), digits) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _apply_fxblue_total_return(data: dict) -> dict:
     if data.get("status") != "success":
         return data
@@ -122,7 +129,7 @@ def _apply_audited_var(data: dict) -> dict:
 
 
 def _apply_account_risk_profile(data: dict) -> dict:
-    """Replace fragmented risk/grade fields with one active-master data source."""
+    """Use one active-master profile and expose only professional headline metrics."""
     if data.get("status") != "success":
         return data
     account = str(data.get("master_account") or "").strip()
@@ -134,31 +141,38 @@ def _apply_account_risk_profile(data: dict) -> dict:
         return data
     if profile.get("status") != "available":
         data["risk_profile_status"] = profile.get("status", "not_available")
-        data["risk_profile_reason"] = profile.get("reason")
         return data
 
     data.update({
         "risk_profile_status": "available",
-        "risk_profile_source": profile.get("source"),
         "risk_history_start": profile.get("history_start"),
         "risk_history_end": profile.get("history_end"),
         "risk_trading_days": profile.get("trading_days"),
         "risk_closed_deals": profile.get("closed_deals"),
-        "risk_reward_ratio": profile.get("risk_reward_ratio"),
-        "worst_day_percent": profile.get("worst_day_percent"),
-        "worst_week_percent": profile.get("worst_week_percent"),
-        "worst_month_percent": profile.get("worst_month_percent"),
-        "positive_trading_days_percent": profile.get("positive_trading_days_percent"),
-        "risk_score": profile.get("risk_score"),
+        "risk_reward_ratio": _round_metric(profile.get("risk_reward_ratio")),
+        "risk_score": _round_metric(profile.get("risk_score")),
         "risk_level": profile.get("risk_level"),
-        "performance_score": profile.get("performance_score"),
+        "performance_score": _round_metric(profile.get("performance_score")),
         "performance_grade": profile.get("performance_grade"),
-        "volatility": profile.get("annualized_volatility_percent"),
-        "sharpe_ratio": profile.get("sharpe_ratio"),
-        "sortino_ratio": profile.get("sortino_ratio"),
-        "maximum_drawdown_percent": profile.get("deepest_valley_percent"),
+        "volatility": _round_metric(profile.get("annualized_volatility_percent")),
+        "sharpe_ratio": _round_metric(profile.get("sharpe_ratio")),
+        "sortino_ratio": _round_metric(profile.get("sortino_ratio")),
+        "maximum_drawdown_percent": _round_metric(profile.get("deepest_valley_percent")),
         "maximum_drawdown_amount": None,
     })
+
+    # The detailed tail/period diagnostics remain inside account_risk_profile for
+    # audit and analysis. They are intentionally not exposed as headline dashboard
+    # fields because they were never intended to be user-facing cards.
+    for key in (
+        "worst_day_percent",
+        "worst_week_percent",
+        "worst_month_percent",
+        "positive_trading_days_percent",
+        "risk_profile_source",
+        "risk_profile_reason",
+    ):
+        data.pop(key, None)
     return data
 
 
@@ -206,7 +220,7 @@ def analytics(request: Request, _admin=Depends(require_admin)):
     data = _apply_audited_var(data)
     data = _apply_account_risk_profile(data)
     if "consistency_score" in data:
-        data["consistency_score"] = float(data["consistency_score"])
+        data["consistency_score"] = round(float(data["consistency_score"]), 2)
     return _prioritize_dashboard_analytics(data)
 
 
@@ -214,7 +228,7 @@ def analytics(request: Request, _admin=Depends(require_admin)):
 def analytics_period_returns_preview(request: Request, _admin=Depends(require_admin)):
     data = get_period_return_preview()
     if "consistency_score" in data:
-        data["consistency_score"] = float(data["consistency_score"])
+        data["consistency_score"] = round(float(data["consistency_score"]), 2)
     return data
 
 
