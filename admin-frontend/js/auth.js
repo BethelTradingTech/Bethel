@@ -197,3 +197,36 @@ function requireAuthentication(){
     return true;
 
 }
+
+
+// ======================================
+// SUPER ADMIN RISK MONITOR EXTENSION
+// ======================================
+// Loaded only inside the protected admin application. The extension appends
+// risk-monitoring UI to the existing Performance view and does not touch the
+// investor or subscriber-facing applications.
+
+function loadAdminRiskMonitor(){
+
+    if(!isAuthenticated()){
+        return;
+    }
+
+    if(document.querySelector('script[data-bethel-risk-monitor="true"]')){
+        return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "js/risk-monitor.js?v=20260806-risk1";
+    script.defer = true;
+    script.dataset.bethelRiskMonitor = "true";
+    script.onerror = () => console.error("Unable to load Bethel Super Admin risk monitor");
+    document.head.appendChild(script);
+}
+
+
+if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", loadAdminRiskMonitor, {once:true});
+}else{
+    loadAdminRiskMonitor();
+}
