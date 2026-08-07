@@ -1,26 +1,22 @@
-"""
-Bethel Trading Technologies
-Performance History API
-
-Provides protected performance data from the currently active master account.
-"""
+"""Protected performance API for the dynamically resolved active MT5 master."""
 
 from fastapi import APIRouter, Depends, Request
 
-from api.database import SessionLocal
 from api.auth.dependency import require_admin
+from api.database import SessionLocal
 from api.models import EquitySnapshot
+from api.services.account_risk_profile import get_account_risk_profile
 from api.services.analytics_comparison import get_analytics_comparison
 from api.services.analytics_v2 import get_audited_analytics
+from api.services.daily_performance import get_daily_performance
+from api.services.fxblue_banked_return import get_fxblue_banked_return_preview
 from api.services.ledger_var import get_signed_ledger_var
+from api.services.master_account import resolve_active_master_account
+from api.services.monthly_performance import get_monthly_performance
+from api.services.normalized_return_preview import get_normalized_return_preview
 from api.services.performance_engine import get_performance_analytics
 from api.services.performance_report import get_performance_analytics as get_period_return_preview
-from api.services.normalized_return_preview import get_normalized_return_preview
-from api.services.fxblue_banked_return import get_fxblue_banked_return_preview
-from api.services.daily_performance import get_daily_performance
-from api.services.monthly_performance import get_monthly_performance
 from api.services.trade_performance import get_trade_performance
-from api.services.master_account import resolve_active_master_account
 
 
 router = APIRouter(prefix="/performance", tags=["Performance History"])
@@ -53,21 +49,13 @@ def _apply_fxblue_total_return(data: dict) -> dict:
         return data
     if current_balance <= 0 or banked_return <= -100.0:
         return data
-    banked_growth_factor = 1.0 + (banked_return / 100.0)
-    equity_balance_factor = current_equity / current_balance
-    data["total_return_percent"] = round(((banked_growth_factor * equity_balance_factor) - 1.0) * 100.0, 2)
+    total_factor = (1.0 + banked_return / 100.0) * (current_equity / current_balance)
+    data["total_return_percent"] = round((total_factor - 1.0) * 100.0, 2)
     return data
 
 
 def _apply_audited_var(data: dict) -> dict:
-    """Apply primary equity VaR, falling back to reconciled signed-ledger VaR.
-
-    The equity-snapshot model is always preferred. When a newly selected master
-    has long signed MT5 history but fewer than 45 recorded equity-exposure days,
-    Bethel may use cash-flow-neutral realized daily ledger returns instead. This
-    avoids carrying forward stale values from a previous master without inventing
-    historical equity.
-    """
+    """Use active-master equity VaR, with reconciled signed-ledger fallback."""
     if data.get("status") != "success":
         return data
     account = str(data.get("master_account") or "").strip()
@@ -83,8 +71,6 @@ def _apply_audited_var(data: dict) -> dict:
     except Exception:
         risk = {"status": "error", "reason": "audited_risk_engine_unavailable"}
 
-    # Prefer real equity-exposure VaR. If it cannot yet cover the newly switched
-    # master, use the separately verified signed-ledger return history.
     if risk.get("status") != "available":
         try:
             ledger_risk = get_signed_ledger_var(account)
@@ -93,7 +79,6 @@ def _apply_audited_var(data: dict) -> dict:
         if ledger_risk.get("status") == "available":
             risk = ledger_risk
         else:
-            # Preserve the most informative history counters/reason.
             equity_days = int(risk.get("available_exposed_days") or risk.get("lookback_exposed_days") or 0)
             ledger_days = int(ledger_risk.get("available_exposed_days") or 0)
             if ledger_days > equity_days:
@@ -102,7 +87,7 @@ def _apply_audited_var(data: dict) -> dict:
     data["var_status"] = risk.get("status", "not_available")
     data["var_reason"] = risk.get("reason")
     data["var_method"] = risk.get("method", "monthly_95_var_block_bootstrap_monte_carlo")
-    data["var_source"] = risk.get("source", "signed_mt5_cash_flow_adjusted_exposed_day_equity_returns")
+    data["var_source"] = risk.get("source")
     data["var_confidence_percent"] = risk.get("confidence_percent", 95)
     data["var_horizon_trading_days"] = risk.get("monthly_horizon_trading_days", 21)
     data["var_required_exposed_days"] = risk.get("required_exposed_days", 45)
@@ -110,44 +95,83 @@ def _apply_audited_var(data: dict) -> dict:
     data["var_scenario_count"] = risk.get("scenario_count", 10000)
 
     if risk.get("status") != "available":
-        data.update({
-            "value_at_risk_95_percent": None,
-            "value_at_risk_95_amount": None,
-            "expected_shortfall_95_percent": None,
-            "expected_shortfall_95_amount": None,
-        })
+        data["value_at_risk_95_percent"] = None
+        data["value_at_risk_95_amount"] = None
+        data["expected_shortfall_95_percent"] = None
+        data["expected_shortfall_95_amount"] = None
         return data
 
     try:
         var_percent = float(risk["monthly_var_95_percent"])
-        expected_shortfall_percent = float(risk["monthly_expected_shortfall_95_percent"])
+        es_percent = float(risk["monthly_expected_shortfall_95_percent"])
         current_equity = float(data.get("current_equity") or 0.0)
     except (KeyError, TypeError, ValueError):
-        data.update({
-            "var_status": "error",
-            "var_reason": "invalid_risk_output",
-            "value_at_risk_95_percent": None,
-            "value_at_risk_95_amount": None,
-            "expected_shortfall_95_percent": None,
-            "expected_shortfall_95_amount": None,
-        })
+        data["var_status"] = "error"
+        data["var_reason"] = "invalid_risk_output"
+        data["value_at_risk_95_percent"] = None
+        data["value_at_risk_95_amount"] = None
+        data["expected_shortfall_95_percent"] = None
+        data["expected_shortfall_95_amount"] = None
         return data
 
     data["value_at_risk_95_percent"] = round(var_percent, 2)
-    data["expected_shortfall_95_percent"] = round(expected_shortfall_percent, 2)
-    data["value_at_risk_95_amount"] = round(current_equity * (var_percent / 100.0), 2) if current_equity > 0 else None
-    data["expected_shortfall_95_amount"] = round(current_equity * (expected_shortfall_percent / 100.0), 2) if current_equity > 0 else None
+    data["expected_shortfall_95_percent"] = round(es_percent, 2)
+    data["value_at_risk_95_amount"] = round(current_equity * var_percent / 100.0, 2) if current_equity > 0 else None
+    data["expected_shortfall_95_amount"] = round(current_equity * es_percent / 100.0, 2) if current_equity > 0 else None
+    return data
+
+
+def _apply_account_risk_profile(data: dict) -> dict:
+    """Replace fragmented risk/grade fields with one active-master data source."""
+    if data.get("status") != "success":
+        return data
+    account = str(data.get("master_account") or "").strip()
+    if not account:
+        return data
+    try:
+        profile = get_account_risk_profile(account)
+    except Exception:
+        return data
+    if profile.get("status") != "available":
+        data["risk_profile_status"] = profile.get("status", "not_available")
+        data["risk_profile_reason"] = profile.get("reason")
+        return data
+
+    data.update({
+        "risk_profile_status": "available",
+        "risk_profile_source": profile.get("source"),
+        "risk_history_start": profile.get("history_start"),
+        "risk_history_end": profile.get("history_end"),
+        "risk_trading_days": profile.get("trading_days"),
+        "risk_closed_deals": profile.get("closed_deals"),
+        "risk_reward_ratio": profile.get("risk_reward_ratio"),
+        "worst_day_percent": profile.get("worst_day_percent"),
+        "worst_week_percent": profile.get("worst_week_percent"),
+        "worst_month_percent": profile.get("worst_month_percent"),
+        "positive_trading_days_percent": profile.get("positive_trading_days_percent"),
+        "risk_score": profile.get("risk_score"),
+        "risk_level": profile.get("risk_level"),
+        "performance_score": profile.get("performance_score"),
+        "performance_grade": profile.get("performance_grade"),
+        "volatility": profile.get("annualized_volatility_percent"),
+        "sharpe_ratio": profile.get("sharpe_ratio"),
+        "sortino_ratio": profile.get("sortino_ratio"),
+        "maximum_drawdown_percent": profile.get("deepest_valley_percent"),
+        "maximum_drawdown_amount": None,
+    })
     return data
 
 
 def _prioritize_dashboard_analytics(data: dict) -> dict:
+    """Keep user-facing analytics ahead of internal model diagnostics."""
     priority = (
-        "status", "master_account", "total_return_percent", "banked_return_percent",
-        "daily_return_percent", "weekly_return_percent", "monthly_return_percent",
-        "value_at_risk_95_percent", "expected_shortfall_95_percent", "var_status",
-        "var_source", "var_confidence_percent", "var_horizon_trading_days", "var_available_exposed_days",
-        "var_required_exposed_days", "var_scenario_count", "maximum_drawdown_percent",
-        "volatility", "sharpe_ratio", "sortino_ratio", "risk_level",
+        "status", "master_account", "current_balance", "current_equity",
+        "total_return_percent", "banked_return_percent", "daily_return_percent",
+        "weekly_return_percent", "monthly_return_percent", "history_days",
+        "risk_level", "risk_score", "performance_grade", "performance_score",
+        "risk_reward_ratio", "maximum_drawdown_percent", "volatility",
+        "sharpe_ratio", "sortino_ratio", "value_at_risk_95_percent",
+        "expected_shortfall_95_percent",
     )
     ordered = {key: data[key] for key in priority if key in data}
     ordered.update(data)
@@ -180,6 +204,7 @@ def equity_history(request: Request, _admin=Depends(require_admin)):
 def analytics(request: Request, _admin=Depends(require_admin)):
     data = _apply_fxblue_total_return(get_performance_analytics())
     data = _apply_audited_var(data)
+    data = _apply_account_risk_profile(data)
     if "consistency_score" in data:
         data["consistency_score"] = float(data["consistency_score"])
     return _prioritize_dashboard_analytics(data)
