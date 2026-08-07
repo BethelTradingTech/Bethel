@@ -200,33 +200,45 @@ function requireAuthentication(){
 
 
 // ======================================
-// SUPER ADMIN RISK MONITOR EXTENSION
+// SUPER ADMIN EXTENSIONS
 // ======================================
-// Loaded only inside the protected admin application. The extension appends
-// risk-monitoring UI to the existing Performance view and does not touch the
-// investor or subscriber-facing applications.
+// These scripts run only inside the authenticated admin application. They do
+// not weaken backend API protection and do not modify investor/subscriber pages.
 
-function loadAdminRiskMonitor(){
+function loadAdminExtension(src, dataKey, errorMessage){
 
     if(!isAuthenticated()){
         return;
     }
 
-    if(document.querySelector('script[data-bethel-risk-monitor="true"]')){
+    if(document.querySelector(`script[data-${dataKey}="true"]`)){
         return;
     }
 
     const script = document.createElement("script");
-    script.src = "js/risk-monitor.js?v=20260806-risk1";
+    script.src = src;
     script.defer = true;
-    script.dataset.bethelRiskMonitor = "true";
-    script.onerror = () => console.error("Unable to load Bethel Super Admin risk monitor");
+    script.setAttribute(`data-${dataKey}`, "true");
+    script.onerror = () => console.error(errorMessage);
     document.head.appendChild(script);
+}
+
+function loadAdminExtensions(){
+    loadAdminExtension(
+        "js/risk-monitor.js?v=20260806-risk1",
+        "bethel-risk-monitor",
+        "Unable to load Bethel Super Admin risk monitor"
+    );
+    loadAdminExtension(
+        "js/refresh-current-view.js?v=20260806-refresh1",
+        "bethel-session-refresh",
+        "Unable to load Bethel Super Admin refresh control"
+    );
 }
 
 
 if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", loadAdminRiskMonitor, {once:true});
+    document.addEventListener("DOMContentLoaded", loadAdminExtensions, {once:true});
 }else{
-    loadAdminRiskMonitor();
+    loadAdminExtensions();
 }
