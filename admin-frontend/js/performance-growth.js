@@ -57,11 +57,11 @@ investor/subscriber-facing pages or trading execution.
         if(!view||document.querySelector("#bethel-performance-growth"))return;
         const panel=document.createElement("article");panel.id="bethel-performance-growth";panel.className="panel bethel-growth-panel";
         panel.innerHTML=`
-          <div class="section-heading"><div><h2>Account Growth & Performance</h2><p>Balance and equity growth from the active master account's first recorded trading activity.</p></div><button id="bethel-growth-reload" type="button">Refresh chart</button></div>
+          <div class="section-heading"><div><h2>Account Growth & Performance</h2><p>Balance and equity growth across the active master account's full performance-history window.</p></div><button id="bethel-growth-reload" type="button">Refresh chart</button></div>
           <div id="bethel-growth-summary" class="bethel-growth-summary"></div>
           <div class="bethel-growth-chart-wrap"><canvas id="bethel-growth-chart"></canvas></div>
           <div class="bethel-growth-legend"><span>Equity</span><span>Balance</span></div>
-          <p class="bethel-growth-note">The chart begins at the first signed MT5 deal for the active master account, not at account creation or the first connector snapshot. Deposits and withdrawals can change raw balance/equity levels; headline return remains cash-flow adjusted.</p>
+          <p class="bethel-growth-note">The graph uses the same account-history window as Bethel performance analytics. It plots all available signed MT5 equity and balance snapshots for the active master account in that period. Deposits and withdrawals can change raw account values; headline Total Return remains cash-flow adjusted.</p>
         `;
         const risk=document.querySelector("#bethel-risk-monitor");if(risk)view.insertBefore(panel,risk);else view.appendChild(panel);
         document.querySelector("#bethel-growth-reload")?.addEventListener("click",loadGrowth);
@@ -71,24 +71,29 @@ investor/subscriber-facing pages or trading execution.
         buildPanel();const button=document.querySelector("#bethel-growth-reload");
         if(button){button.disabled=true;button.textContent="Refreshing…";}
         try{
-            const [analytics,historyResponse,trades]=await Promise.all([
+            const [analytics,historyResponse]=await Promise.all([
                 window.apiGet("/performance/analytics"),
-                window.apiGet("/performance/equity-history"),
-                window.apiGet("/performance/trades")
+                window.apiGet("/performance/equity-history")
             ]);
             const account=String(analytics?.master_account||"").trim();
-            const firstTradeAt=parseDate(trades?.first_trade_at);
-            let rows=(historyResponse?.history||[])
+            const historyDays=Number(analytics?.history_days);
+            let allRows=(historyResponse?.history||[])
                 .filter(row=>!account||String(row.account_number||"").trim()===account)
                 .filter(row=>Number.isFinite(Number(row.equity))&&Number(row.equity)>0&&row.timestamp)
-                .sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+                .sort((a,b)=>new Date(normalizeTimestamp(a.timestamp))-new Date(normalizeTimestamp(b.timestamp)));
 
-            if(firstTradeAt){
-                const tradingDay=utcDay(firstTradeAt);
-                rows=rows.filter(row=>utcDay(new Date(normalizeTimestamp(row.timestamp)))>=tradingDay);
+            let rows=allRows;
+            let windowStart=null;
+            let windowEnd=allRows.length?parseDate(allRows[allRows.length-1].timestamp):null;
+            if(windowEnd&&Number.isFinite(historyDays)&&historyDays>0){
+                windowStart=new Date(windowEnd.getTime()-(historyDays*86400000));
+                rows=allRows.filter(row=>{
+                    const at=parseDate(row.timestamp);
+                    return at&&at>=windowStart&&at<=windowEnd;
+                });
             }
 
-            renderSummary(rows,analytics,account,firstTradeAt);
+            renderSummary(rows,analytics,account,historyDays,windowStart,windowEnd);
             drawChart(dailySeries(rows));
         }catch(error){
             const target=document.querySelector("#bethel-growth-summary");
@@ -108,30 +113,36 @@ investor/subscriber-facing pages or trading execution.
         if(!value)return null;const d=new Date(normalizeTimestamp(value));return Number.isNaN(d.getTime())?null:d;
     }
 
-    function utcDay(date){return Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate());}
-
     function dailySeries(rows){
         const map=new Map();
         rows.forEach(row=>{const date=String(row.timestamp).slice(0,10);map.set(date,{date,equity:Number(row.equity),balance:Number(row.balance||0)});});
         return [...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
     }
 
-    function renderSummary(rows,analytics,account,firstTradeAt){
+    function renderSummary(rows,analytics,account,historyDays,windowStart,windowEnd){
         const target=document.querySelector("#bethel-growth-summary");if(!target)return;
         if(!rows.length){
-            target.innerHTML=card("Master account",account||"—")+card("Trading start",firstTradeAt?formatDate(firstTradeAt):"No signed trades")+card("History","No post-trade snapshots");return;
+            target.innerHTML=[
+                card("Master account",account||"—"),
+                card("Account history",Number.isFinite(historyDays)?`${historyDays.toFixed(1)} days`:"—"),
+                card("History","No snapshots in analytics window")
+            ].join("");return;
         }
         const first=rows[0],last=rows[rows.length-1];
         const startEq=Number(first.equity||0),currentEq=Number(last.equity||0);
         const rawGrowth=startEq>0?((currentEq/startEq)-1)*100:null;
+        const startLabel=windowStart?formatDate(windowStart):String(first.timestamp).slice(0,10);
+        const endLabel=windowEnd?formatDate(windowEnd):String(last.timestamp).slice(0,10);
         target.innerHTML=[
             card("Master account",account||"—"),
-            card("Trading start",firstTradeAt?formatDate(firstTradeAt):String(first.timestamp).slice(0,10)),
+            card("Account history",Number.isFinite(historyDays)?`${historyDays.toFixed(1)} days`:"—"),
+            card("History start",startLabel),
+            card("History end",endLabel),
             card("Starting equity",money(startEq)),
             card("Current equity",money(currentEq)),
             card("Raw equity growth",rawGrowth===null?"—":pct(rawGrowth)),
             card("Total return",Number.isFinite(Number(analytics?.total_return_percent))?pct(Number(analytics.total_return_percent)):"—"),
-            card("History points",String(rows.length))
+            card("Snapshots plotted",String(rows.length))
         ].join("");
     }
 
@@ -143,11 +154,13 @@ investor/subscriber-facing pages or trading execution.
         const width=Math.max(520,Math.floor(rect.width||900)),height=Math.max(260,Math.floor(rect.height||360));
         canvas.width=width*dpr;canvas.height=height*dpr;
         const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);ctx.font="12px system-ui";ctx.fillStyle="#94a3b8";
-        if(!series.length){ctx.fillText("No trading-period account history available.",24,40);return;}
+        if(!series.length){ctx.fillText("No account-history snapshots available for this period.",24,40);return;}
         const pad={l:72,r:24,t:24,b:42},plotW=width-pad.l-pad.r,plotH=height-pad.t-pad.b;
         const values=series.flatMap(p=>[p.equity,p.balance]).filter(Number.isFinite);
         let min=Math.min(...values),max=Math.max(...values);if(max===min){max+=1;min-=1;}const spread=max-min;min-=spread*.05;max+=spread*.08;
-        const x=i=>pad.l+(series.length===1?plotW/2:(i/(series.length-1))*plotW),y=v=>pad.t+((max-v)/(max-min))*plotH;
+        const times=series.map(p=>Date.parse(p.date+"T00:00:00Z"));
+        const minTime=Math.min(...times),maxTime=Math.max(...times);
+        const x=i=>pad.l+(maxTime===minTime?plotW/2:((times[i]-minTime)/(maxTime-minTime))*plotW),y=v=>pad.t+((max-v)/(max-min))*plotH;
         ctx.strokeStyle="rgba(148,163,184,.18)";ctx.lineWidth=1;
         for(let i=0;i<=4;i++){
             const yy=pad.t+(plotH*i/4);ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(width-pad.r,yy);ctx.stroke();
@@ -156,7 +169,10 @@ investor/subscriber-facing pages or trading execution.
         drawLine(ctx,series,p=>p.equity,x,y,"#22d3ee",2.6);drawLine(ctx,series,p=>p.balance,x,y,"#a78bfa",2.1);
         const ticks=Math.min(5,series.length);
         for(let i=0;i<ticks;i++){
-            const index=Math.round((series.length-1)*(i/(Math.max(1,ticks-1)))),label=series[index].date.slice(5);
+            const targetTime=minTime+((maxTime-minTime)*(i/(Math.max(1,ticks-1))));
+            let index=0,best=Infinity;
+            times.forEach((time,j)=>{const distance=Math.abs(time-targetTime);if(distance<best){best=distance;index=j;}});
+            const label=series[index].date.slice(5);
             ctx.fillStyle="#94a3b8";ctx.fillText(label,Math.max(pad.l-8,x(index)-18),height-15);
         }
     }
