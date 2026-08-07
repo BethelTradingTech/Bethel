@@ -129,7 +129,7 @@ def _apply_audited_var(data: dict) -> dict:
 
 
 def _apply_account_risk_profile(data: dict) -> dict:
-    """Use one active-master profile and expose only professional headline metrics."""
+    """Use one active-master profile for risk, grade, and consistency."""
     if data.get("status") != "success":
         return data
     account = str(data.get("master_account") or "").strip()
@@ -140,16 +140,11 @@ def _apply_account_risk_profile(data: dict) -> dict:
     except Exception:
         return data
     if profile.get("status") != "available":
-        data["risk_profile_status"] = profile.get("status", "not_available")
         return data
 
     data.update({
-        "risk_profile_status": "available",
-        "risk_history_start": profile.get("history_start"),
-        "risk_history_end": profile.get("history_end"),
-        "risk_trading_days": profile.get("trading_days"),
-        "risk_closed_deals": profile.get("closed_deals"),
         "risk_reward_ratio": _round_metric(profile.get("risk_reward_ratio")),
+        "consistency_score": _round_metric(profile.get("consistency_score")),
         "risk_score": _round_metric(profile.get("risk_score")),
         "risk_level": profile.get("risk_level"),
         "performance_score": _round_metric(profile.get("performance_score")),
@@ -214,17 +209,12 @@ def analytics(request: Request, _admin=Depends(require_admin)):
     data = _apply_fxblue_total_return(get_performance_analytics())
     data = _apply_audited_var(data)
     data = _apply_account_risk_profile(data)
-    if "consistency_score" in data:
-        data["consistency_score"] = round(float(data["consistency_score"]), 2)
     return _dashboard_values(data)
 
 
 @router.get("/analytics-period-returns-preview")
 def analytics_period_returns_preview(request: Request, _admin=Depends(require_admin)):
-    data = get_period_return_preview()
-    if "consistency_score" in data:
-        data["consistency_score"] = round(float(data["consistency_score"]), 2)
-    return data
+    return get_period_return_preview()
 
 
 @router.get("/analytics-normalized-returns-preview")
