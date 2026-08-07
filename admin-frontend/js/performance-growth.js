@@ -1,242 +1,251 @@
 /*
 Bethel Trading Technologies
-Super Admin Performance Growth Workspace
+Super Admin Performance Growth Chart
 
-Admin-only, read-only visualization. Uses protected MT5 performance data for the
-active master account. No investor/subscriber or trading-execution behavior is
-modified by this file.
+Read-only admin visualization. All account data is resolved dynamically from the
+currently active master. Historical balance may be reconstructed only from a
+verified/reconciled signed MT5 ledger. Historical equity is NEVER reconstructed:
+it is plotted only where actual EquitySnapshot records exist.
 */
 (function(){
   "use strict";
 
-  const DAY_MS=86400000;
-  const RANGE_MS={"1D":DAY_MS,"1W":7*DAY_MS,"1M":31*DAY_MS,"3M":93*DAY_MS,"6M":186*DAY_MS,"1Y":366*DAY_MS};
-  const state={initialized:false,mode:"equity",range:"TOTAL",analytics:{},rows:[],cashFlows:[],series:[],visible:[],geometry:null};
+  const DAY=86400000;
+  const RANGES={TOTAL:null,"1Y":366*DAY,"6M":186*DAY,"3M":93*DAY,"1M":31*DAY,"1W":7*DAY,"1D":DAY};
+  const state={ready:false,mode:"account",range:"TOTAL",analytics:{},snapshots:[],ledger:[],returns:[],visible:{snapshots:[],ledger:[],returns:[]},geometry:null};
 
-  function waitForRuntime(){
+  function boot(){
     const started=Date.now();
     const timer=setInterval(()=>{
       if(typeof window.apiGet==="function"&&document.querySelector("#view-analytics")){
-        clearInterval(timer);initialize();
+        clearInterval(timer);init();
       }else if(Date.now()-started>10000){
-        clearInterval(timer);console.warn("Bethel Performance Growth: admin runtime unavailable.");
+        clearInterval(timer);console.warn("Bethel performance chart runtime unavailable");
       }
     },100);
   }
 
-  function initialize(){
-    if(state.initialized)return;
-    state.initialized=true;
-    injectStyles();buildPanel();
-    document.querySelector('[data-view="analytics"]')?.addEventListener("click",()=>setTimeout(loadGrowth,80));
+  function init(){
+    if(state.ready)return;state.ready=true;
+    styles();panel();
+    document.querySelector('[data-view="analytics"]')?.addEventListener("click",()=>setTimeout(load,80));
     document.querySelector("#refresh-button")?.addEventListener("click",()=>{
-      if(document.querySelector("#view-analytics")?.classList.contains("active"))setTimeout(loadGrowth,120);
+      if(document.querySelector("#view-analytics")?.classList.contains("active"))setTimeout(load,100);
     });
-    window.addEventListener("resize",()=>{
-      if(document.querySelector("#view-analytics")?.classList.contains("active"))drawCurrent();
-    });
-    if(document.querySelector("#view-analytics")?.classList.contains("active"))loadGrowth();
+    window.addEventListener("resize",()=>draw());
+    if(document.querySelector("#view-analytics")?.classList.contains("active"))load();
   }
 
-  function injectStyles(){
+  function styles(){
     if(document.querySelector("#bethel-performance-growth-style"))return;
-    const style=document.createElement("style");
-    style.id="bethel-performance-growth-style";
-    style.textContent=`
-      .bethel-growth-panel{margin-top:18px;padding:0;overflow:hidden;background:rgba(9,18,32,.76)}
-      .bethel-growth-titlebar{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:16px 18px;border-bottom:1px solid rgba(148,163,184,.17);background:rgba(3,11,24,.48)}
-      .bethel-growth-titlebar h2{margin:0 0 4px;font-size:1.1rem}.bethel-growth-titlebar p{margin:0;color:#94a3b8;font-size:.79rem}
-      .bethel-growth-main{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:500px}
-      .bethel-growth-sidebar{border-right:1px solid rgba(148,163,184,.17);background:rgba(5,13,25,.52);padding:12px}
-      .bethel-growth-side-section{border:1px solid rgba(148,163,184,.15);border-radius:8px;overflow:hidden;margin-bottom:11px;background:rgba(9,19,34,.58)}
-      .bethel-growth-side-title{padding:8px 10px;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.055em;color:#cbd5e1;background:rgba(15,28,47,.82);border-bottom:1px solid rgba(148,163,184,.14)}
-      .bethel-growth-stat{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border-bottom:1px solid rgba(148,163,184,.085);font-size:.75rem}
-      .bethel-growth-stat:last-child{border-bottom:0}.bethel-growth-stat span{color:#94a3b8}.bethel-growth-stat strong{color:#e5edf7;text-align:right;font-size:.76rem;white-space:nowrap}
-      .bethel-growth-stat strong.pos{color:#34d399}.bethel-growth-stat strong.neg{color:#fb7185}.bethel-growth-stat strong.info{color:#60a5fa}
-      .bethel-growth-content{padding:12px 14px 14px;min-width:0}
-      .bethel-growth-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;flex-wrap:wrap}
-      .bethel-growth-select{appearance:auto;background:#0b1729;color:#e2e8f0;border:1px solid rgba(148,163,184,.25);border-radius:6px;padding:7px 10px;min-width:190px;font-weight:700}
-      .bethel-growth-tools{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-      .bethel-growth-ranges{display:flex;gap:3px;padding:3px;border-radius:7px;background:rgba(2,6,23,.48);border:1px solid rgba(148,163,184,.15)}
-      .bethel-growth-ranges button{border:0;background:transparent;color:#94a3b8;padding:6px 8px;border-radius:5px;font-size:.7rem;font-weight:800;cursor:pointer}
-      .bethel-growth-ranges button.active{background:rgba(59,130,246,.19);color:#e2e8f0;box-shadow:inset 0 0 0 1px rgba(96,165,250,.30)}
-      .bethel-growth-ranges button:disabled{opacity:.32;cursor:not-allowed}
-      .bethel-growth-refresh{padding:7px 10px}
-      .bethel-growth-chart-wrap{position:relative;width:100%;height:405px;overflow:hidden;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px}
-      #bethel-growth-chart{display:block;width:100%;height:100%;cursor:crosshair}
-      .bethel-growth-tooltip{position:absolute;display:none;pointer-events:none;z-index:5;min-width:190px;padding:9px 10px;border-radius:7px;background:rgba(4,11,22,.95);border:1px solid rgba(148,163,184,.3);box-shadow:0 10px 26px rgba(0,0,0,.28);font-size:.75rem;color:#cbd5e1}
-      .bethel-growth-tooltip strong{display:block;color:#f8fafc;font-size:.82rem;margin-bottom:5px}.bethel-growth-tooltip span{display:block;margin-top:3px}
-      .bethel-growth-legend{display:flex;gap:16px;flex-wrap:wrap;margin:8px 2px 0;font-size:.72rem;color:#94a3b8}
-      .bethel-growth-legend i{display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:middle;border-radius:2px}
-      .bethel-growth-status{font-size:.71rem;color:#94a3b8;margin-top:6px}
-      .bethel-growth-lower{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 14px 14px;margin-left:230px}
-      .bethel-growth-mini{border:1px solid rgba(148,163,184,.16);border-radius:8px;background:rgba(6,15,28,.55);overflow:hidden}
-      .bethel-growth-mini h3{font-size:.78rem;margin:0;padding:8px 10px;background:rgba(15,28,47,.72);border-bottom:1px solid rgba(148,163,184,.13)}
-      .bethel-growth-mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}.bethel-growth-mini-grid div{padding:9px 10px;border-right:1px solid rgba(148,163,184,.08);border-bottom:1px solid rgba(148,163,184,.08)}
-      .bethel-growth-mini-grid small{display:block;color:#94a3b8;font-size:.66rem;text-transform:uppercase}.bethel-growth-mini-grid strong{display:block;margin-top:3px;font-size:.87rem}
-      .bethel-growth-note{margin:0 14px 14px 244px;color:#94a3b8;font-size:.72rem;line-height:1.45}
-      @media(max-width:980px){.bethel-growth-main{grid-template-columns:1fr}.bethel-growth-sidebar{border-right:0;border-bottom:1px solid rgba(148,163,184,.17);display:grid;grid-template-columns:1fr 1fr;gap:10px}.bethel-growth-side-section{margin:0}.bethel-growth-lower{margin-left:0}.bethel-growth-note{margin-left:14px}}
-      @media(max-width:680px){.bethel-growth-sidebar,.bethel-growth-lower{grid-template-columns:1fr}.bethel-growth-chart-wrap{height:330px}.bethel-growth-titlebar{align-items:flex-start;flex-direction:column}.bethel-growth-toolbar{align-items:stretch}.bethel-growth-tools{width:100%}.bethel-growth-ranges{max-width:100%;overflow:auto}}
+    const s=document.createElement("style");s.id="bethel-performance-growth-style";
+    s.textContent=`
+      .bethel-growth-panel{margin-top:18px}
+      .bethel-growth-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+      .bethel-growth-title h2{margin:0 0 4px}.bethel-growth-title p{margin:0;color:#94a3b8}
+      .bethel-growth-shell{display:grid;grid-template-columns:minmax(210px,250px) minmax(0,1fr);gap:14px}
+      .bethel-growth-side{display:flex;flex-direction:column;gap:10px}
+      .bethel-growth-box{border:1px solid rgba(148,163,184,.15);background:rgba(8,18,33,.64);border-radius:11px;padding:11px 12px}
+      .bethel-growth-box h3{font-size:.83rem;margin:0 0 8px;color:#e2e8f0}
+      .bethel-growth-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(148,163,184,.08);font-size:.76rem}
+      .bethel-growth-row:last-child{border-bottom:0}.bethel-growth-row span{color:#94a3b8}.bethel-growth-row strong{color:#f8fafc;text-align:right}
+      .bethel-growth-main{min-width:0}
+      .bethel-growth-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+      .bethel-growth-tabs,.bethel-growth-ranges{display:flex;gap:4px;padding:4px;border-radius:9px;background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.13);overflow:auto}
+      .bethel-growth-tabs button,.bethel-growth-ranges button{border:0;background:transparent;color:#94a3b8;padding:7px 9px;border-radius:6px;font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap}
+      .bethel-growth-tabs button.active,.bethel-growth-ranges button.active{background:rgba(56,189,248,.14);color:#f8fafc;box-shadow:inset 0 0 0 1px rgba(56,189,248,.25)}
+      .bethel-growth-tabs button:disabled,.bethel-growth-ranges button:disabled{opacity:.35;cursor:not-allowed}
+      .bethel-growth-chart-wrap{position:relative;overflow:hidden;border-radius:10px;border:1px solid rgba(148,163,184,.14);background:linear-gradient(180deg,rgba(5,13,27,.87),rgba(2,6,23,.68))}
+      #bethel-growth-chart{display:block;width:100%;height:420px;cursor:crosshair}
+      .bethel-growth-tooltip{position:absolute;display:none;z-index:5;pointer-events:none;min-width:185px;padding:9px 10px;border-radius:8px;background:rgba(2,6,23,.96);border:1px solid rgba(148,163,184,.25);box-shadow:0 10px 28px rgba(0,0,0,.32);font-size:.75rem;color:#cbd5e1}
+      .bethel-growth-tooltip strong{display:block;color:#fff;margin-bottom:5px}.bethel-growth-tooltip span{display:block;margin-top:3px}
+      .bethel-growth-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:.75rem;color:#cbd5e1}
+      .bethel-growth-key:before{content:"";display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle;background:currentColor}
+      .bethel-growth-status{margin-top:8px;padding:9px 10px;border-radius:8px;font-size:.76rem;background:rgba(15,23,42,.55);color:#94a3b8;border:1px solid rgba(148,163,184,.1)}
+      .bethel-growth-status.ok{color:#86efac}.bethel-growth-status.warn{color:#fbbf24}.bethel-growth-status.bad{color:#fca5a5}
+      .bethel-growth-note{color:#94a3b8;font-size:.73rem;line-height:1.45;margin:8px 0 0}
+      @media(max-width:980px){.bethel-growth-shell{grid-template-columns:1fr}.bethel-growth-side{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}#bethel-growth-chart{height:340px}}
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(s);
   }
 
-  function buildPanel(){
+  function panel(){
     const view=document.querySelector("#view-analytics");
     if(!view||document.querySelector("#bethel-performance-growth"))return;
-    const panel=document.createElement("article");
-    panel.id="bethel-performance-growth";panel.className="panel bethel-growth-panel";
-    panel.innerHTML=`
-      <div class="bethel-growth-titlebar">
-        <div><h2>Account Growth & Performance</h2><p>Professional account history for the currently active master account.</p></div>
-        <button id="bethel-growth-reload" class="bethel-growth-refresh" type="button">Refresh chart</button>
+    const el=document.createElement("article");el.id="bethel-performance-growth";el.className="panel bethel-growth-panel";
+    el.innerHTML=`
+      <div class="bethel-growth-title">
+        <div><h2>Account Growth & Performance</h2><p>Verified master-account history with explicit data provenance.</p></div>
+        <button id="bethel-growth-reload" type="button">Refresh chart</button>
       </div>
-      <div class="bethel-growth-main">
-        <aside class="bethel-growth-sidebar">
-          <section class="bethel-growth-side-section"><div class="bethel-growth-side-title">Account</div><div id="bethel-growth-account-stats"></div></section>
-          <section class="bethel-growth-side-section"><div class="bethel-growth-side-title">Performance</div><div id="bethel-growth-performance-stats"></div></section>
-          <section class="bethel-growth-side-section"><div class="bethel-growth-side-title">Risk</div><div id="bethel-growth-risk-stats"></div></section>
+      <div class="bethel-growth-shell">
+        <aside class="bethel-growth-side">
+          <div class="bethel-growth-box"><h3>Account</h3><div id="bethel-growth-account"></div></div>
+          <div class="bethel-growth-box"><h3>Performance</h3><div id="bethel-growth-performance"></div></div>
+          <div class="bethel-growth-box"><h3>Data Integrity</h3><div id="bethel-growth-integrity"></div></div>
         </aside>
-        <div class="bethel-growth-content">
-          <div class="bethel-growth-toolbar">
-            <select id="bethel-growth-mode" class="bethel-growth-select" aria-label="Chart type">
-              <option value="equity">Balance & Equity</option>
-              <option value="return">Cash-flow-adjusted Return %</option>
-            </select>
-            <div class="bethel-growth-tools">
-              <div class="bethel-growth-ranges" aria-label="Chart range">
-                <button type="button" data-growth-range="TOTAL" class="active">TOTAL</button><button type="button" data-growth-range="1Y">1Y</button><button type="button" data-growth-range="6M">6M</button><button type="button" data-growth-range="3M">3M</button><button type="button" data-growth-range="1M">1M</button><button type="button" data-growth-range="1W">1W</button><button type="button" data-growth-range="1D">1D</button>
-              </div>
+        <section class="bethel-growth-main">
+          <div class="bethel-growth-controls">
+            <div class="bethel-growth-tabs">
+              <button type="button" data-growth-mode="account" class="active">Balance & Equity</button>
+              <button type="button" data-growth-mode="return">Return %</button>
+            </div>
+            <div class="bethel-growth-ranges">
+              ${Object.keys(RANGES).map(r=>`<button type="button" data-growth-range="${r}" class="${r==="TOTAL"?"active":""}">${r}</button>`).join("")}
             </div>
           </div>
-          <div class="bethel-growth-chart-wrap"><canvas id="bethel-growth-chart" aria-label="Bethel performance history chart"></canvas><div id="bethel-growth-tooltip" class="bethel-growth-tooltip"></div></div>
+          <div class="bethel-growth-chart-wrap">
+            <canvas id="bethel-growth-chart"></canvas>
+            <div id="bethel-growth-tooltip" class="bethel-growth-tooltip"></div>
+          </div>
           <div id="bethel-growth-legend" class="bethel-growth-legend"></div>
           <div id="bethel-growth-status" class="bethel-growth-status"></div>
-        </div>
-      </div>
-      <div class="bethel-growth-lower">
-        <section class="bethel-growth-mini"><h3>Trading Statistics</h3><div id="bethel-growth-trading-mini" class="bethel-growth-mini-grid"></div></section>
-        <section class="bethel-growth-mini"><h3>Account History</h3><div id="bethel-growth-history-mini" class="bethel-growth-mini-grid"></div></section>
-      </div>
-      <p class="bethel-growth-note">Balance and equity are actual signed MT5 snapshot values. Return mode neutralizes recorded deposits/withdrawals and uses the same active-master account history window as Bethel analytics. No synthetic performance observations are generated.</p>`;
-    const risk=document.querySelector("#bethel-risk-monitor");if(risk)view.insertBefore(panel,risk);else view.appendChild(panel);
-
-    document.querySelector("#bethel-growth-reload")?.addEventListener("click",loadGrowth);
-    document.querySelector("#bethel-growth-mode")?.addEventListener("change",event=>{state.mode=event.target.value;updateLegend();applyRange();});
-    panel.querySelectorAll("[data-growth-range]").forEach(button=>button.addEventListener("click",()=>{
-      state.range=button.dataset.growthRange;panel.querySelectorAll("[data-growth-range]").forEach(b=>b.classList.toggle("active",b===button));applyRange();
+          <p class="bethel-growth-note">Balance before equity coverage is shown only when the signed MT5 ledger reconciles to the latest recorded balance. Equity is never backfilled or reconstructed; its line begins at the first actual recorded equity snapshot.</p>
+        </section>
+      </div>`;
+    const risk=document.querySelector("#bethel-risk-monitor");risk?view.insertBefore(el,risk):view.appendChild(el);
+    document.querySelector("#bethel-growth-reload")?.addEventListener("click",load);
+    el.querySelectorAll("[data-growth-mode]").forEach(b=>b.addEventListener("click",()=>{
+      state.mode=b.dataset.growthMode;el.querySelectorAll("[data-growth-mode]").forEach(x=>x.classList.toggle("active",x===b));applyRange();
     }));
-    const canvas=panel.querySelector("#bethel-growth-chart");canvas.addEventListener("mousemove",handleHover);canvas.addEventListener("mouseleave",()=>{hideTooltip();drawCurrent();});
-    updateLegend();
+    el.querySelectorAll("[data-growth-range]").forEach(b=>b.addEventListener("click",()=>{
+      state.range=b.dataset.growthRange;el.querySelectorAll("[data-growth-range]").forEach(x=>x.classList.toggle("active",x===b));applyRange();
+    }));
+    const c=el.querySelector("#bethel-growth-chart");c.addEventListener("mousemove",hover);c.addEventListener("mouseleave",()=>{hideTip();draw();});
   }
 
-  async function loadGrowth(){
-    buildPanel();const button=document.querySelector("#bethel-growth-reload");if(button){button.disabled=true;button.textContent="Refreshing…";}setStatus("Loading signed MT5 history…");
+  async function load(){
+    panel();const button=document.querySelector("#bethel-growth-reload");if(button){button.disabled=true;button.textContent="Refreshing…";}
+    status("Loading verified master-account history…","");
     try{
-      const [analytics,historyResponse,audit]=await Promise.all([
-        window.apiGet("/performance/analytics"),window.apiGet("/performance/equity-history"),window.apiGet("/performance/analytics-fxblue-banked-return-preview").catch(()=>null)
+      const [analytics,history,trades,audit]=await Promise.all([
+        window.apiGet("/performance/analytics"),
+        window.apiGet("/performance/equity-history"),
+        window.apiGet("/performance/trades"),
+        window.apiGet("/performance/analytics-fxblue-banked-return-preview").catch(()=>null)
       ]);
-      const account=String(analytics?.master_account||"").trim(),historyDays=Number(analytics?.history_days);
-      let rows=(historyResponse?.history||[]).filter(row=>!account||String(row.account_number||"").trim()===account).map(row=>({...row,_at:parseDate(row.timestamp)})).filter(row=>row._at&&Number.isFinite(Number(row.equity))&&Number(row.equity)>0).sort((a,b)=>a._at-b._at);
-      if(rows.length&&Number.isFinite(historyDays)&&historyDays>0){const end=rows[rows.length-1]._at,start=new Date(end.getTime()-historyDays*DAY_MS);rows=rows.filter(row=>row._at>=start&&row._at<=end);}
-      state.analytics=analytics||{};state.rows=rows;state.cashFlows=normalizeCashFlows(audit?.cash_flows||[]);state.series=buildSeries(rows,state.cashFlows);
-      renderAllStats();updateRangeAvailability();applyRange();
-      setStatus(rows.length?`${rows.length.toLocaleString()} signed MT5 snapshots · latest ${formatDateTime(rows[rows.length-1]._at)}`:"No MT5 snapshots available in the account-history window.");
-    }catch(error){state.rows=[];state.series=[];state.visible=[];setStatus(`Performance chart unavailable: ${error?.message||"unable to load history"}`);renderAllStats();drawCurrent();}
-    finally{if(button){button.disabled=false;button.textContent="Refresh chart";}}
+      const account=String(analytics?.master_account||"").trim();
+      if(!account)throw new Error("No active master account resolved");
+      if(trades?.master_account&&String(trades.master_account).trim()!==account)throw new Error("Master-account mismatch between analytics and trade ledger");
+
+      state.analytics=analytics||{};
+      state.snapshots=(history?.history||[])
+        .filter(r=>String(r.account_number||"").trim()===account)
+        .map(r=>({at:date(r.timestamp),balance:Number(r.balance),equity:Number(r.equity),profit:Number(r.profit||0)}))
+        .filter(r=>r.at&&Number.isFinite(r.balance)&&Number.isFinite(r.equity)&&r.equity>0)
+        .sort((a,b)=>a.at-b.at);
+
+      const ledger=trades?.ledger_history||{};
+      state.ledger=ledger.status==="verified"?(ledger.balance_history||[])
+        .map(r=>({at:date(r.timestamp),balance:Number(r.balance),event:r.event,amount:Number(r.amount||0)}))
+        .filter(r=>r.at&&Number.isFinite(r.balance)).sort((a,b)=>a.at-b.at):[];
+
+      state.returns=returnSeries(state.snapshots,normalizeFlows(audit?.cash_flows||[]));
+      renderSide(account,ledger);
+      rangeAvailability();applyRange();
+
+      if(ledger.status==="verified"){
+        const pre=ledger.has_pre_equity_history?" Historical balance begins before recorded equity; the equity line intentionally starts later.":"";
+        status(`Verified signed MT5 ledger · reconciliation gap ${Number(ledger.reconciliation_gap||0).toFixed(6)}.${pre}`,"ok");
+      }else if(ledger.status==="review_required"){
+        status("Ledger reconstruction failed reconciliation. Historical reconstructed balance is hidden; only actual recorded snapshots are shown.","bad");
+      }else{
+        status("No verified pre-snapshot ledger is available. The chart uses actual recorded MT5 snapshots only.","warn");
+      }
+    }catch(e){
+      state.snapshots=[];state.ledger=[];state.returns=[];state.visible={snapshots:[],ledger:[],returns:[]};
+      status(e?.message||"Unable to load performance history","bad");draw();
+    }finally{if(button){button.disabled=false;button.textContent="Refresh chart";}}
   }
 
-  function normalizeCashFlows(flows){return flows.map(flow=>({at:parseDate(flow.occurred_at),amount:Number(flow.amount||0)})).filter(flow=>flow.at&&Number.isFinite(flow.amount)).sort((a,b)=>a.at-b.at);}
-  function buildSeries(rows,cashFlows){
-    if(!rows.length)return[];const out=[];let factor=1;out.push(pointFromRow(rows[0],0));
+  function normalizeFlows(flows){return flows.map(f=>({at:date(f.occurred_at),amount:Number(f.amount||0)})).filter(f=>f.at&&Number.isFinite(f.amount)).sort((a,b)=>a.at-b.at);}
+
+  function returnSeries(rows,flows){
+    if(!rows.length)return[];let factor=1;const out=[{...rows[0],returnPct:0}];
     for(let i=1;i<rows.length;i++){
-      const prev=rows[i-1],curr=rows[i],prevEq=Number(prev.equity),currEq=Number(curr.equity);
-      const externalFlow=cashFlows.reduce((sum,flow)=>flow.at>prev._at&&flow.at<=curr._at?sum+flow.amount:sum,0);
-      if(prevEq>0){const periodFactor=(currEq-externalFlow)/prevEq;if(Number.isFinite(periodFactor)&&periodFactor>0)factor*=periodFactor;}
-      out.push(pointFromRow(curr,(factor-1)*100));
+      const p=rows[i-1],c=rows[i],flow=flows.reduce((s,f)=>f.at>p.at&&f.at<=c.at?s+f.amount:s,0);
+      if(p.equity>0){const q=(c.equity-flow)/p.equity;if(Number.isFinite(q)&&q>0)factor*=q;}
+      out.push({...c,returnPct:(factor-1)*100});
     }return out;
   }
-  function pointFromRow(row,returnPct){return{at:row._at,equity:Number(row.equity),balance:Number(row.balance||0),returnPct:Number(returnPct)};}
+
+  function renderSide(account,ledger){
+    const a=state.analytics,s=state.snapshots,last=s[s.length-1];
+    setRows("bethel-growth-account",[
+      ["Master account",account],["Balance",last?money(last.balance):"—"],["Equity",last?money(last.equity):"—"],
+      ["History",num(a.history_days,1," days")],["Snapshots",s.length.toLocaleString()]
+    ]);
+    setRows("bethel-growth-performance",[
+      ["Total return",pctOr(a.total_return_percent)],["Monthly",pctOr(a.monthly_return_percent)],["Weekly",pctOr(a.weekly_return_percent)],
+      ["Daily",pctOr(a.daily_return_percent)],["Profit factor",num(a.profit_factor,2)],["Max drawdown",pctOr(a.maximum_drawdown_percent)]
+    ]);
+    setRows("bethel-growth-integrity",[
+      ["Ledger",ledger?.status||"unavailable"],["Ledger start",ledger?.ledger_start_at?fmt(date(ledger.ledger_start_at)):"—"],
+      ["Equity starts",ledger?.equity_snapshot_start_at?fmt(date(ledger.equity_snapshot_start_at)):(s[0]?fmt(s[0].at):"—")],
+      ["Reconciliation",ledger?.status==="verified"?"VERIFIED":ledger?.status==="review_required"?"REVIEW REQUIRED":"NOT AVAILABLE"],
+      ["Synthetic equity","NEVER"]
+    ]);
+  }
+
+  function setRows(id,rows){const e=document.getElementById(id);if(e)e.innerHTML=rows.map(([k,v])=>`<div class="bethel-growth-row"><span>${esc(k)}</span><strong>${esc(v??"—")}</strong></div>`).join("");}
+
+  function rangeAvailability(){
+    const allTimes=[...state.snapshots.map(x=>x.at),...state.ledger.map(x=>x.at)].sort((a,b)=>a-b);if(!allTimes.length)return;
+    const span=allTimes[allTimes.length-1]-allTimes[0];document.querySelectorAll("[data-growth-range]").forEach(b=>{const ms=RANGES[b.dataset.growthRange];b.disabled=ms!==null&&span<ms*.75;});
+  }
 
   function applyRange(){
-    const full=state.series;if(!full.length){state.visible=[];drawCurrent();return;}
-    if(state.range==="TOTAL")state.visible=full;else{const end=full[full.length-1].at.getTime(),start=end-(RANGE_MS[state.range]||Infinity);state.visible=full.filter(p=>p.at.getTime()>=start);if(!state.visible.length)state.visible=[full[full.length-1]];}
-    renderRangeStatus();drawCurrent();
-  }
-  function updateRangeAvailability(){
-    const panel=document.querySelector("#bethel-performance-growth");if(!panel||!state.series.length)return;const span=state.series[state.series.length-1].at-state.series[0].at;
-    panel.querySelectorAll("[data-growth-range]").forEach(button=>{const range=button.dataset.growthRange;button.disabled=range!=="TOTAL"&&span<Math.min(RANGE_MS[range]||0,DAY_MS*.75);});
-  }
-
-  function renderAllStats(){
-    const a=state.analytics||{},rows=state.rows,last=rows[rows.length-1]||{};
-    fill("#bethel-growth-account-stats",[
-      stat("Master",a.master_account||"—","info"),stat("Balance",money(a.current_balance??last.balance)),stat("Equity",money(a.current_equity??last.equity)),stat("Floating P/L",money(a.floating_profit_loss),numClass(a.floating_profit_loss)),stat("Closed profit",money(a.closed_profit),numClass(a.closed_profit)),stat("History",Number.isFinite(Number(a.history_days))?`${Number(a.history_days).toFixed(1)} days`:"—")
-    ]);
-    fill("#bethel-growth-performance-stats",[
-      stat("Total return",signedPct(a.total_return_percent),numClass(a.total_return_percent)),stat("Monthly",signedPct(a.monthly_return_percent),numClass(a.monthly_return_percent)),stat("Weekly",signedPct(a.weekly_return_percent),numClass(a.weekly_return_percent)),stat("Daily",signedPct(a.daily_return_percent),numClass(a.daily_return_percent)),stat("Profit factor",fmt(a.profit_factor)),stat("Win rate",pct(a.win_rate))
-    ]);
-    fill("#bethel-growth-risk-stats",[
-      stat("Max drawdown",pct(a.maximum_drawdown_percent),"neg"),stat("VaR 95%",a.var_status==="available"?pct(a.value_at_risk_95_percent):"Building"),stat("Recovery",fmt(a.recovery_factor)),stat("Sharpe",fmt(a.sharpe_ratio)),stat("Sortino",fmt(a.sortino_ratio)),stat("Risk level",a.risk_level||"—",String(a.risk_level).toUpperCase()==="HIGH"?"neg":"info")
-    ]);
-    fillMini("#bethel-growth-trading-mini",[["Trades",a.total_trades],["Winning",a.winning_trades],["Losing",a.losing_trades],["Avg win",money(a.average_win)],["Avg loss",money(a.average_loss)],["Expectancy",money(a.expectancy)]]);
-    fillMini("#bethel-growth-history-mini",[["Start",rows.length?formatDate(rows[0]._at):"—"],["End",rows.length?formatDate(rows[rows.length-1]._at):"—"],["Snapshots",rows.length.toLocaleString()],["Deposits",money(a.deposits)],["Withdrawals",money(a.withdrawals)],["Cash-flow events",a.cash_flow_events??0]]);
-  }
-  function stat(label,value,cls=""){return `<div class="bethel-growth-stat"><span>${escapeText(label)}</span><strong class="${cls}">${escapeText(value)}</strong></div>`;}
-  function fill(selector,html){const el=document.querySelector(selector);if(el)el.innerHTML=html.join("");}
-  function fillMini(selector,items){const el=document.querySelector(selector);if(el)el.innerHTML=items.map(([l,v])=>`<div><small>${escapeText(l)}</small><strong>${escapeText(v??"—")}</strong></div>`).join("");}
-
-  function renderRangeStatus(){
-    if(!state.visible.length)return;const first=state.visible[0],last=state.visible[state.visible.length-1];
-    if(state.mode==="return"){const s=1+first.returnPct/100,e=1+last.returnPct/100,r=s>0?((e/s)-1)*100:0;setStatus(`${state.range} · ${formatDate(first.at)} → ${formatDate(last.at)} · Return ${r>=0?"+":""}${r.toFixed(2)}% · ${state.visible.length.toLocaleString()} points`);}else setStatus(`${state.range} · ${formatDate(first.at)} → ${formatDate(last.at)} · ${state.visible.length.toLocaleString()} actual MT5 snapshots`);
-  }
-  function updateLegend(){
-    const el=document.querySelector("#bethel-growth-legend");if(!el)return;
-    el.innerHTML=state.mode==="return"?'<span><i style="background:#2563eb"></i>Cash-flow-adjusted return %</span>':'<span><i style="background:#2563eb"></i>Equity</span><span><i style="background:#ef4444"></i>Balance</span>';
+    const endCandidates=[...state.snapshots.map(x=>x.at.getTime()),...state.ledger.map(x=>x.at.getTime())];
+    if(!endCandidates.length){state.visible={snapshots:[],ledger:[],returns:[]};draw();return;}
+    const end=Math.max(...endCandidates),ms=RANGES[state.range],start=ms===null?-Infinity:end-ms;
+    state.visible={
+      snapshots:state.snapshots.filter(x=>x.at.getTime()>=start),
+      ledger:state.ledger.filter(x=>x.at.getTime()>=start),
+      returns:state.returns.filter(x=>x.at.getTime()>=start)
+    };draw();legend();
   }
 
-  function drawCurrent(crosshairIndex=null){
-    const canvas=document.querySelector("#bethel-growth-chart");if(!canvas)return;const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,width=Math.max(560,Math.floor(rect.width||920)),height=Math.max(300,Math.floor(rect.height||405));
-    canvas.width=width*dpr;canvas.height=height*dpr;const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,width,height);ctx.font="11px Arial, sans-serif";
-    const series=state.visible;if(!series.length){ctx.fillStyle="#64748b";ctx.fillText("No account-history data available for this period.",24,40);state.geometry=null;return;}
-    const pad={l:66,r:18,t:25,b:47},plotW=width-pad.l-pad.r,plotH=height-pad.t-pad.b,times=series.map(p=>p.at.getTime()),minTime=Math.min(...times),maxTime=Math.max(...times);
-    const vals=state.mode==="return"?series.map(p=>p.returnPct):series.flatMap(p=>[p.equity,p.balance]);let min=Math.min(...vals.filter(Number.isFinite)),max=Math.max(...vals.filter(Number.isFinite));if(state.mode==="return"){min=Math.min(min,0);max=Math.max(max,0);}if(max===min){max+=1;min-=1;}const margin=(max-min)*.08||1;min-=margin;max+=margin;
-    const xTime=t=>pad.l+(maxTime===minTime?plotW/2:((t-minTime)/(maxTime-minTime))*plotW),yVal=v=>pad.t+((max-v)/(max-min))*plotH,x=i=>xTime(times[i]);
-    drawGrid(ctx,{width,height,pad,plotW,plotH,min,max,minTime,maxTime,xTime,yVal});
-    if(state.mode==="return"){const zy=yVal(0);drawFilledLine(ctx,series,p=>p.returnPct,x,yVal,zy,"#2563eb","rgba(37,99,235,.16)");}
-    else{drawFilledLine(ctx,series,p=>p.equity,x,yVal,height-pad.b,"#2563eb","rgba(37,99,235,.13)");drawFilledLine(ctx,series,p=>p.balance,x,yVal,height-pad.b,"#ef4444","rgba(239,68,68,.10)");}
-    if(Number.isInteger(crosshairIndex)&&series[crosshairIndex]){const cx=x(crosshairIndex);ctx.strokeStyle="rgba(15,23,42,.48)";ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(cx,pad.t);ctx.lineTo(cx,height-pad.b);ctx.stroke();ctx.setLineDash([]);const p=series[crosshairIndex],v=state.mode==="return"?p.returnPct:p.equity;ctx.fillStyle="#0f172a";ctx.beginPath();ctx.arc(cx,yVal(v),3.6,0,Math.PI*2);ctx.fill();}
-    state.geometry={width,height,pad,plotW,times,minTime,maxTime,series};
+  function legend(){const e=document.getElementById("bethel-growth-legend");if(!e)return;e.innerHTML=state.mode==="return"?'<span class="bethel-growth-key" style="color:#38bdf8">Cash-flow-adjusted return %</span>':'<span class="bethel-growth-key" style="color:#ef4444">Verified balance / recorded balance</span><span class="bethel-growth-key" style="color:#38bdf8">Recorded equity only</span>';}
+
+  function draw(cross=null){
+    const canvas=document.getElementById("bethel-growth-chart");if(!canvas)return;const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,w=Math.max(520,Math.floor(r.width||900)),h=Math.max(300,Math.floor(r.height||420));canvas.width=w*dpr;canvas.height=h*dpr;
+    const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.font="12px system-ui";
+    const ss=state.visible.snapshots,ll=state.visible.ledger,rr=state.visible.returns;
+    if(state.mode==="return"&&!rr.length){empty(ctx,"No recorded equity history for return calculation.");state.geometry=null;return;}
+    if(state.mode==="account"&&!ss.length&&!ll.length){empty(ctx,"No verified account history available.");state.geometry=null;return;}
+    const times=state.mode==="return"?rr.map(x=>x.at.getTime()):[...ss.map(x=>x.at.getTime()),...ll.map(x=>x.at.getTime())];
+    const minT=Math.min(...times),maxT=Math.max(...times),pad={l:78,r:24,t:22,b:46},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+    let vals=state.mode==="return"?rr.map(x=>x.returnPct):[...ss.flatMap(x=>[x.balance,x.equity]),...ll.map(x=>x.balance)];vals=vals.filter(Number.isFinite);let min=Math.min(...vals),max=Math.max(...vals);if(state.mode==="return"){min=Math.min(min,0);max=Math.max(max,0);}if(max===min){max+=1;min-=1;}const extra=(max-min)*.1||1;min-=extra;max+=extra;
+    const xf=t=>pad.l+(maxT===minT?pw/2:((t-minT)/(maxT-minT))*pw),yf=v=>pad.t+((max-v)/(max-min))*ph;
+    grid(ctx,w,h,pad,pw,ph,min,max,minT,maxT,xf);
+    if(state.mode==="return"){
+      const zero=yf(0);ctx.strokeStyle="rgba(226,232,240,.28)";ctx.beginPath();ctx.moveTo(pad.l,zero);ctx.lineTo(w-pad.r,zero);ctx.stroke();line(ctx,rr,x=>x.returnPct,xf,yf,"#38bdf8",2.4);
+    }else{
+      if(ll.length)line(ctx,ll,x=>x.balance,xf,yf,"#ef4444",2.1);
+      else if(ss.length)line(ctx,ss,x=>x.balance,xf,yf,"#ef4444",2.1);
+      if(ss.length)line(ctx,ss,x=>x.equity,xf,yf,"#38bdf8",2.5);
+      if(ll.length&&ss.length&&ll[0].at<ss[0].at){const bx=xf(ss[0].at.getTime());ctx.strokeStyle="rgba(251,191,36,.65)";ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(bx,pad.t);ctx.lineTo(bx,h-pad.b);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#fbbf24";ctx.fillText("Recorded equity begins",Math.min(bx+6,w-150),pad.t+14);}
+    }
+    state.geometry={w,h,pad,pw,ph,minT,maxT,xf,yf};
   }
 
-  function drawGrid(ctx,g){
-    const h=5,v=7;ctx.lineWidth=1;
-    for(let i=0;i<=h;i++){const r=i/h,y=g.pad.t+g.plotH*r;ctx.strokeStyle="#d9e1ea";ctx.beginPath();ctx.moveTo(g.pad.l,y);ctx.lineTo(g.width-g.pad.r,y);ctx.stroke();const val=g.max-(g.max-g.min)*r;ctx.fillStyle="#64748b";ctx.textAlign="right";ctx.textBaseline="middle";ctx.fillText(state.mode==="return"?`${val.toFixed(Math.abs(val)<10?2:1)}%`:compactMoney(val),g.pad.l-8,y);}
-    for(let i=0;i<=v;i++){const r=i/v,t=g.minTime+(g.maxTime-g.minTime)*r,x=g.xTime(t);ctx.strokeStyle="#e8edf3";ctx.beginPath();ctx.moveTo(x,g.pad.t);ctx.lineTo(x,g.height-g.pad.b);ctx.stroke();ctx.fillStyle="#64748b";ctx.textAlign=i===0?"left":i===v?"right":"center";ctx.textBaseline="top";ctx.fillText(formatAxisDate(new Date(t),g.maxTime-g.minTime),x,g.height-g.pad.b+10);}ctx.textAlign="left";ctx.textBaseline="alphabetic";
-  }
-  function drawFilledLine(ctx,series,getValue,x,y,baseY,lineColor,fillColor){
-    if(series.length<1)return;ctx.beginPath();ctx.moveTo(x(0),baseY);series.forEach((p,i)=>ctx.lineTo(x(i),y(Number(getValue(p)))));ctx.lineTo(x(series.length-1),baseY);ctx.closePath();ctx.fillStyle=fillColor;ctx.fill();ctx.beginPath();series.forEach((p,i)=>{const xx=x(i),yy=y(Number(getValue(p)));if(i===0)ctx.moveTo(xx,yy);else ctx.lineTo(xx,yy);});ctx.strokeStyle=lineColor;ctx.lineWidth=1.8;ctx.lineJoin="round";ctx.lineCap="round";ctx.stroke();
-  }
+  function grid(ctx,w,h,pad,pw,ph,min,max,minT,maxT,xf){ctx.lineWidth=1;for(let i=0;i<=5;i++){const y=pad.t+ph*i/5;ctx.strokeStyle="rgba(148,163,184,.13)";ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();const v=max-(max-min)*i/5;ctx.fillStyle="#94a3b8";ctx.textAlign="right";ctx.textBaseline="middle";ctx.fillText(state.mode==="return"?`${v.toFixed(Math.abs(v)<10?2:1)}%`:compact(v),pad.l-9,y);}for(let i=0;i<=6;i++){const t=minT+(maxT-minT)*i/6,x=xf(t);ctx.strokeStyle="rgba(148,163,184,.09)";ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,h-pad.b);ctx.stroke();ctx.fillStyle="#94a3b8";ctx.textAlign=i===0?"left":i===6?"right":"center";ctx.textBaseline="top";ctx.fillText(axisDate(new Date(t),maxT-minT),x,h-pad.b+11);}ctx.textAlign="left";ctx.textBaseline="alphabetic";}
 
-  function handleHover(event){
-    const g=state.geometry;if(!g||!g.series.length)return;const rect=event.currentTarget.getBoundingClientRect(),mx=event.clientX-rect.left;if(mx<g.pad.l||mx>g.width-g.pad.r){hideTooltip();drawCurrent();return;}const target=g.minTime+((mx-g.pad.l)/g.plotW)*(g.maxTime-g.minTime);let index=0,best=Infinity;g.times.forEach((t,i)=>{const d=Math.abs(t-target);if(d<best){best=d;index=i;}});drawCurrent(index);showTooltip(g.series[index],mx,event.clientY-rect.top,rect.width);
-  }
-  function showTooltip(p,x,y,width){const tip=document.querySelector("#bethel-growth-tooltip");if(!tip)return;tip.innerHTML=`<strong>${escapeText(formatDateTime(p.at))}</strong><span>Balance: ${escapeText(money(p.balance))}</span><span>Equity: ${escapeText(money(p.equity))}</span><span>Return: ${p.returnPct>=0?"+":""}${p.returnPct.toFixed(2)}%</span>`;tip.style.display="block";tip.style.left=`${Math.min(Math.max(8,x+14),Math.max(8,width-210))}px`;tip.style.top=`${Math.max(8,y-28)}px`;}
-  function hideTooltip(){const tip=document.querySelector("#bethel-growth-tooltip");if(tip)tip.style.display="none";}
+  function line(ctx,arr,get,xf,yf,color,width){ctx.beginPath();let started=false;arr.forEach(p=>{const v=Number(get(p));if(!Number.isFinite(v))return;const x=xf(p.at.getTime()),y=yf(v);if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineJoin="round";ctx.lineCap="round";ctx.stroke();}
+  function empty(ctx,text){ctx.fillStyle="#94a3b8";ctx.fillText(text,24,40);}
 
-  function setStatus(text){const el=document.querySelector("#bethel-growth-status");if(el)el.textContent=text;}
-  function normalizeTimestamp(v){const t=String(v||"").trim();if(!t)return t;if(/[zZ]$|[+-]\d\d:?\d\d$/.test(t))return t;return t.replace(" ","T")+"Z";}
-  function parseDate(v){if(!v)return null;const d=new Date(normalizeTimestamp(v));return Number.isNaN(d.getTime())?null:d;}
-  function formatDate(d){return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric",timeZone:"UTC"});}
-  function formatDateTime(d){return d.toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC";}
-  function formatAxisDate(d,span){if(span<=2*DAY_MS)return d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"UTC"});if(span<=62*DAY_MS)return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",timeZone:"UTC"});return d.toLocaleDateString("en-GB",{month:"short",year:"2-digit",timeZone:"UTC"});}
-  function money(v){const n=Number(v);if(!Number.isFinite(n))return"—";try{return new Intl.NumberFormat("en",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(n);}catch{return n.toFixed(2);}}
-  function compactMoney(v){const n=Number(v);return Number.isFinite(n)?"$"+new Intl.NumberFormat("en",{notation:"compact",maximumFractionDigits:1}).format(n):"—";}
-  function pct(v){const n=Number(v);return Number.isFinite(n)?`${n.toFixed(2)}%`:"—";}
-  function signedPct(v){const n=Number(v);return Number.isFinite(n)?`${n>=0?"+":""}${n.toFixed(2)}%`:"—";}
-  function fmt(v){const n=Number(v);return Number.isFinite(n)?n.toFixed(2):"—";}
-  function numClass(v){const n=Number(v);return !Number.isFinite(n)?"":n>0?"pos":n<0?"neg":"";}
-  function escapeText(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function hover(ev){const g=state.geometry;if(!g)return;const rect=ev.currentTarget.getBoundingClientRect(),mx=ev.clientX-rect.left;if(mx<g.pad.l||mx>g.w-g.pad.r){hideTip();draw();return;}const target=g.minT+((mx-g.pad.l)/g.pw)*(g.maxT-g.minT);const arr=state.mode==="return"?state.visible.returns:state.visible.snapshots;if(!arr.length)return;let best=arr[0],dist=Infinity;arr.forEach(p=>{const d=Math.abs(p.at.getTime()-target);if(d<dist){best=p;dist=d;}});const tip=document.getElementById("bethel-growth-tooltip");if(!tip)return;tip.innerHTML=state.mode==="return"?`<strong>${esc(fmtTime(best.at))}</strong><span>Return: ${best.returnPct>=0?"+":""}${best.returnPct.toFixed(2)}%</span><span>Equity: ${esc(money(best.equity))}</span><span>Balance: ${esc(money(best.balance))}</span>`:`<strong>${esc(fmtTime(best.at))}</strong><span>Recorded equity: ${esc(money(best.equity))}</span><span>Recorded balance: ${esc(money(best.balance))}</span>`;tip.style.display="block";tip.style.left=`${Math.min(Math.max(8,mx+12),Math.max(8,rect.width-205))}px`;tip.style.top=`${Math.max(8,ev.clientY-rect.top-20)}px`;}
+  function hideTip(){const x=document.getElementById("bethel-growth-tooltip");if(x)x.style.display="none";}
+  function status(text,kind){const e=document.getElementById("bethel-growth-status");if(e){e.textContent=text;e.className=`bethel-growth-status ${kind||""}`;}}
+  function date(v){if(!v)return null;const t=String(v).trim(),iso=/[zZ]$|[+-]\d\d:?\d\d$/.test(t)?t:t.replace(" ","T")+"Z",d=new Date(iso);return Number.isNaN(d.getTime())?null:d;}
+  function fmt(d){return d?d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric",timeZone:"UTC"}):"—";}
+  function fmtTime(d){return d?d.toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC":"—";}
+  function axisDate(d,span){return span<=2*DAY?d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",timeZone:"UTC"}):span<=62*DAY?d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",timeZone:"UTC"}):d.toLocaleDateString("en-GB",{month:"short",year:"2-digit",timeZone:"UTC"});}
+  function money(v){return Number.isFinite(Number(v))?new Intl.NumberFormat("en",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(Number(v)):"—";}
+  function compact(v){return "$"+new Intl.NumberFormat("en",{notation:"compact",maximumFractionDigits:1}).format(Number(v));}
+  function pctOr(v){return Number.isFinite(Number(v))?`${Number(v).toFixed(2)}%`:"—";}
+  function num(v,d=2,s=""){return Number.isFinite(Number(v))?`${Number(v).toFixed(d)}${s}`:"—";}
+  function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
-  waitForRuntime();
+  boot();
 })();
