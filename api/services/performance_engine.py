@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import os
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -12,6 +11,7 @@ from sqlalchemy import func
 from api.database import SessionLocal
 from api.models import EquitySnapshot
 from api.mt5_ingest.models import ConnectorCashFlow, ConnectorDeal
+from api.services.master_account import resolve_active_master_account
 from api.services.trade_performance import get_trade_performance
 
 TRADING_DAYS_PER_YEAR = 252
@@ -23,16 +23,7 @@ class PerformanceEngine:
         self.db = SessionLocal()
 
     def active_account_number(self) -> Optional[str]:
-        configured = os.getenv("BETHEL_MASTER_ACCOUNT", "").strip()
-        if configured:
-            return configured
-        latest = (
-            self.db.query(EquitySnapshot)
-            .filter(EquitySnapshot.account_number.isnot(None))
-            .order_by(EquitySnapshot.timestamp.desc())
-            .first()
-        )
-        return str(latest.account_number).strip() if latest and latest.account_number else None
+        return resolve_active_master_account(self.db)
 
     def load_history(self, account_number: str) -> List[EquitySnapshot]:
         return (
