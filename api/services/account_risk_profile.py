@@ -1,12 +1,13 @@
-"""Unified dynamic risk/performance profile for the active MT5 master.
+"""Unified dynamic risk/performance profile for the active master account.
 
-Derived only from signed MT5 deals, cash flows and the latest verified master
+Derived only from signed account deals, cash flows and the latest verified master
 snapshot. No account number, expected risk label, expected grade, balance, return,
-or result is embedded here.
+consistency score, or result is embedded here.
 
 Balance-risk analytics use cash-flow-neutral daily realized returns across the
-full weekday history window, including flat days. This avoids exaggerating risk
-by compressing an account's history into only the days on which trades closed.
+full weekday history window, including flat days. Consistency measures how evenly
+positive daily returns are distributed rather than inheriting snapshot-frequency
+statistics from another engine.
 """
 
 from __future__ import annotations
@@ -73,6 +74,23 @@ def _weekday_range(start_day, end_day):
         if day.weekday() < 5:
             yield day
         day += timedelta(days=1)
+
+
+def _profit_distribution_consistency(values: np.ndarray) -> float:
+    """Score profit distribution without embedding an expected result.
+
+    A score near 100 means positive daily returns are spread across many days.
+    The score falls when one profitable day dominates the account's total positive
+    daily return. This is deliberately independent of snapshot frequency.
+    """
+    positive = values[np.isfinite(values) & (values > 0)]
+    if len(positive) == 0:
+        return 0.0
+    total_positive = float(np.sum(positive))
+    if total_positive <= 0:
+        return 0.0
+    largest_share = float(np.max(positive)) / total_positive
+    return min(100.0, max(0.0, (1.0 - largest_share) * 100.0))
 
 
 def _risk_label(risk_score: float) -> str:
@@ -223,8 +241,8 @@ def get_account_risk_profile(account_number: str) -> dict:
         worst_day = float(np.min(values)) * 100.0
         worst_week = float(min(weekly)) * 100.0 if weekly else worst_day
         worst_month = float(min(monthly)) * 100.0 if monthly else worst_week
-        positive_ratio = float(np.mean(values > 0)) * 100.0
         trade_days = sum(1 for row in daily if daily_trade_count[row.day] > 0)
+        consistency_score = _profit_distribution_consistency(values)
 
         tail_5 = abs(float(np.percentile(values, 5))) * 100.0
         raw_pressure = (
@@ -239,12 +257,11 @@ def get_account_risk_profile(account_number: str) -> dict:
 
         return_component = 50.0 + 50.0 * math.tanh(total_return / 25.0)
         sharpe_component = 50.0 + 50.0 * math.tanh(sharpe / 2.0)
-        consistency_component = positive_ratio
         risk_component = 100.0 - risk_score
         performance_score = (
             return_component * 0.30
             + sharpe_component * 0.30
-            + consistency_component * 0.15
+            + consistency_score * 0.15
             + risk_component * 0.25
         )
         performance_score = min(100.0, max(0.0, performance_score))
@@ -252,7 +269,7 @@ def get_account_risk_profile(account_number: str) -> dict:
         return {
             "status": "available",
             "master_account": account_number,
-            "source": "signed_mt5_cash_flow_neutral_full_weekday_balance_returns",
+            "source": "signed_account_cash_flow_neutral_full_weekday_balance_returns",
             "history_start": history_start.isoformat(),
             "history_end": history_end.isoformat(),
             "history_weekdays": int(len(values)),
@@ -269,7 +286,7 @@ def get_account_risk_profile(account_number: str) -> dict:
             "worst_day_percent": round(worst_day, 4),
             "worst_week_percent": round(worst_week, 4),
             "worst_month_percent": round(worst_month, 4),
-            "positive_history_days_percent": round(positive_ratio, 4),
+            "consistency_score": round(consistency_score, 2),
             "risk_score": round(risk_score, 2),
             "risk_level": _risk_label(risk_score),
             "performance_score": round(performance_score, 2),
