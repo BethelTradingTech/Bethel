@@ -1,4 +1,4 @@
-"""Protected performance API for the dynamically resolved active MT5 master."""
+"""Protected performance API for the dynamically resolved active master."""
 
 from fastapi import APIRouter, Depends, Request
 
@@ -160,36 +160,31 @@ def _apply_account_risk_profile(data: dict) -> dict:
         "maximum_drawdown_percent": _round_metric(profile.get("deepest_valley_percent")),
         "maximum_drawdown_amount": None,
     })
-
-    # The detailed tail/period diagnostics remain inside account_risk_profile for
-    # audit and analysis. They are intentionally not exposed as headline dashboard
-    # fields because they were never intended to be user-facing cards.
-    for key in (
-        "worst_day_percent",
-        "worst_week_percent",
-        "worst_month_percent",
-        "positive_trading_days_percent",
-        "risk_profile_source",
-        "risk_profile_reason",
-    ):
-        data.pop(key, None)
     return data
 
 
-def _prioritize_dashboard_analytics(data: dict) -> dict:
-    """Keep user-facing analytics ahead of internal model diagnostics."""
-    priority = (
-        "status", "master_account", "current_balance", "current_equity",
-        "total_return_percent", "banked_return_percent", "daily_return_percent",
-        "weekly_return_percent", "monthly_return_percent", "history_days",
-        "risk_level", "risk_score", "performance_grade", "performance_score",
-        "risk_reward_ratio", "maximum_drawdown_percent", "volatility",
-        "sharpe_ratio", "sortino_ratio", "value_at_risk_95_percent",
-        "expected_shortfall_95_percent",
+def _dashboard_values(data: dict) -> dict:
+    """Return only clean user-facing values for the main Performance dashboard."""
+    visible = (
+        "master_account",
+        "starting_capital", "funding_base", "deposits", "withdrawals",
+        "current_balance", "current_equity", "floating_profit_loss",
+        "closed_profit", "total_profit",
+        "total_return_percent", "banked_return_percent",
+        "daily_return_percent", "weekly_return_percent", "monthly_return_percent",
+        "history_days",
+        "profit_factor", "total_trades", "winning_trades", "losing_trades",
+        "breakeven_trades", "win_rate", "gross_profit", "gross_loss",
+        "average_win", "average_loss", "payoff_ratio", "expectancy",
+        "recovery_factor", "maximum_drawdown_percent", "volatility", "calmar_ratio",
+        "sharpe_ratio", "sortino_ratio", "risk_reward_ratio",
+        "value_at_risk_95_percent", "value_at_risk_95_amount",
+        "expected_shortfall_95_percent", "expected_shortfall_95_amount",
+        "consistency_score", "risk_score", "risk_level",
+        "performance_score", "performance_grade",
+        "cash_flow_events", "snapshots_analyzed",
     )
-    ordered = {key: data[key] for key in priority if key in data}
-    ordered.update(data)
-    return ordered
+    return {key: data[key] for key in visible if key in data and data[key] is not None}
 
 
 @router.get("/equity-history")
@@ -221,7 +216,7 @@ def analytics(request: Request, _admin=Depends(require_admin)):
     data = _apply_account_risk_profile(data)
     if "consistency_score" in data:
         data["consistency_score"] = round(float(data["consistency_score"]), 2)
-    return _prioritize_dashboard_analytics(data)
+    return _dashboard_values(data)
 
 
 @router.get("/analytics-period-returns-preview")
