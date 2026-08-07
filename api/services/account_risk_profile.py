@@ -1,20 +1,19 @@
 """Unified dynamic risk/performance profile for the active MT5 master.
 
-The profile is derived from signed MT5 deals and cash-flow events for the selected
-account. No account number, expected risk label, expected grade, balance, return,
-or result is embedded in this module.
+Derived only from signed MT5 deals, cash flows and the latest verified master
+snapshot. No account number, expected risk label, expected grade, balance, return,
+or result is embedded here.
 
-Balance-risk analytics intentionally use cash-flow-neutral realized daily returns,
-which makes the output comparable in spirit to professional balance-risk reporting
-such as FX Blue: risk/reward, deepest valley, worst day/week/month, volatility and
-return dispersion. Equity VaR remains a separate model because floating equity
-cannot be reconstructed historically without actual observations.
+Balance-risk analytics use cash-flow-neutral daily realized returns across the
+full weekday history window, including flat days. This avoids exaggerating risk
+by compressing an account's history into only the days on which trades closed.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import timedelta
 import math
 from typing import Iterable
 
@@ -68,9 +67,15 @@ def _group_compounded(daily: list[DailyReturn], key_fn) -> list[float]:
     return [_compound(grouped[key]) for key in sorted(grouped)]
 
 
+def _weekday_range(start_day, end_day):
+    day = start_day
+    while day <= end_day:
+        if day.weekday() < 5:
+            yield day
+        day += timedelta(days=1)
+
+
 def _risk_label(risk_score: float) -> str:
-    # Labels classify the continuous score; they do not encode any account-specific
-    # expectation. The score itself is calculated entirely from the account data.
     if risk_score < 25.0:
         return "LOW"
     if risk_score < 50.0:
@@ -187,10 +192,11 @@ def get_account_risk_profile(account_number: str) -> dict:
                 "reconciliation_gap": round(reconciliation_gap, 6),
             }
 
+        history_start = min(event[0].date() for event in events)
+        history_end = latest.timestamp.date()
         daily = [
             DailyReturn(day=day, value=float(daily_factor[day] - 1.0))
-            for day in sorted(daily_factor)
-            if daily_trade_count[day] > 0
+            for day in _weekday_range(history_start, history_end)
         ]
         values = np.asarray([row.value for row in daily], dtype=float)
         values = values[np.isfinite(values)]
@@ -218,11 +224,8 @@ def get_account_risk_profile(account_number: str) -> dict:
         worst_week = float(min(weekly)) * 100.0 if weekly else worst_day
         worst_month = float(min(monthly)) * 100.0 if monthly else worst_week
         positive_ratio = float(np.mean(values > 0)) * 100.0
+        trade_days = sum(1 for row in daily if daily_trade_count[row.day] > 0)
 
-        # Continuous data-derived risk pressure. Components are expressed on the
-        # same percentage scale and combined smoothly; no account-specific result
-        # is encoded. Higher drawdown, volatility and tail loss raise the score,
-        # while stronger risk-adjusted performance reduces it.
         tail_5 = abs(float(np.percentile(values, 5))) * 100.0
         raw_pressure = (
             deepest_valley
@@ -234,9 +237,6 @@ def get_account_risk_profile(account_number: str) -> dict:
         risk_score = 100.0 * (1.0 - math.exp(-(raw_pressure / reward_buffer) / 20.0))
         risk_score = min(100.0, max(0.0, risk_score))
 
-        # Performance score rewards positive compounded return, risk-adjusted
-        # consistency and recovery while penalising drawdown/volatility. It is a
-        # normalized score, not a hard-coded expected grade for any account.
         return_component = 50.0 + 50.0 * math.tanh(total_return / 25.0)
         sharpe_component = 50.0 + 50.0 * math.tanh(sharpe / 2.0)
         consistency_component = positive_ratio
@@ -252,10 +252,11 @@ def get_account_risk_profile(account_number: str) -> dict:
         return {
             "status": "available",
             "master_account": account_number,
-            "source": "signed_mt5_cash_flow_neutral_realized_daily_balance_returns",
-            "history_start": daily[0].day.isoformat(),
-            "history_end": daily[-1].day.isoformat(),
-            "trading_days": int(len(values)),
+            "source": "signed_mt5_cash_flow_neutral_full_weekday_balance_returns",
+            "history_start": history_start.isoformat(),
+            "history_end": history_end.isoformat(),
+            "history_weekdays": int(len(values)),
+            "trading_days": int(trade_days),
             "closed_deals": int(len(deals)),
             "cash_flow_events": int(len(flows)),
             "reconciliation_gap": round(reconciliation_gap, 6),
@@ -268,7 +269,7 @@ def get_account_risk_profile(account_number: str) -> dict:
             "worst_day_percent": round(worst_day, 4),
             "worst_week_percent": round(worst_week, 4),
             "worst_month_percent": round(worst_month, 4),
-            "positive_trading_days_percent": round(positive_ratio, 4),
+            "positive_history_days_percent": round(positive_ratio, 4),
             "risk_score": round(risk_score, 2),
             "risk_level": _risk_label(risk_score),
             "performance_score": round(performance_score, 2),
