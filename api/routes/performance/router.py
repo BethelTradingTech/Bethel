@@ -44,6 +44,53 @@ def _active_master_account() -> str | None:
         db.close()
 
 
+def _apply_fxblue_total_return(data: dict) -> dict:
+    """Replace only total_return_percent with the FX Blue-style headline total.
+
+    Banked return is the geometrically linked, cash-flow-neutral balance return.
+    FX Blue's headline total also reflects current floating P/L. Applying the
+    current equity/balance factor to the banked growth factor gives that total:
+
+        total_factor = banked_growth_factor * (current_equity / current_balance)
+
+    Everything is read from the currently active master account. No account
+    number, funding amount, balance, equity, or expected percentage is fixed in
+    code. If the audit is unavailable or does not belong to the same master,
+    the stable total-return value is left unchanged rather than guessed.
+    """
+    if data.get("status") != "success":
+        return data
+
+    account = str(data.get("master_account") or "").strip()
+    if not account:
+        return data
+
+    audit = get_fxblue_banked_return_preview()
+    if audit.get("status") != "available":
+        return data
+    if str(audit.get("master_account") or "").strip() != account:
+        return data
+
+    try:
+        banked_return = float(audit["banked_return_percent"])
+        current_balance = float(data["current_balance"])
+        current_equity = float(data["current_equity"])
+    except (KeyError, TypeError, ValueError):
+        return data
+
+    if current_balance <= 0 or banked_return <= -100.0:
+        return data
+
+    banked_growth_factor = 1.0 + (banked_return / 100.0)
+    equity_balance_factor = current_equity / current_balance
+    total_return_percent = (
+        (banked_growth_factor * equity_balance_factor) - 1.0
+    ) * 100.0
+
+    data["total_return_percent"] = round(total_return_percent, 2)
+    return data
+
+
 @router.get("/equity-history")
 def equity_history(request: Request, _admin=Depends(require_admin)):
     db = SessionLocal()
@@ -69,7 +116,7 @@ def equity_history(request: Request, _admin=Depends(require_admin)):
 @router.get("/analytics")
 def analytics(request: Request, _admin=Depends(require_admin)):
     """Current protected production analytics endpoint."""
-    data = get_performance_analytics()
+    data = _apply_fxblue_total_return(get_performance_analytics())
     if "consistency_score" in data:
         data["consistency_score"] = float(data["consistency_score"])
     return data
