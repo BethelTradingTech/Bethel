@@ -647,5 +647,19 @@
     </footer>
 
 <a href="https://bethel-api.onrender.com/investor-frontend/onboarding.html" class="onboarding-float" aria-label="Open user registration">Register Now &rarr;</a>
+<script>
+(function(){
+    const payload = {
+        path: window.location.pathname + (window.location.search || ""),
+        referrer: document.referrer || null
+    };
+    fetch("https://api.betheltradingtechnologies.com/traffic/visit", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+        keepalive: true
+    }).catch(function(){});
+})();
+</script>
 </body>
 </html>
