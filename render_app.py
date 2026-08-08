@@ -1,18 +1,23 @@
 """Render entry point with critical route isolation.
 
 The main application keeps its existing startup behavior. This module ensures
-critical connector and payment routes remain available even when an unrelated
-optional integration fails during main.py startup.
+critical connector, payment, and private traffic-analytics routes remain
+available even when an unrelated optional integration fails during main.py
+startup.
 """
 
 from main import app
 from api.mt5_ingest.routes import router as mt5_ingest_router
 from api.copyhub.live_activation_fix import router as live_activation_router
 from api.payment_route_loader import mount_payment_routes
+from api.database import engine as api_engine
+from api.traffic.models import WebsiteTrafficEvent
+from api.traffic.routes import router as traffic_router
 
 
 SNAPSHOT_PATH = "/connector/v1/snapshot"
 COPIER_ACTIVATION_PATH = "/copyhub/v1/receiver/activate"
+TRAFFIC_VISIT_PATH = "/traffic/visit"
 
 if not any(getattr(route, "path", None) == SNAPSHOT_PATH for route in app.routes):
     app.include_router(mt5_ingest_router)
@@ -36,3 +41,11 @@ print("Bethel Copier terminal activation fix loaded")
 # broken optional gateway logs its own error without crashing the Render app or
 # hiding the other payment routes.
 mount_payment_routes(app)
+
+# Website traffic analytics is isolated from trading and subscriber tables.
+# The collector stores one-way visitor hashes, not raw IP addresses, and the
+# reporting endpoint is protected by the existing Super Admin dependency.
+WebsiteTrafficEvent.__table__.create(bind=api_engine, checkfirst=True)
+if not any(getattr(route, "path", None) == TRAFFIC_VISIT_PATH for route in app.routes):
+    app.include_router(traffic_router)
+    print("Bethel private website traffic analytics loaded")
