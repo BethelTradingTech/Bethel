@@ -240,6 +240,11 @@ function loadAdminExtensions(){
         "bethel-session-refresh",
         "Unable to load Bethel Super Admin refresh control"
     );
+    loadAdminExtension(
+        "js/traffic-analytics.js?v=20260808-traffic1",
+        "bethel-traffic-analytics",
+        "Unable to load Bethel Super Admin traffic analytics"
+    );
 }
 
 
