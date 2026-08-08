@@ -204,3 +204,22 @@ setInterval(
     loadDashboard,
     5000
 );
+
+
+// ================================================================
+// PRIVACY-PRESERVING PUBLIC WEBSITE TRAFFIC
+// ================================================================
+(function trackWebsiteVisit() {
+    if (typeof window === "undefined") return;
+    const analyticsApi = "https://api.betheltradingtechnologies.com/traffic/visit";
+    const payload = {
+        path: `${window.location.pathname}${window.location.search || ""}`,
+        referrer: document.referrer || null,
+    };
+    fetch(analyticsApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+    }).catch(() => {});
+})();
