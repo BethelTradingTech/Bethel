@@ -29,6 +29,7 @@ from api.copytrading.order_routes import router as copy_order_router
 
 from api.database import engine
 from api.models import Base
+from api.traffic import models as traffic_models
 
 
 # ==========================
@@ -47,6 +48,7 @@ from api.routes import dashboard
 from api.routes import analytics
 from api.routes import risk
 from api.routes.investor import router as investor_mt5_status_router
+from api.traffic.routes import router as traffic_router
 
 
 # ==========================
@@ -220,6 +222,7 @@ app.include_router(copy_dashboard_router)
 app.include_router(copy_order_router)
 app.include_router(broker_accounts_router)
 app.include_router(onboarding_router)
+app.include_router(traffic_router)
 
 
 # ==========================
