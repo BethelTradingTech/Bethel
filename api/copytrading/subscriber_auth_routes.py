@@ -7,6 +7,7 @@ Handles:
 - Public subscriber registration
 - Subscriber email verification
 - Subscriber login
+- Password reset
 - JWT token generation
 
 Does NOT:
@@ -28,6 +29,7 @@ from sqlalchemy.exc import IntegrityError
 
 from api.database import SessionLocal
 from api.copytrading.email_verification import SubscriberEmailVerification
+from api.copytrading.password_reset import SubscriberPasswordReset
 from api.copytrading.models import CopySubscriber
 from api.auth.rate_limit import (
     check_login_allowed,
@@ -60,12 +62,36 @@ class ResendVerificationRequest(BaseModel):
     email: EmailStr
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    password: str = Field(min_length=12, max_length=128)
+
+
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _password_is_strong(password: str) -> bool:
+    return all(
+        (
+            any(ch.islower() for ch in password),
+            any(ch.isupper() for ch in password),
+            any(ch.isdigit() for ch in password),
+            any(ch in string.punctuation for ch in password),
+        )
+    )
+
+
 def _ensure_verification_table(db) -> None:
     SubscriberEmailVerification.__table__.create(bind=db.get_bind(), checkfirst=True)
+
+
+def _ensure_password_reset_table(db) -> None:
+    SubscriberPasswordReset.__table__.create(bind=db.get_bind(), checkfirst=True)
 
 
 def _verification_lifetime_hours() -> int:
@@ -73,6 +99,13 @@ def _verification_lifetime_hours() -> int:
         return max(1, min(int(os.getenv("EMAIL_VERIFICATION_HOURS", "24")), 168))
     except ValueError:
         return 24
+
+
+def _password_reset_lifetime_minutes() -> int:
+    try:
+        return max(10, min(int(os.getenv("PASSWORD_RESET_MINUTES", "60")), 1440))
+    except ValueError:
+        return 60
 
 
 def _create_verification(db, subscriber: CopySubscriber) -> str:
@@ -97,6 +130,31 @@ def _create_verification(db, subscriber: CopySubscriber) -> str:
     return raw_token
 
 
+def _create_password_reset(db, subscriber: CopySubscriber) -> str:
+    _ensure_password_reset_table(db)
+    raw_token = secrets.token_urlsafe(32)
+    record = (
+        db.query(SubscriberPasswordReset)
+        .filter(SubscriberPasswordReset.subscriber_id == subscriber.id)
+        .first()
+    )
+    expires_at = datetime.utcnow() + timedelta(minutes=_password_reset_lifetime_minutes())
+    if record is None:
+        record = SubscriberPasswordReset(
+            subscriber_id=subscriber.id,
+            token_hash=_token_hash(raw_token),
+            expires_at=expires_at,
+            used_at=None,
+        )
+        db.add(record)
+    else:
+        record.token_hash = _token_hash(raw_token)
+        record.expires_at = expires_at
+        record.used_at = None
+        record.created_at = datetime.utcnow()
+    return raw_token
+
+
 def _send_verification_email(db, subscriber: CopySubscriber, raw_token: str) -> None:
     verification_url = portal_url(f"verify-email.html?token={raw_token}")
     record_and_send(
@@ -116,18 +174,31 @@ def _send_verification_email(db, subscriber: CopySubscriber, raw_token: str) -> 
     )
 
 
+def _send_password_reset_email(db, subscriber: CopySubscriber, raw_token: str) -> None:
+    reset_url = portal_url(f"reset-password.html?token={raw_token}")
+    record_and_send(
+        db,
+        recipient=subscriber.email,
+        subscriber_id=subscriber.id,
+        message_type="SUBSCRIBER_PASSWORD_RESET",
+        subject="Reset your Bethel Trading Technologies password",
+        text_body=(
+            f"Hello {subscriber.name},\n\n"
+            "We received a request to reset your Bethel Trading Technologies password.\n\n"
+            f"Reset your password: {reset_url}\n\n"
+            f"This link expires in {_password_reset_lifetime_minutes()} minutes and can be used once. "
+            "If you did not request a password reset, you can ignore this email and your current password will remain unchanged."
+        ),
+        deduplication_key=f"subscriber-password-reset:{subscriber.id}:{_token_hash(raw_token)[:16]}",
+    )
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register_subscriber_password(data: RegisterRequest, request: Request):
     if os.getenv("PUBLIC_SUBSCRIBER_REGISTRATION_ENABLED", "true").lower() not in {"1", "true", "yes", "on"}:
         raise HTTPException(status_code=503, detail="Public registration is temporarily unavailable")
     check_registration_allowed(request)
-    checks = (
-        any(ch.islower() for ch in data.password),
-        any(ch.isupper() for ch in data.password),
-        any(ch.isdigit() for ch in data.password),
-        any(ch in string.punctuation for ch in data.password),
-    )
-    if not all(checks):
+    if not _password_is_strong(data.password):
         raise HTTPException(
             status_code=422,
             detail="Password must contain uppercase, lowercase, number, and special characters",
@@ -219,6 +290,61 @@ def resend_subscriber_verification(data: ResendVerificationRequest, request: Req
         _send_verification_email(db, subscriber, raw_token)
         db.commit()
         return generic
+    finally:
+        db.close()
+
+
+@router.post("/forgot-password")
+def forgot_subscriber_password(data: ForgotPasswordRequest, request: Request):
+    check_registration_allowed(request)
+    generic = {
+        "status": "success",
+        "message": "If an account exists for that email, a secure password reset link has been sent.",
+    }
+    db = SessionLocal()
+    try:
+        email = str(data.email).strip().lower()
+        subscriber = db.query(CopySubscriber).filter(func.lower(CopySubscriber.email) == email).first()
+        if subscriber is None or not subscriber.password_hash:
+            return generic
+        raw_token = _create_password_reset(db, subscriber)
+        _send_password_reset_email(db, subscriber, raw_token)
+        db.commit()
+        return generic
+    finally:
+        db.close()
+
+
+@router.post("/reset-password")
+def reset_subscriber_password(data: ResetPasswordRequest):
+    if not _password_is_strong(data.password):
+        raise HTTPException(
+            status_code=422,
+            detail="Password must contain uppercase, lowercase, number, and special characters",
+        )
+
+    db = SessionLocal()
+    try:
+        _ensure_password_reset_table(db)
+        record = (
+            db.query(SubscriberPasswordReset)
+            .filter(SubscriberPasswordReset.token_hash == _token_hash(data.token))
+            .first()
+        )
+        if record is None or record.used_at is not None:
+            raise HTTPException(status_code=400, detail="Invalid or already used password reset link")
+        if record.expires_at < datetime.utcnow():
+            raise HTTPException(status_code=400, detail="Password reset link has expired")
+        subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == record.subscriber_id).first()
+        if subscriber is None:
+            raise HTTPException(status_code=400, detail="Invalid password reset link")
+        subscriber.password_hash = hash_password(data.password)
+        record.used_at = datetime.utcnow()
+        db.commit()
+        return {
+            "status": "success",
+            "message": "Password reset successfully. You can now sign in with your new password.",
+        }
     finally:
         db.close()
 
