@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin-frontend/
+Disallow: /investor-frontend/
+
+Sitemap: https://betheltradingtechnologies.com/sitemap.xml
