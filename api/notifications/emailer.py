@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 from api.notifications.models import EmailDelivery
 
 
-# Subscriber authentication pages are served by the Bethel API itself under
-# /investor-frontend. Keeping reset/verification pages on the same origin as
-# their API calls prevents broken links and cross-origin reset failures.
-PUBLIC_SUBSCRIBER_PORTAL = "https://api.betheltradingtechnologies.com/investor-frontend"
+# Subscriber authentication pages are served by the Bethel API application
+# under /investor-frontend. Use the working Render origin for customer-facing
+# reset/verification links until the custom api.betheltradingtechnologies.com
+# hostname is healthy and explicitly verified.
+PUBLIC_SUBSCRIBER_PORTAL = "https://bethel-api.onrender.com/investor-frontend"
 
 
 def smtp_configured() -> bool:
@@ -111,12 +112,12 @@ def _subscriber_portal_base() -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return PUBLIC_SUBSCRIBER_PORTAL
 
-    # The reset page uses relative API routes, so the subscriber portal must be
-    # served from the Bethel API origin. If Render's internal hostname or the
-    # public marketing site is supplied, normalize to the canonical API portal.
+    # The reset page uses relative API routes and therefore must live on the
+    # same application origin that serves the subscriber backend. Normalize
+    # known non-working or marketing hosts to the verified Render portal.
     hostname = (parsed.hostname or "").lower()
     if hostname in {
-        "bethel-api.onrender.com",
+        "api.betheltradingtechnologies.com",
         "betheltradingtechnologies.com",
         "www.betheltradingtechnologies.com",
     }:
