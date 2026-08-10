@@ -3,6 +3,8 @@
   if(typeof isAuthenticated!=="function" || !isAuthenticated()) return;
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+  const TRAFFIC_REFRESH_MS = 60000;
+  let trafficRefreshTimer = null;
 
   function ensureView(){
     if(document.getElementById("view-traffic")) return;
@@ -53,12 +55,12 @@
       </div>
       <article class="panel">
         <div class="section-heading">
-          <div><h2>Website Traffic Analytics</h2><p>Private Super Admin view. Raw visitor IP addresses are never stored.</p></div>
+          <div><h2>Website Traffic Analytics</h2><p>Private Super Admin view. Weekly by default and refreshed automatically every 60 seconds. Raw visitor IP addresses are never stored.</p></div>
           <div>
             <select id="traffic-period" aria-label="Traffic period">
-              <option value="1">Today</option><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option>
+              <option value="1">Today</option><option value="7" selected>This week</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">Since launch / 1 year</option>
             </select>
-            <button id="traffic-refresh" type="button">Refresh</button>
+            <button id="traffic-refresh" type="button">Refresh now</button>
           </div>
         </div>
         <div class="panel-grid">
@@ -77,6 +79,13 @@
 
     document.getElementById("traffic-refresh")?.addEventListener("click", loadTraffic);
     document.getElementById("traffic-period")?.addEventListener("change", loadTraffic);
+
+    if(!trafficRefreshTimer){
+      trafficRefreshTimer = window.setInterval(() => {
+        const view = document.getElementById("view-traffic");
+        if(view && !view.hidden && view.style.display !== "none") loadTraffic();
+      }, TRAFFIC_REFRESH_MS);
+    }
   }
 
   function ranked(targetId, rows){
@@ -88,7 +97,7 @@
 
   async function loadTraffic(){
     ensureView();
-    const period = Number(document.getElementById("traffic-period")?.value || 30);
+    const period = Number(document.getElementById("traffic-period")?.value || 7);
     try{
       const response = await apiGet(`/traffic/admin/summary?days=${period}`);
       document.getElementById("traffic-pageviews").textContent = Number(response.total_page_views || 0).toLocaleString();
