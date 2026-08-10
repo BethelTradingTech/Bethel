@@ -7,6 +7,7 @@ This does not create, drop, or alter the database table.
 """
 
 from datetime import datetime
+import sys
 
 from sqlalchemy import Column, DateTime, Integer, String
 
@@ -25,3 +26,11 @@ class SubscriberPasswordReset(Base):
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# Render can expose this package through more than one import root. Register
+# both module names to this single module object so SQLAlchemy does not evaluate
+# the same declarative model twice under alternate import names.
+_this_module = sys.modules[__name__]
+sys.modules.setdefault("api.copytrading.subscriber_security_models", _this_module)
+sys.modules.setdefault("copytrading.subscriber_security_models", _this_module)
