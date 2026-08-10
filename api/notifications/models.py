@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Column, DateTime, Integer, String, Text, UniqueConstraint
 
 from api.database import Base
+from api.copytrading.subscriber_security_models import SubscriberPasswordReset as PasswordReset
 
 
 class EmailDelivery(Base):
@@ -20,22 +21,6 @@ class EmailDelivery(Base):
     deduplication_key = Column(String(255), nullable=True, unique=True, index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     sent_at = Column(DateTime, nullable=True)
-
-
-class PasswordReset(Base):
-    __tablename__ = "subscriber_password_resets"
-
-    id = Column(Integer, primary_key=True, index=True)
-    subscriber_id = Column(
-        Integer,
-        ForeignKey("copy_subscribers.id"),
-        nullable=False,
-        index=True,
-    )
-    token_hash = Column(String(64), nullable=False, unique=True, index=True)
-    expires_at = Column(DateTime, nullable=False, index=True)
-    used_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class NotificationState(Base):
