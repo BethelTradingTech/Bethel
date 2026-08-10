@@ -1,9 +1,9 @@
 """Canonical SQLAlchemy models for subscriber authentication security records.
 
-Render/Gunicorn can load compatibility modules through more than one Python
-import path during startup. Keep the model canonical here and allow SQLAlchemy
-to reuse the already-registered Table object if this module is evaluated again.
-This does not create, drop, or alter the database table.
+Render/Gunicorn can expose the same source file through more than one Python
+import root. Register every supported import alias before SQLAlchemy evaluates
+the declarative class so the password-reset table is mapped only once.
+This does not create, drop, or alter an existing database table.
 """
 
 from datetime import datetime
@@ -12,6 +12,18 @@ import sys
 from sqlalchemy import Column, DateTime, Integer, String
 
 from api.database import Base
+
+
+# IMPORTANT: register aliases before the declarative class is evaluated.
+# This prevents a second execution of this module when Render resolves the
+# package as api.copytrading.*, copytrading.*, or a bare compatibility import.
+_this_module = sys.modules[__name__]
+for _alias in (
+    "api.copytrading.subscriber_security_models",
+    "copytrading.subscriber_security_models",
+    "subscriber_security_models",
+):
+    sys.modules.setdefault(_alias, _this_module)
 
 
 class SubscriberPasswordReset(Base):
@@ -26,11 +38,3 @@ class SubscriberPasswordReset(Base):
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-# Render can expose this package through more than one import root. Register
-# both module names to this single module object so SQLAlchemy does not evaluate
-# the same declarative model twice under alternate import names.
-_this_module = sys.modules[__name__]
-sys.modules.setdefault("api.copytrading.subscriber_security_models", _this_module)
-sys.modules.setdefault("copytrading.subscriber_security_models", _this_module)
