@@ -1,7 +1,9 @@
 """Canonical SQLAlchemy models for subscriber authentication security records.
 
-Keep these declarations in one import path so Render/Gunicorn startup cannot
-register the same table twice when compatibility modules are imported.
+Render/Gunicorn can load compatibility modules through more than one Python
+import path during startup. Keep the model canonical here and allow SQLAlchemy
+to reuse the already-registered Table object if this module is evaluated again.
+This does not create, drop, or alter the database table.
 """
 
 from datetime import datetime
@@ -15,6 +17,7 @@ class SubscriberPasswordReset(Base):
     """One active password-reset record per subscriber."""
 
     __tablename__ = "subscriber_password_resets"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, index=True)
     subscriber_id = Column(Integer, unique=True, index=True, nullable=False)
