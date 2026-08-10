@@ -3,11 +3,15 @@ from email.message import EmailMessage
 import os
 import smtplib
 import ssl
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
 from api.notifications.models import EmailDelivery
+
+
+PUBLIC_SUBSCRIBER_PORTAL = "https://betheltradingtechnologies.com/investor-frontend"
 
 
 def smtp_configured() -> bool:
@@ -94,9 +98,27 @@ def record_and_send(
     return delivery
 
 
+def _subscriber_portal_base() -> str:
+    raw = os.getenv("SUBSCRIBER_PORTAL_URL", PUBLIC_SUBSCRIBER_PORTAL).strip()
+    if raw.startswith("//"):
+        raw = "https:" + raw
+    elif raw and not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw.lstrip("/")
+
+    parsed = urlparse(raw)
+    hostname = (parsed.hostname or "").lower()
+
+    # Never put the Render API hostname into customer-facing portal emails.
+    # The API can remain on Render while reset/verification pages use Bethel's
+    # public website domain.
+    if hostname in {"bethel-api.onrender.com", "api.betheltradingtechnologies.com"}:
+        return PUBLIC_SUBSCRIBER_PORTAL
+
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return PUBLIC_SUBSCRIBER_PORTAL
+
+    return raw.rstrip("/")
+
+
 def portal_url(path: str) -> str:
-    base = os.getenv(
-        "SUBSCRIBER_PORTAL_URL",
-        "http://127.0.0.1:8000/investor-frontend",
-    ).rstrip("/")
-    return f"{base}/{path.lstrip('/')}"
+    return f"{_subscriber_portal_base()}/{path.lstrip('/')}"
