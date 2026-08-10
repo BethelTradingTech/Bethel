@@ -89,7 +89,7 @@ def record_visit(data: VisitSchema, request: Request, db: Session = Depends(get_
 
 @router.get("/admin/summary")
 def admin_summary(
-    days: int = 30,
+    days: int = 7,
     _admin=Depends(require_super_admin),
     db: Session = Depends(get_db),
 ):
