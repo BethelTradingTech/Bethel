@@ -1,18 +1,5 @@
-from datetime import datetime
+"""Compatibility import for the canonical subscriber password-reset model."""
 
-from sqlalchemy import Column, DateTime, Integer, String
+from api.copytrading.subscriber_security_models import SubscriberPasswordReset
 
-from api.database import Base
-
-
-class SubscriberPasswordReset(Base):
-    """One active password-reset record per subscriber."""
-
-    __tablename__ = "subscriber_password_resets"
-
-    id = Column(Integer, primary_key=True, index=True)
-    subscriber_id = Column(Integer, unique=True, index=True, nullable=False)
-    token_hash = Column(String(64), unique=True, index=True, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
-    used_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+__all__ = ["SubscriberPasswordReset"]
