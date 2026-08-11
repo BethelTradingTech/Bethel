@@ -38,6 +38,10 @@
                 <strong>Bethel Native Identity Verification</strong>
                 <p>Your identity evidence is encrypted and processed through Bethel's native verification pipeline. PEP and adverse-media review remain separate compliance follow-up items.</p>
             </div>
+            <label for="native-date-of-birth">Date of birth</label>
+            <input id="native-date-of-birth" type="date" required>
+            <label for="native-nationality">Nationality (3-letter code)</label>
+            <input id="native-nationality" type="text" minlength="3" maxlength="3" placeholder="GHA" required>
             <label for="native-document-type">Identity document</label>
             <select id="native-document-type" required>
                 <option value="passport">Passport</option>
@@ -78,6 +82,8 @@
             const body=new FormData();
             body.append("reference",session.reference);
             body.append("challenge",session.challenge);
+            body.append("date_of_birth",document.getElementById("native-date-of-birth").value);
+            body.append("nationality",document.getElementById("native-nationality").value.trim().toUpperCase());
             body.append("document_type",docType);
             body.append("issuing_country",document.getElementById("native-issuing-country").value.trim().toUpperCase());
             body.append("document_number",document.getElementById("native-document-number").value.trim());
@@ -119,7 +125,7 @@
         }catch(error){
             setNativeMessage(error.message,"error");
         }finally{
-            if(button){button.disabled=false;button.textContent="Start identity verification";}
+            if(button){button.disabled=false;button.textContent="Start Bethel Native KYC";}
         }
     }
 
