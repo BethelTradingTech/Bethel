@@ -19,8 +19,8 @@ jobs:
     env:
       DATABASE_URL: sqlite:///./native_kyc_ci.db
       BETHEL_ENVIRONMENT: DEVELOPMENT
-      JWT_SECRET_KEY: ci-jwt-secret-key-at-least-32-characters
-      SUBSCRIBER_JWT_SECRET_KEY: ci-subscriber-secret-key-at-least-32-characters
+      JWT_SECRET_KEY: ci-jwt-secret-key-0123456789abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ
+      SUBSCRIBER_JWT_SECRET_KEY: ci-subscriber-jwt-secret-0123456789abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ
       IDENTITY_VERIFICATION_MODE: sumsub
       KYC_ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
       KYC_STORAGE_ROOT: /tmp/bethel-native-kyc
@@ -57,7 +57,16 @@ jobs:
           db.close()
           print(state)
           PY
-      - name: Import production entrypoint
-        run: python -c "import render_app; print('render_app import ok')"
+      - name: Import production entrypoint and verify routes
+        run: |
+          python - <<'PY'
+          import render_app
+          paths={getattr(route, "path", "") for route in render_app.app.routes}
+          assert "/ready" in paths
+          assert "/kyc/native/readiness" in paths
+          assert "/kyc/{subscriber_id}/native/session" in paths
+          assert "/kyc/{subscriber_id}/native/submit" in paths
+          print("render_app native KYC routes ok")
+          PY
       - name: Build production container
         run: docker build -t bethel-native-kyc-ci .
