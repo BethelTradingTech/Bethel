@@ -24,6 +24,7 @@ jobs:
       IDENTITY_VERIFICATION_MODE: sumsub
       KYC_ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
       KYC_STORAGE_ROOT: /tmp/bethel-native-kyc
+      KYC_STORAGE_PERSISTENT: "true"
       KYC_MALWARE_SCANNER_BASE_URL: http://localhost:9991
       KYC_MALWARE_SCANNER_API_KEY: ci-key
       KYC_OCR_BASE_URL: http://localhost:9992
@@ -52,6 +53,7 @@ jobs:
           db=SessionLocal()
           state=readiness(db)
           assert state["checks"]["encryption_key"] is True
+          assert state["checks"]["private_persistent_storage"] is True
           assert state["checks"]["sanctions_data"] is False
           assert state["ready_for_native_identity"] is False
           db.close()
