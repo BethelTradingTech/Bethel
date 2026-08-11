@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -12,7 +13,11 @@ from api.onboarding.models import ClientOnboarding
 from api.onboarding.service import get_or_create_onboarding, recompute_activation
 
 
-router = APIRouter(prefix="/kyc", tags=["Sumsub KYC"])
+router = APIRouter(prefix="/kyc", tags=["KYC"])
+
+
+def _native_selected() -> bool:
+    return (os.getenv("IDENTITY_VERIFICATION_MODE") or "sumsub").strip().lower() == "native"
 
 
 @router.post("/{subscriber_id}/access-token")
@@ -21,11 +26,9 @@ def create_access_token(
     db: Session = Depends(get_db),
     _actor=Depends(require_subscriber_or_admin),
 ):
-    subscriber = (
-        db.query(CopySubscriber)
-        .filter(CopySubscriber.id == subscriber_id)
-        .first()
-    )
+    if _native_selected():
+        raise HTTPException(status_code=410, detail="Sumsub is disabled. Bethel native identity verification is active.")
+    subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == subscriber_id).first()
     if subscriber is None:
         raise HTTPException(status_code=404, detail="Subscriber not found")
 
@@ -42,11 +45,7 @@ def create_access_token(
     onboarding.admin_approval = "PENDING"
     recompute_activation(db, onboarding)
     db.commit()
-    return {
-        "token": token,
-        "external_user_id": external_user_id,
-        "expires_in": 600,
-    }
+    return {"token": token, "external_user_id": external_user_id, "expires_in": 600}
 
 
 @router.post("/webhook/sumsub")
@@ -56,6 +55,8 @@ async def sumsub_webhook(
     x_payload_digest_alg: str = Header(default="HMAC_SHA256_HEX"),
     db: Session = Depends(get_db),
 ):
+    if _native_selected():
+        return {"received": True, "updated": False, "provider": "disabled_by_native_cutover"}
     raw_body = await request.body()
     verify_webhook(raw_body, x_payload_digest, x_payload_digest_alg)
     try:
@@ -75,11 +76,7 @@ async def sumsub_webhook(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid external user ID")
 
-    onboarding = (
-        db.query(ClientOnboarding)
-        .filter(ClientOnboarding.subscriber_id == subscriber_id)
-        .first()
-    )
+    onboarding = db.query(ClientOnboarding).filter(ClientOnboarding.subscriber_id == subscriber_id).first()
     if onboarding is None:
         raise HTTPException(status_code=404, detail="Onboarding record not found")
 

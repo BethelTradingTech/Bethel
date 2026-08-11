@@ -1,0 +1,76 @@
+name: Bethel Native KYC CI
+
+on:
+  pull_request:
+    paths:
+      - "api/kyc/**"
+      - "scripts/refresh_bethel_sanctions.py"
+      - "render_app.py"
+      - "investor-frontend/js/native-kyc.js"
+      - "investor-frontend/js/onboarding-workflow-v2.js"
+      - "config/production.env.example"
+      - "requirements.txt"
+      - ".github/workflows/native-kyc-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  native-kyc:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./native_kyc_ci.db
+      BETHEL_ENVIRONMENT: DEVELOPMENT
+      JWT_SECRET_KEY: ci-jwt-secret-key-0123456789abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ
+      SUBSCRIBER_JWT_SECRET_KEY: ci-subscriber-jwt-secret-0123456789abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ
+      IDENTITY_VERIFICATION_MODE: sumsub
+      KYC_ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
+      KYC_STORAGE_ROOT: /tmp/bethel-native-kyc
+      KYC_STORAGE_PERSISTENT: "true"
+      KYC_MALWARE_SCANNER_BASE_URL: http://localhost:9991
+      KYC_MALWARE_SCANNER_API_KEY: ci-key
+      KYC_OCR_BASE_URL: http://localhost:9992
+      KYC_OCR_API_KEY: ci-key
+      KYC_AUTHENTICITY_VERIFIER_BASE_URL: http://localhost:9993
+      KYC_AUTHENTICITY_VERIFIER_API_KEY: ci-key
+      KYC_BIOMETRIC_VERIFIER_BASE_URL: http://localhost:9994
+      KYC_BIOMETRIC_VERIFIER_API_KEY: ci-key
+      AML_SCREENING_MODE: local_dataset
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile native KYC source
+        run: python -m py_compile api/kyc/native_models.py api/kyc/native_engine.py api/kyc/native_routes.py api/kyc/routes.py scripts/refresh_bethel_sanctions.py render_app.py
+      - name: Verify native KYC tables and readiness
+        run: |
+          python - <<'PY'
+          from api.database import Base, SessionLocal, engine
+          from api.kyc import native_models
+          from api.kyc.native_engine import readiness
+          Base.metadata.create_all(bind=engine)
+          db=SessionLocal()
+          state=readiness(db)
+          assert state["checks"]["encryption_key"] is True
+          assert state["checks"]["private_persistent_storage"] is True
+          assert state["checks"]["sanctions_data"] is False
+          assert state["ready_for_native_identity"] is False
+          db.close()
+          print(state)
+          PY
+      - name: Verify native route definitions
+        run: |
+          python - <<'PY'
+          from api.kyc.native_routes import router
+          paths={getattr(route, "path", "") for route in router.routes}
+          assert "/kyc/native/readiness" in paths
+          assert "/kyc/{subscriber_id}/native/session" in paths
+          assert "/kyc/{subscriber_id}/native/submit" in paths
+          assert "/kyc/{subscriber_id}/native/status" in paths
+          print("native KYC route definitions ok")
+          PY
+      - name: Import production entrypoint
+        run: python -c "import render_app; print('render_app import ok')"
+      - name: Build production container
+        run: docker build -t bethel-native-kyc-ci .
