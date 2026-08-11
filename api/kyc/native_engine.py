@@ -4,7 +4,7 @@ import os
 import re
 import secrets
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -12,7 +12,7 @@ import requests
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy.orm import Session
 
-from api.kyc.native_models import BethelKYCCheck, BethelKYCEvidence, BethelKYCSession, BethelScreeningDataset, BethelScreeningEntry
+from api.kyc.native_models import BethelKYCCheck, BethelKYCSession, BethelScreeningDataset, BethelScreeningEntry
 
 
 @dataclass
@@ -138,18 +138,33 @@ def latest_checks(db: Session, session_id: int) -> dict[str, BethelKYCCheck]:
 
 
 def readiness(db: Session) -> dict:
-    def env(name): return bool((os.getenv(name) or "").strip())
+    def env(name):
+        return bool((os.getenv(name) or "").strip())
+
     key_ok = False
     try:
         key_ok = len(_key()) == 32
     except Exception:
         pass
+
+    storage_root = (os.getenv("KYC_STORAGE_ROOT") or "").strip()
+    persistent_confirmed = (os.getenv("KYC_STORAGE_PERSISTENT") or "").strip().lower() == "true"
+    storage_ready = bool(storage_root and persistent_confirmed)
+    if storage_ready:
+        try:
+            root = _root()
+            probe = root / ".bethel-kyc-write-test"
+            probe.write_bytes(b"ok")
+            probe.unlink(missing_ok=True)
+        except Exception:
+            storage_ready = False
+
     dataset = db.query(BethelScreeningDataset).filter(BethelScreeningDataset.dataset_type == "sanctions", BethelScreeningDataset.active.is_(True)).order_by(BethelScreeningDataset.id.desc()).first()
     max_age = max(1, int(os.getenv("AML_DATASET_MAX_AGE_DAYS", "2")))
     sanctions_ready = bool(dataset and dataset.effective_date and 0 <= (date.today() - dataset.effective_date).days <= max_age)
     checks = {
         "encryption_key": key_ok,
-        "private_storage": env("KYC_STORAGE_ROOT"),
+        "private_persistent_storage": storage_ready,
         "malware_scanner": env("KYC_MALWARE_SCANNER_BASE_URL") and env("KYC_MALWARE_SCANNER_API_KEY"),
         "ocr_engine": env("KYC_OCR_BASE_URL") and env("KYC_OCR_API_KEY"),
         "document_authenticity_engine": env("KYC_AUTHENTICITY_VERIFIER_BASE_URL") and env("KYC_AUTHENTICITY_VERIFIER_API_KEY"),
@@ -163,5 +178,6 @@ def readiness(db: Session) -> dict:
         "aml_followup_required": True,
         "aml_followup_policy": "PEP and adverse-media gaps do not block Bethel identity verification; they remain Compliance follow-up items.",
         "checks": checks,
+        "storage": {"root": storage_root or None, "persistent_confirmed": persistent_confirmed, "writable": storage_ready},
         "sanctions_dataset": {"ready": sanctions_ready, "dataset_id": dataset.id if dataset else None, "source": dataset.source_name if dataset else None, "age_days": (date.today() - dataset.effective_date).days if dataset and dataset.effective_date else None},
     }
