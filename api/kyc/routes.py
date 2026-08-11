@@ -97,9 +97,3 @@ async def sumsub_webhook(
     recompute_activation(db, onboarding)
     db.commit()
     return {"received": True, "updated": True, "kyc_status": onboarding.kyc_status}
-
-
-# Native routes live under the same /kyc prefix so the existing onboarding
-# workflow and authorization boundary remain unchanged.
-from api.kyc.native_routes import router as native_router
-router.include_router(native_router)
