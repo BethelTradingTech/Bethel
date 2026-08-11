@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, JSON, String, Text, UniqueConstraint, func
 
 from api.database import Base
@@ -13,6 +11,8 @@ class BethelKYCSession(Base):
     subscriber_id = Column(Integer, nullable=False, index=True)
     status = Column(String(24), nullable=False, default="created", index=True)
     decision = Column(String(24), nullable=True, index=True)
+    date_of_birth = Column(Date, nullable=True)
+    nationality = Column(String(3), nullable=True)
     document_type = Column(String(32), nullable=True)
     issuing_country = Column(String(3), nullable=True)
     document_expiry = Column(Date, nullable=True)
