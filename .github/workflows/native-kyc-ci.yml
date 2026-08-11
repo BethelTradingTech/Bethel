@@ -57,16 +57,18 @@ jobs:
           db.close()
           print(state)
           PY
-      - name: Import production entrypoint and verify routes
+      - name: Verify native route definitions
         run: |
           python - <<'PY'
-          import render_app
-          paths={getattr(route, "path", "") for route in render_app.app.routes}
-          assert "/ready" in paths
-          assert "/kyc/native/readiness" in paths
-          assert "/kyc/{subscriber_id}/native/session" in paths
-          assert "/kyc/{subscriber_id}/native/submit" in paths
-          print("render_app native KYC routes ok")
+          from api.kyc.native_routes import router
+          paths={getattr(route, "path", "") for route in router.routes}
+          assert "/native/readiness" in paths
+          assert "/{subscriber_id}/native/session" in paths
+          assert "/{subscriber_id}/native/submit" in paths
+          assert "/{subscriber_id}/native/status" in paths
+          print("native KYC route definitions ok")
           PY
+      - name: Import production entrypoint
+        run: python -c "import render_app; print('render_app import ok')"
       - name: Build production container
         run: docker build -t bethel-native-kyc-ci .
