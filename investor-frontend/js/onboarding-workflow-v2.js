@@ -153,6 +153,11 @@
     document.getElementById("copier-refresh-status")?.addEventListener("click", refreshStatus);
     document.getElementById("copier-continue-payment")?.addEventListener("click", () => window.openRegistrationStep(10));
 
+    const nativeKycScript = document.createElement("script");
+    nativeKycScript.src = "js/native-kyc.js?v=1";
+    nativeKycScript.defer = true;
+    document.head.appendChild(nativeKycScript);
+
     const storedStep = Number(sessionStorage.getItem("bethel_registration_step") || 3);
     const safeStep = storedStep > 10 ? storedStep : (storedStep === 8 ? 10 : storedStep === 9 ? 11 : storedStep);
     if (subscriberToken() && subscriberId()) {
