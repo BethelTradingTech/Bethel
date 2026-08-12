@@ -50,14 +50,39 @@ class PerformanceEngine:
         deposits = sum(float(item.amount) for item in cash_flows if float(item.amount) > 0)
         withdrawals = abs(sum(float(item.amount) for item in cash_flows if float(item.amount) < 0))
         net_deposits = deposits - withdrawals
+        first_positive = next((item for item in cash_flows if float(item.amount or 0) > 0), None)
         return {
             "deposits": deposits,
             "withdrawals": withdrawals,
             "net_deposits": net_deposits if net_deposits > 0 else fallback,
             "cash_flow_count": len(cash_flows),
             "first_cash_flow_at": cash_flows[0].occurred_at if cash_flows else None,
+            "first_positive_cash_flow": float(first_positive.amount) if first_positive is not None else None,
+            "first_positive_cash_flow_at": first_positive.occurred_at if first_positive is not None else None,
             "source": "mt5_cash_flows" if net_deposits > 0 else "first_snapshot_balance",
         }
+
+    @staticmethod
+    def display_starting_capital(history: List[EquitySnapshot], funding: Dict, fallback: float) -> float:
+        """Prefer verified initial funding when snapshots begin after account funding.
+
+        A first stored snapshot may be captured long after the account was opened and
+        can therefore include accumulated P/L. In that situation it must not be
+        labelled as starting capital.
+        """
+        initial_funding = funding.get("first_positive_cash_flow")
+        initial_funding_at = funding.get("first_positive_cash_flow_at")
+        first_snapshot_at = history[0].timestamp if history else None
+        try:
+            initial_funding = float(initial_funding) if initial_funding is not None else None
+        except (TypeError, ValueError):
+            initial_funding = None
+        if initial_funding and initial_funding > 0:
+            if first_snapshot_at is None or initial_funding_at is None or initial_funding_at <= first_snapshot_at:
+                return initial_funding
+            if fallback <= 0:
+                return initial_funding
+        return float(fallback or 0.0)
 
     def closed_profit_summary(self, account_number: str) -> Dict:
         row = (
@@ -218,6 +243,7 @@ class PerformanceEngine:
 
         fallback_capital = self.starting_capital(history)
         funding = self.funding_summary(account_number, fallback_capital)
+        starting_capital = self.display_starting_capital(history, funding, fallback_capital)
         closed = self.closed_profit_summary(account_number)
         funding_base = float(funding["net_deposits"] or fallback_capital or 0)
 
@@ -261,7 +287,7 @@ class PerformanceEngine:
             "status": "success",
             "master_account": account_number,
             "baseline_source": funding["source"],
-            "starting_capital": round(fallback_capital, 2),
+            "starting_capital": round(starting_capital, 2),
             "funding_base": round(funding_base, 2),
             "deposits": round(float(funding["deposits"]), 2),
             "withdrawals": round(float(funding["withdrawals"]), 2),

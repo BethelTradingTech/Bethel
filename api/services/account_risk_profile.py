@@ -23,6 +23,10 @@ import numpy as np
 from api.database import SessionLocal
 from api.models import EquitySnapshot
 from api.mt5_ingest.models import ConnectorCashFlow, ConnectorDeal
+from api.services.ledger_reconciliation import (
+    reconciliation_is_acceptable,
+    resolve_opening_balance,
+)
 
 TRADING_DAYS_PER_YEAR = 252
 
@@ -77,12 +81,7 @@ def _weekday_range(start_day, end_day):
 
 
 def _profit_distribution_consistency(values: np.ndarray) -> float:
-    """Score profit distribution without embedding an expected result.
-
-    A score near 100 means positive daily returns are spread across many days.
-    The score falls when one profitable day dominates the account's total positive
-    daily return. This is deliberately independent of snapshot frequency.
-    """
+    """Score profit distribution without embedding an expected result."""
     positive = values[np.isfinite(values) & (values > 0)]
     if len(positive) == 0:
         return 0.0
@@ -168,15 +167,17 @@ def get_account_risk_profile(account_number: str) -> dict:
         events.sort(key=lambda row: (row[0], row[1], row[4]))
 
         current_balance = float(latest.balance or 0.0)
-        opening_balance = current_balance - total_change
-        if opening_balance <= 0:
+        opening = resolve_opening_balance(current_balance, total_change)
+        if opening["status"] != "available":
             return {
                 "status": "not_available",
-                "reason": "invalid_reconstructed_opening_balance",
+                "reason": opening["reason"],
                 "master_account": account_number,
+                "raw_opening_balance": opening.get("raw_opening_balance"),
+                "reconciliation_tolerance": round(float(opening["tolerance"]), 6),
             }
 
-        balance = opening_balance
+        balance = float(opening["opening_balance"])
         daily_factor = defaultdict(lambda: 1.0)
         daily_trade_count = defaultdict(int)
         for when, _, amount, kind, _id in events:
@@ -201,13 +202,19 @@ def get_account_risk_profile(account_number: str) -> dict:
             balance += amount
 
         reconciliation_gap = current_balance - balance
-        tolerance = max(0.02, abs(current_balance) * 0.000001)
-        if abs(reconciliation_gap) > tolerance:
+        reconciled, tolerance = reconciliation_is_acceptable(
+            reconciliation_gap,
+            current_balance,
+            total_change,
+            balance,
+        )
+        if not reconciled:
             return {
                 "status": "not_available",
                 "reason": "signed_ledger_reconciliation_failed",
                 "master_account": account_number,
                 "reconciliation_gap": round(reconciliation_gap, 6),
+                "reconciliation_tolerance": round(tolerance, 6),
             }
 
         history_start = min(event[0].date() for event in events)
@@ -276,7 +283,10 @@ def get_account_risk_profile(account_number: str) -> dict:
             "trading_days": int(trade_days),
             "closed_deals": int(len(deals)),
             "cash_flow_events": int(len(flows)),
+            "raw_opening_balance": round(float(opening["raw_opening_balance"]), 6),
+            "opening_balance": round(float(opening["opening_balance"]), 6),
             "reconciliation_gap": round(reconciliation_gap, 6),
+            "reconciliation_tolerance": round(tolerance, 6),
             "total_realized_return_percent": round(total_return, 4),
             "annualized_volatility_percent": round(annualized_volatility, 4),
             "risk_reward_ratio": round(sharpe, 4),
