@@ -6,8 +6,8 @@ refresh fails, and a new snapshot is activated only after records are parsed.
 
 The FCDO CSV has a static URL, but this parser deliberately tolerates BOMs,
 UTF-16/UTF-8 encodings, delimiter changes, a leading preamble, and harmless
-header-spacing/case changes. It still fails closed if the required UKSL fields
-cannot be identified or if zero designations are parsed.
+header-spacing/case changes. Database writes use bulk insertion so a large
+published CSV does not appear to hang while thousands of rows are persisted.
 """
 
 import csv
@@ -30,6 +30,10 @@ from api.kyc.native_models import BethelScreeningDataset, BethelScreeningEntry
 UK_URL = os.getenv("UK_SANCTIONS_CSV_URL", "https://sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv")
 
 
+def _log(message):
+    print(message, flush=True)
+
+
 def _clean(value):
     return " ".join(str(value or "").replace("\x00", "").strip().split())
 
@@ -40,9 +44,6 @@ def _header_key(value):
 
 
 def _decode(raw: bytes) -> str:
-    # The published file has changed encoding historically. Prefer BOM-aware
-    # decoding and fall back conservatively instead of silently producing rows
-    # whose header names contain NUL characters.
     if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
         return raw.decode("utf-16")
     if raw.startswith(b"\xef\xbb\xbf"):
@@ -65,8 +66,6 @@ def _delimiter_and_header(text: str):
             header_index = index
             break
     if header_index is None:
-        # Some CSV writers quote or otherwise decorate the line in ways that
-        # make the compact check too strict. Look for the two required labels.
         for index, line in enumerate(lines[:50]):
             lowered = line.lower()
             if "unique id" in lowered and "name 6" in lowered:
@@ -107,8 +106,6 @@ def _parse_dob(value):
     value = _clean(value)
     if not value:
         return None
-    # UKSL permits partial DOBs. Persist only an unambiguous complete date;
-    # partial dates must not be converted into invented values.
     for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
         try:
             return datetime.strptime(value, fmt).date()
@@ -118,11 +115,19 @@ def _parse_dob(value):
 
 
 def refresh():
-    request = Request(UK_URL, headers={"User-Agent": "BethelTradingTechnologies-KYC/1.1", "Accept": "text/csv,*/*;q=0.8"})
+    _log(f"[1/6] Downloading official UK sanctions list: {UK_URL}")
+    request = Request(
+        UK_URL,
+        headers={
+            "User-Agent": "BethelTradingTechnologies-KYC/1.2",
+            "Accept": "text/csv,*/*;q=0.8",
+        },
+    )
     with urlopen(request, timeout=60) as response:
         raw = response.read()
     if len(raw) < 1000:
         raise RuntimeError("UK sanctions download was unexpectedly small")
+    _log(f"[2/6] Downloaded {len(raw):,} bytes")
 
     digest = hashlib.sha256(raw).hexdigest()
     text = _decode(raw)
@@ -136,8 +141,11 @@ def refresh():
     if not required.issubset(normalized_headers):
         raise RuntimeError(f"UK sanctions CSV required fields are missing; headers={reader.fieldnames!r}")
 
+    _log(f"[3/6] Parsing designations using delimiter {delimiter!r}")
     grouped = {}
+    row_count = 0
     for index, raw_row in enumerate(reader, start=1):
+        row_count += 1
         row = _canonical_row(raw_row)
         name = _name(row)
         if not name:
@@ -146,12 +154,14 @@ def refresh():
         item = grouped.setdefault(uid, {"names": [], "row": row})
         if name not in item["names"]:
             item["names"].append(name)
-        # Prefer the primary-name row as the metadata source when present.
         if _get(row, "Name type").lower() == "primary name":
             item["row"] = row
+        if row_count % 50000 == 0:
+            _log(f"      parsed {row_count:,} CSV rows; {len(grouped):,} unique designations")
 
     if not grouped:
         raise RuntimeError("No sanctions entries were parsed from the official UK list")
+    _log(f"[4/6] Parsed {row_count:,} CSV rows into {len(grouped):,} unique designations")
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -168,7 +178,8 @@ def refresh():
                 BethelScreeningDataset.id != existing.id,
             ).update({"active": False})
             db.commit()
-            print({"status": "ok", "dataset_id": existing.id, "records": existing.record_count, "unchanged": True, "sha256": digest})
+            _log(f"[6/6] Existing dataset reactivated: id={existing.id}, records={existing.record_count}")
+            print({"status": "ok", "dataset_id": existing.id, "records": existing.record_count, "unchanged": True, "sha256": digest}, flush=True)
             return
 
         dataset = BethelScreeningDataset(
@@ -183,33 +194,51 @@ def refresh():
         db.add(dataset)
         db.flush()
 
+        mappings = []
         for uid, item in grouped.items():
             names = item["names"]
             row = item["row"]
             nationality = _get(row, "Nationality(/ies)", "Nationality")
             address_country = _get(row, "Address Country", "Country")
-            db.add(
-                BethelScreeningEntry(
-                    dataset_id=dataset.id,
-                    dataset_type="sanctions",
-                    entry_key=uid,
-                    primary_name=names[0],
-                    aliases=names[1:],
-                    date_of_birth=_parse_dob(_get(row, "D.O.B", "DOB")),
-                    nationality=nationality[:3].upper() or None,
-                    countries=[address_country] if address_country else [],
-                    source_reference=uid,
-                )
+            mappings.append(
+                {
+                    "dataset_id": dataset.id,
+                    "dataset_type": "sanctions",
+                    "entry_key": uid,
+                    "primary_name": names[0],
+                    "aliases": names[1:],
+                    "date_of_birth": _parse_dob(_get(row, "D.O.B", "DOB")),
+                    "nationality": nationality[:3].upper() or None,
+                    "countries": [address_country] if address_country else [],
+                    "source_reference": uid,
+                }
             )
 
-        db.flush()
+        _log(f"[5/6] Bulk inserting {len(mappings):,} sanctions entries")
+        batch_size = 2000
+        for start in range(0, len(mappings), batch_size):
+            batch = mappings[start:start + batch_size]
+            db.bulk_insert_mappings(BethelScreeningEntry, batch)
+            _log(f"      inserted {min(start + len(batch), len(mappings)):,}/{len(mappings):,}")
+
         db.query(BethelScreeningDataset).filter(
             BethelScreeningDataset.dataset_type == "sanctions",
             BethelScreeningDataset.id != dataset.id,
         ).update({"active": False})
         dataset.active = True
         db.commit()
-        print({"status": "ok", "dataset_id": dataset.id, "records": len(grouped), "source": dataset.source_name, "sha256": digest, "delimiter": delimiter})
+        _log(f"[6/6] Activated sanctions dataset id={dataset.id}")
+        print(
+            {
+                "status": "ok",
+                "dataset_id": dataset.id,
+                "records": len(grouped),
+                "source": dataset.source_name,
+                "sha256": digest,
+                "delimiter": delimiter,
+            },
+            flush=True,
+        )
     except Exception:
         db.rollback()
         raise
