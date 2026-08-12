@@ -7,6 +7,7 @@ on:
       - fix/authentic-period-returns
       - research/fxblue-normalized-returns
       - fix/fxblue-banked-return-audit
+      - agent/fix-analytics-risk-reconciliation
     paths:
       - "api/services/analytics_v2.py"
       - "api/services/analytics_comparison.py"
@@ -15,6 +16,10 @@ on:
       - "api/services/normalized_returns.py"
       - "api/services/normalized_return_preview.py"
       - "api/services/fxblue_banked_return.py"
+      - "api/services/account_risk_profile.py"
+      - "api/services/ledger_reconciliation.py"
+      - "api/services/ledger_var.py"
+      - "api/services/performance_engine.py"
       - "api/routes/performance/router.py"
       - "tests/test_analytics_v2.py"
       - "tests/test_analytics_comparison.py"
@@ -22,6 +27,7 @@ on:
       - "tests/test_normalized_returns.py"
       - "tests/test_normalized_return_preview.py"
       - "tests/test_fxblue_banked_return.py"
+      - "tests/test_ledger_reconciliation.py"
       - "docs/FXBLUE_RETURN_METHODOLOGY.md"
       - ".github/workflows/test-analytics-risk-v2.yml"
   pull_request:
@@ -33,6 +39,10 @@ on:
       - "api/services/normalized_returns.py"
       - "api/services/normalized_return_preview.py"
       - "api/services/fxblue_banked_return.py"
+      - "api/services/account_risk_profile.py"
+      - "api/services/ledger_reconciliation.py"
+      - "api/services/ledger_var.py"
+      - "api/services/performance_engine.py"
       - "api/routes/performance/router.py"
       - "tests/test_analytics_v2.py"
       - "tests/test_analytics_comparison.py"
@@ -40,6 +50,7 @@ on:
       - "tests/test_normalized_returns.py"
       - "tests/test_normalized_return_preview.py"
       - "tests/test_fxblue_banked_return.py"
+      - "tests/test_ledger_reconciliation.py"
       - "docs/FXBLUE_RETURN_METHODOLOGY.md"
       - ".github/workflows/test-analytics-risk-v2.yml"
 
@@ -70,4 +81,4 @@ jobs:
       - name: Run isolated analytics tests
         env:
           DATABASE_URL: sqlite:///./analytics_v2_ci.db
-        run: python -m pytest tests/test_analytics_v2.py tests/test_analytics_comparison.py tests/test_period_returns.py tests/test_normalized_returns.py tests/test_normalized_return_preview.py tests/test_fxblue_banked_return.py -v
+        run: python -m pytest tests/test_analytics_v2.py tests/test_analytics_comparison.py tests/test_period_returns.py tests/test_normalized_returns.py tests/test_normalized_return_preview.py tests/test_fxblue_banked_return.py tests/test_ledger_reconciliation.py -v
