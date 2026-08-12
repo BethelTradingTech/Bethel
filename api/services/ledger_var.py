@@ -18,6 +18,10 @@ import numpy as np
 from api.database import SessionLocal
 from api.models import EquitySnapshot
 from api.mt5_ingest.models import ConnectorCashFlow, ConnectorDeal
+from api.services.ledger_reconciliation import (
+    reconciliation_is_acceptable,
+    resolve_opening_balance,
+)
 
 EXPOSURE_LOOKBACK_DAYS = 45
 MONTHLY_HORIZON_TRADING_DAYS = 21
@@ -84,7 +88,12 @@ def get_signed_ledger_var(account_number: str) -> dict:
             .all()
         )
         if not deals:
-            return {"status": "insufficient_history", "reason": "no_signed_closed_deals", "available_exposed_days": 0, "required_exposed_days": EXPOSURE_LOOKBACK_DAYS}
+            return {
+                "status": "insufficient_history",
+                "reason": "no_signed_closed_deals",
+                "available_exposed_days": 0,
+                "required_exposed_days": EXPOSURE_LOOKBACK_DAYS,
+            }
 
         events = []
         total_change = 0.0
@@ -99,11 +108,16 @@ def get_signed_ledger_var(account_number: str) -> dict:
         events.sort(key=lambda item: (item[0], item[1], item[4]))
 
         current_balance = float(latest.balance or 0)
-        opening_balance = current_balance - total_change
-        if opening_balance <= 0:
-            return {"status": "not_available", "reason": "invalid_reconstructed_opening_balance"}
+        opening = resolve_opening_balance(current_balance, total_change)
+        if opening["status"] != "available":
+            return {
+                "status": "not_available",
+                "reason": opening["reason"],
+                "raw_opening_balance": opening.get("raw_opening_balance"),
+                "reconciliation_tolerance": round(float(opening["tolerance"]), 6),
+            }
 
-        balance = opening_balance
+        balance = float(opening["opening_balance"])
         daily_factor = defaultdict(lambda: 1.0)
         daily_deals = defaultdict(int)
         for when, _, kind, amount, _id in events:
@@ -120,12 +134,18 @@ def get_signed_ledger_var(account_number: str) -> dict:
             balance += amount
 
         gap = current_balance - balance
-        tolerance = max(0.02, abs(current_balance) * 0.000001)
-        if abs(gap) > tolerance:
+        reconciled, tolerance = reconciliation_is_acceptable(
+            gap,
+            current_balance,
+            total_change,
+            balance,
+        )
+        if not reconciled:
             return {
                 "status": "not_available",
                 "reason": "signed_ledger_reconciliation_failed",
                 "reconciliation_gap": round(gap, 6),
+                "reconciliation_tolerance": round(tolerance, 6),
             }
 
         daily = np.asarray(
@@ -140,6 +160,8 @@ def get_signed_ledger_var(account_number: str) -> dict:
                 "available_exposed_days": int(len(daily)),
                 "required_exposed_days": EXPOSURE_LOOKBACK_DAYS,
                 "source": "signed_mt5_cash_flow_neutral_realized_daily_returns",
+                "reconciliation_gap": round(gap, 6),
+                "reconciliation_tolerance": round(tolerance, 6),
             }
 
         sample = daily[-EXPOSURE_LOOKBACK_DAYS:]
@@ -161,6 +183,7 @@ def get_signed_ledger_var(account_number: str) -> dict:
             "monthly_var_95_percent": round(var * 100.0, 4),
             "monthly_expected_shortfall_95_percent": round(expected_shortfall * 100.0, 4),
             "reconciliation_gap": round(gap, 6),
+            "reconciliation_tolerance": round(tolerance, 6),
         }
     finally:
         db.close()
