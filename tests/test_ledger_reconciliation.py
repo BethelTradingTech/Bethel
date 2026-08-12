@@ -16,7 +16,7 @@ def test_small_broker_residual_is_normalized_to_zero():
     # balance differs by only a few basis points because of broker adjustments.
     result = resolve_opening_balance(117620.63, 117634.19)
     assert result["status"] == "available"
-    assert result["raw_opening_balance"] == -13.56
+    assert round(result["raw_opening_balance"], 2) == -13.56
     assert result["opening_balance"] == 0.0
     assert result["tolerance"] > 13.56
 
