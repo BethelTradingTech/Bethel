@@ -7,7 +7,6 @@ on:
       - fix/authentic-period-returns
       - research/fxblue-normalized-returns
       - fix/fxblue-banked-return-audit
-      - agent/fix-analytics-risk-reconciliation
     paths:
       - "api/services/analytics_v2.py"
       - "api/services/analytics_comparison.py"
@@ -82,4 +81,5 @@ jobs:
         env:
           DATABASE_URL: sqlite:///./analytics_v2_ci.db
           JWT_SECRET_KEY: analytics-risk-ci-only-key-000000000000000000000000000000000000000000000000
+          SUBSCRIBER_JWT_SECRET_KEY: analytics-risk-ci-subscriber-only-key-000000000000000000000000000000000000000000000000
         run: python -m pytest tests/test_analytics_v2.py tests/test_analytics_comparison.py tests/test_period_returns.py tests/test_normalized_returns.py tests/test_normalized_return_preview.py tests/test_fxblue_banked_return.py tests/test_ledger_reconciliation.py -v
