@@ -4,10 +4,10 @@ from api.database import get_db
 from api.auth.dependency import require_investor_or_admin
 from api.copytrading.models import CopyOrder, CopySubscriber
 
-router = APIRouter(prefix="/copytrading", tags=["Copy Trading"])
+router = APIRouter(prefix="/copytrading", tags=["Investor Read-Only Activity"])
 
 @router.get("/investors/{investor_id}/orders")
-def get_investor_copy_orders(
+def get_investor_observed_activity(
     investor_id: int,
     db: Session = Depends(get_db),
     _actor=Depends(require_investor_or_admin),
@@ -23,7 +23,7 @@ def get_investor_copy_orders(
             detail="Subscriber not found for this investor"
         )
 
-    # Fetch all copy orders for this specific subscriber
+    # Read historical activity records for this specific subscriber
     orders = db.query(CopyOrder).filter(
         CopyOrder.subscriber_id == subscriber.id
     ).all()
@@ -46,7 +46,11 @@ def get_investor_copy_orders(
 
     return {
         "status": "success",
+        "platform_access": "READ_ONLY",
+        "execution_owner": "METATRADER_EA",
         "subscriber_id": subscriber.id,
+        "total_observed_trades": len(formatted_orders),
+        "observed_trades": formatted_orders,
         "total_orders": len(formatted_orders),
-        "orders": formatted_orders
+        "orders": formatted_orders,
     }
