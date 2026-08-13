@@ -8,6 +8,8 @@ on:
       - "render_app.py"
       - "investor-frontend/js/native-kyc.js"
       - "investor-frontend/js/onboarding-workflow-v2.js"
+      - "admin-frontend/js/admin-kyc-review.js"
+      - "admin-frontend/js/api.js"
       - "config/production.env.example"
       - "requirements.txt"
       - ".github/workflows/native-kyc-ci.yml"
@@ -42,7 +44,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile native KYC source
-        run: python -m py_compile api/kyc/native_models.py api/kyc/native_engine.py api/kyc/native_routes.py api/kyc/routes.py scripts/refresh_bethel_sanctions.py render_app.py
+        run: python -m py_compile api/kyc/native_models.py api/kyc/native_engine.py api/kyc/native_routes.py api/kyc/admin_review_routes.py api/kyc/routes.py scripts/refresh_bethel_sanctions.py render_app.py
+      - name: Check native KYC admin JavaScript syntax
+        run: node --check admin-frontend/js/admin-kyc-review.js && node --check admin-frontend/js/api.js
       - name: Verify native KYC tables and readiness
         run: |
           python - <<'PY'
@@ -62,13 +66,18 @@ jobs:
       - name: Verify native route definitions
         run: |
           python - <<'PY'
-          from api.kyc.native_routes import router
-          paths={getattr(route, "path", "") for route in router.routes}
+          from api.kyc.native_routes import router as native_router
+          from api.kyc.admin_review_routes import router as admin_review_router
+          paths={getattr(route, "path", "") for route in native_router.routes}
           assert "/kyc/native/readiness" in paths
           assert "/kyc/{subscriber_id}/native/session" in paths
           assert "/kyc/{subscriber_id}/native/submit" in paths
           assert "/kyc/{subscriber_id}/native/status" in paths
-          print("native KYC route definitions ok")
+          review_paths={getattr(route, "path", "") for route in admin_review_router.routes}
+          assert "/admin/kyc/native/{subscriber_id}" in review_paths
+          assert "/admin/kyc/native/{subscriber_id}/evidence/{category}" in review_paths
+          assert "/admin/kyc/native/{subscriber_id}/decision" in review_paths
+          print("native KYC and compliance-review route definitions ok")
           PY
       - name: Import production entrypoint
         run: python -c "import render_app; print('render_app import ok')"
