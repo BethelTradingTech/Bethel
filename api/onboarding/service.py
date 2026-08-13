@@ -1,11 +1,10 @@
-﻿from datetime import datetime
+from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from api.broker_accounts.models import BrokerAccount
 from api.copytrading.models import CopySubscriber
-from api.profit_share.service import profit_share_accepted
 from api.legal.service import all_current_accepted
 from api.onboarding.models import ClientOnboarding
 
@@ -61,8 +60,6 @@ def refresh_broker_status(db: Session, onboarding: ClientOnboarding):
 def recompute_activation(db: Session, onboarding: ClientOnboarding):
     from api.subscription_lifecycle.service import enforce_subscription_state
     enforce_subscription_state(db, onboarding)
-    from api.profit_share.service import profit_share_accepted
-    from api.legal.service import all_current_accepted
     subscriber = get_subscriber(db, onboarding.subscriber_id)
     ready = all(
         (
@@ -71,7 +68,6 @@ def recompute_activation(db: Session, onboarding: ClientOnboarding):
             onboarding.payment_status == "PAID",
             onboarding.broker_status == "CONNECTED",
             onboarding.admin_approval == "APPROVED",
-            profit_share_accepted(db, onboarding.subscriber_id),
             all_current_accepted(db, onboarding.subscriber_id),
         )
     )
@@ -102,7 +98,6 @@ def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
         "payment": onboarding.payment_status == "PAID",
         "broker": onboarding.broker_status == "CONNECTED",
         "admin_approval": onboarding.admin_approval == "APPROVED",
-        "profit_share": profit_share_accepted(db, onboarding.subscriber_id),
         "legal_consent": all_current_accepted(db, onboarding.subscriber_id),
     }
 

@@ -14,6 +14,7 @@ from api.stripe_payments.stripe_api import create_checkout_session, verify_webho
 
 
 router = APIRouter(prefix="/payments/stripe", tags=["Stripe Card Payments"])
+ACTIVATION_FEE_USD = 100.0
 
 
 def reconcile_paid_checkout(
@@ -98,9 +99,13 @@ def create_card_checkout(
         raise HTTPException(status_code=409, detail="Subscription plan is unavailable")
 
     currency = (plan.currency or "USD").lower()
-    amount_minor = int(round(float(plan.price) * 100))
-    if amount_minor <= 0:
+    plan_amount = float(plan.price)
+    if plan_amount <= 0:
         raise HTTPException(status_code=409, detail="Invalid subscription price")
+    activation_fee = ACTIVATION_FEE_USD if onboarding.payment_confirmed_at is None else 0.0
+    total_amount = plan_amount + activation_fee
+    amount_minor = int(round(total_amount * 100))
+    plan_amount_minor = int(round(plan_amount * 100))
     reference = f"BTT-{subscriber_id}-{secrets.token_hex(8)}"
     base = str(request.base_url).rstrip("/")
     fields = {
@@ -117,14 +122,23 @@ def create_card_checkout(
         "customer_email": subscriber.email,
         "line_items[0][quantity]": "1",
         "line_items[0][price_data][currency]": currency,
-        "line_items[0][price_data][unit_amount]": str(amount_minor),
+        "line_items[0][price_data][unit_amount]": str(plan_amount_minor),
         "line_items[0][price_data][product_data][name]": (
             f"Bethel {plan.name} subscription"
         ),
         "metadata[subscriber_id]": str(subscriber_id),
         "metadata[plan_id]": str(plan.id),
         "metadata[reference]": reference,
+        "metadata[plan_amount]": f"{plan_amount:.2f}",
+        "metadata[activation_fee]": f"{activation_fee:.2f}",
     }
+    if activation_fee > 0:
+        fields.update({
+            "line_items[1][quantity]": "1",
+            "line_items[1][price_data][currency]": currency,
+            "line_items[1][price_data][unit_amount]": str(int(round(activation_fee * 100))),
+            "line_items[1][price_data][product_data][name]": "Bethel one-time activation fee",
+        })
     session = create_checkout_session(fields)
     session_id = session.get("id")
     checkout_url = session.get("url")
@@ -135,7 +149,7 @@ def create_card_checkout(
         subscriber_id=subscriber_id,
         plan_id=plan.id,
         checkout_session_id=session_id,
-        amount=float(plan.price),
+        amount=total_amount,
         currency=currency.upper(),
         status="PENDING",
         checkout_url=checkout_url,
@@ -147,6 +161,8 @@ def create_card_checkout(
         "checkout_session_id": session_id,
         "checkout_url": checkout_url,
         "amount": payment.amount,
+        "subscription_amount": plan_amount,
+        "activation_fee": activation_fee,
         "currency": payment.currency,
     }
 
