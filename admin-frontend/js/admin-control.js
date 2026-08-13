@@ -1,8 +1,8 @@
 if(typeof requireAuthentication==="function"&&!requireAuthentication()){throw new Error("Authentication required")}
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=v=>new Intl.NumberFormat("en-BB",{style:"currency",currency:"BBD"}).format(Number(v||0));
-const titles={overview:"Overview",website:"Website Management",investors:"Investor Management",subscribers:"Subscriber Management",operations:"Backup & Security",notifications:"Notifications",legal:"Legal Consent",profitshare:"20% Profit Split",subscriptions:"Subscription Lifecycle",payments:"Payment Reconciliation",mt5:"MT5 Accounts",copytrading:"Copy Trading",analytics:"Performance & Analytics",api:"API & Routes",security:"Security",settings:"System Settings"};
-function showView(name){$$(".view").forEach(x=>x.classList.remove("active"));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.view===name));$("#view-"+name).classList.add("active");$("#page-title").textContent=titles[name];closeMenu();if(name==="api")loadRoutes();if(name==="payments")loadPayments();if(name==="subscriptions")loadSubscriptions();if(name==="profitshare")loadProfitShareAdmin();if(name==="legal")loadLegalAdmin();if(name==="notifications")loadNotifications();if(name==="operations")loadOperations();if(name==="analytics")loadAnalytics();if(name==="copytrading")loadCopyHub()}
+const titles={overview:"Overview",website:"Website Management",investors:"Investor Management",subscribers:"Subscriber Management",operations:"Backup & Security",notifications:"Notifications",legal:"Legal Consent",profitshare:"20% Profit Split",subscriptions:"Subscription Lifecycle",payments:"Payment Reconciliation",mt5:"MT5 Accounts",terminals:"Master Terminals",analytics:"Performance & Analytics",api:"API & Routes",security:"Security",settings:"System Settings"};
+function showView(name){$$(".view").forEach(x=>x.classList.remove("active"));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.view===name));$("#view-"+name).classList.add("active");$("#page-title").textContent=titles[name];closeMenu();if(name==="api")loadRoutes();if(name==="payments")loadPayments();if(name==="subscriptions")loadSubscriptions();if(name==="profitshare")loadProfitShareAdmin();if(name==="legal")loadLegalAdmin();if(name==="notifications")loadNotifications();if(name==="operations")loadOperations();if(name==="analytics")loadAnalytics();if(name==="terminals")loadMasterTerminals()}
 function openMenu(){$("#sidebar").classList.add("open");$("#overlay").classList.add("show")}function closeMenu(){$("#sidebar").classList.remove("open");$("#overlay").classList.remove("show")}
 $$(".nav-item").forEach(b=>b.onclick=()=>showView(b.dataset.view));$$("[data-go]").forEach(b=>b.onclick=()=>showView(b.dataset.go));$("#menu-button").onclick=openMenu;$("#overlay").onclick=closeMenu;$("#logout-button").onclick=()=>typeof logout==="function"?logout():localStorage.clear();
 function setStatus(t,error=false){$("#save-status").textContent=t;$("#save-status").style.color=error?"#ef4444":"#10b981";setTimeout(()=>$("#save-status").textContent="",5000)}
@@ -19,19 +19,44 @@ async function loadOverview(){
  try{const inv=await apiGet("/admin/investors");renderInvestors(inv.investors||inv||[])}catch(e){$("#investors-table").innerHTML='<tr><td colspan="5">Investor API unavailable</td></tr>'}
 }
 function renderConnectorStatus(data){
- const badge=$("#connector-badge"),target=$("#connector-details"),alert=$("#connector-alert"),item=data.connectors?.[0];
- const status=data.status||"OFFLINE";badge.textContent=status;badge.className="connector-badge status-"+status.toLowerCase();
- alert.hidden=status==="ONLINE";alert.textContent=status==="STALE"?"Warning: MT5 connector data is stale. Check the laptop, internet connection and MT5 terminal.":"Critical: MT5 connector is offline. Performance and positions are not updating.";
- if(!item){target.innerHTML='<p class="notice">No signed connector snapshot has been received.</p>';return}
- const rows=[["Account",item.account_number],["Server",item.server],["Mode",item.account_mode],["Last seen",new Date(item.last_seen).toLocaleString()],["Balance",money(item.balance)],["Equity",money(item.equity)],["Floating P/L",money(item.floating_profit)],["Execution","READ ONLY"]];
- target.innerHTML=rows.map(([label,value])=>`<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
+ const badge=$("#connector-badge"),target=$("#connector-details"),alert=$("#connector-alert"),items=data.connectors||[];
+ const online=items.filter(item=>item.connection_status==="ONLINE").length;
+ const stale=items.filter(item=>item.connection_status==="STALE").length;
+ const status=items.length&&online===items.length?"ONLINE":(online?"PARTIAL":(stale?"STALE":"OFFLINE"));
+ badge.textContent=`${status} · ${items.length} terminal${items.length===1?"":"s"}`;badge.className="connector-badge status-"+(status==="PARTIAL"?"stale":status.toLowerCase());
+ alert.hidden=status==="ONLINE";alert.textContent=status==="PARTIAL"?"Warning: one or more MT5 terminals are stale/offline.":status==="STALE"?"Warning: MT5 terminal data is stale.":"Critical: no MT5 terminal is online.";
+ if(!items.length){target.innerHTML='<p class="notice">No signed connector snapshot has been received.</p>';return}
+ target.innerHTML=items.map(item=>`<div><small>${escapeHtml(item.label||item.connector_id)}</small><strong>${escapeHtml(item.account_number)} · ${escapeHtml(item.connection_status)} · READ ONLY</strong></div>`).join("");
 }
 async function loadAnalytics(){const target=$("#performance-details");target.innerHTML="<p>Loading performance analytics...</p>";try{renderDetails("#performance-details",await apiGet("/performance/analytics"))}catch(error){target.innerHTML=`<p class="notice">${escapeHtml(error.message||"Performance analytics unavailable")}</p>`}}
-async function loadCopyHub(){
- const table=$("#copyhub-table");if(!table)return;
- try{const data=await apiGet("/copyhub/v1/admin/status");window.copyHubState=data;$("#copyhub-master").textContent=`Master ${data.master_account}`;const globalStatus=data.operational_status||"UNKNOWN";$("#copyhub-global-state").textContent=globalStatus;$("#copyhub-global-state").className=`review-state state-${String(globalStatus).toLowerCase().replaceAll("_","-")}`;$("#copyhub-global-toggle").textContent=data.globally_paused?"Resume all copying":"Emergency pause";table.innerHTML=(data.receivers||[]).map(row=>{const heartbeat=row.last_heartbeat_at?new Date(row.last_heartbeat_at+"Z"):null;const primaryAction=row.active?"deactivate":"activate";const primaryAllowed=row.active?row.can_deactivate:row.can_activate;const pauseAction=row.paused?"resume":"pause";const pauseAllowed=row.paused?row.can_resume:row.can_pause;return `<tr><td>${escapeHtml(row.receiver_id)}</td><td><strong>${escapeHtml(row.account_number)}</strong></td><td>${stateBadge(row.environment)}</td><td>${escapeHtml(row.currency_unit)} · ${row.is_cent_account?"CENT":"STANDARD"}</td><td>${stateBadge(row.connection_status)}<br><small>${heartbeat?heartbeat.toLocaleString():"Never connected"}</small></td><td>${stateBadge(row.copy_status)}</td><td><div class="review-actions"><button data-copyhub-action="${primaryAction}" data-receiver="${escapeHtml(row.receiver_id)}" data-account="${escapeHtml(row.account_number)}" ${primaryAllowed?"":"disabled"}>${row.active?"Deactivate":"Activate"}</button><button data-copyhub-action="${pauseAction}" data-receiver="${escapeHtml(row.receiver_id)}" ${pauseAllowed?"":"disabled"}>${row.paused?"Resume":"Pause"}</button></div></td></tr>`}).join("")||'<tr><td colspan="7">No copier receivers have been provisioned.</td></tr>';$$('[data-copyhub-action]').forEach(button=>button.onclick=()=>handleCopyHubAction(button))}catch(error){table.innerHTML=`<tr><td colspan="7">${escapeHtml(error.message)}</td></tr>`}}
-async function handleCopyHubAction(button){const action=button.dataset.copyhubAction,receiver=button.dataset.receiver,account=button.dataset.account;button.disabled=true;try{if(action==="activate"||action==="deactivate"){const active=action==="activate",confirmation=`${active?"ACTIVATE":"DEACTIVATE"} RECEIVER ${account}`;if(prompt(`Type exactly: ${confirmation}`)!==confirmation)return;await apiPatch(`/copyhub/v1/admin/receivers/${encodeURIComponent(receiver)}/activation`,{active,confirmation})}else await apiPatch(`/copyhub/v1/admin/receivers/${encodeURIComponent(receiver)}/pause`,{paused:action==="pause"});await loadCopyHub()}catch(error){setStatus(error.message,true)}finally{button.disabled=false}}
-$("#reload-copyhub").onclick=loadCopyHub;$("#copyhub-global-toggle").onclick=async()=>{const paused=!window.copyHubState?.globally_paused;if(paused&&!confirm("Emergency-pause copying for every subscriber?"))return;if(!paused&&prompt("Type RESUME ALL COPYING")!=="RESUME ALL COPYING")return;try{await apiPatch("/copyhub/v1/admin/global-pause",{paused});await loadCopyHub()}catch(error){setStatus(error.message,true)}};
+async function loadMasterTerminals(){
+ const table=$("#master-terminals-table");if(!table)return;
+ try{
+  const data=await apiGet("/connector/v1/status");
+  const rows=data.connectors||[];
+  table.innerHTML=rows.map(row=>{
+   const owner=row.subscriber_id?`ID ${row.subscriber_id} · ${escapeHtml(row.subscriber_name||"Subscriber")}`:"Owner / Master";
+   const plan=row.plan_name?`${escapeHtml(row.plan_name)} · ${row.terminal_count||0}/${row.terminal_limit||"—"} terminals`:"Unassigned";
+   const positions=(row.open_positions||[]).map(p=>`${escapeHtml(p.symbol)} ${escapeHtml(p.direction)} ${escapeHtml(p.volume)}`).join("<br>")||"None";
+   return `<tr><td><strong>${escapeHtml(row.label||row.connector_id)}</strong><br><small>${escapeHtml(row.connector_id)}</small><br>${stateBadge("READ ONLY")}</td><td>${owner}<br><small>${plan}</small></td><td><strong>${escapeHtml(row.account_number)}</strong><br><small>${escapeHtml(row.server)} · ${escapeHtml(row.account_mode)}</small></td><td>${stateBadge(row.connection_status)}</td><td>${money(row.balance)}<br><small>Equity ${money(row.equity)} · Floating ${money(row.floating_profit)}</small></td><td><strong>${row.open_position_count||0}</strong><br><small>${positions}</small></td><td>${row.last_seen?new Date(row.last_seen).toLocaleString():"Never"}</td></tr>`;
+  }).join("")||'<tr><td colspan="7">No registered MT5 terminals have reported yet.</td></tr>';
+ }catch(error){table.innerHTML=`<tr><td colspan="7">${escapeHtml(error.message||"Terminal status unavailable")}</td></tr>`}
+}
+const terminalForm=$("#register-terminal-form");
+if(terminalForm)terminalForm.addEventListener("submit",async event=>{
+ event.preventDefault();
+ const form=event.currentTarget,result=$("#register-terminal-result"),button=form.querySelector('button[type="submit"]');
+ button.disabled=true;result.textContent="";
+ try{
+  const raw=form.elements.subscriber_id.value.trim();
+  const response=await apiPost("/connector/v1/admin/terminals",{label:form.elements.label.value.trim(),connector_id:form.elements.connector_id.value.trim(),account_number:form.elements.account_number.value.trim(),subscriber_id:raw?Number(raw):null});
+  result.textContent=`Registered ${response.terminal.label} as read-only terminal.`;
+  form.reset();await loadMasterTerminals();
+ }catch(error){result.textContent=error.message||"Unable to register terminal";setStatus(result.textContent,true)}
+ finally{button.disabled=false}
+});
+const reloadTerminals=$("#reload-terminals");if(reloadTerminals)reloadTerminals.onclick=loadMasterTerminals;
+
 function renderDetails(selector,obj){const el=$(selector);if(!el)return;el.innerHTML=Object.entries(obj||{}).filter(([,v])=>typeof v!=="object").slice(0,20).map(([k,v])=>`<div><small>${k.replaceAll("_"," ")}</small><strong>${v??"—"}</strong></div>`).join("")||"<p>No data available.</p>"}
 const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 const stateBadge=value=>`<span class="review-state state-${String(value||"UNKNOWN").toLowerCase().replaceAll("_","-")}">${escapeHtml(value||"UNKNOWN")}</span>`;

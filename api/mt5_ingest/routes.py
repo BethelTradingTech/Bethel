@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 
 from api.database import SessionLocal
-from api.auth.dependency import require_admin
+from api.auth.dependency import require_admin, require_super_admin
+from api.copytrading.models import CopySubscriber
+from api.onboarding.models import ClientOnboarding, SubscriptionPlan
 from api.models import EquitySnapshot
 from api.mt5_ingest.models import (
     ConnectorCashFlow,
@@ -19,11 +21,19 @@ from api.mt5_ingest.models import (
     ConnectorNonce,
     ConnectorPosition,
     ConnectorStatus,
+    MasterTerminalRegistry,
 )
 
 
 router = APIRouter(prefix="/connector/v1", tags=["Read-only MT5 connector"])
 MAX_CLOCK_SKEW_SECONDS = 300
+
+PLAN_TERMINAL_LIMITS = {
+    "Starter": 1,
+    "Standard": 2,
+    "Professional": 3,
+    "Enterprise": 5,
+}
 
 
 def _utc_now_naive():
@@ -109,6 +119,115 @@ def _verify(request: Request, body: bytes) -> tuple[str, str]:
     return connector_id, nonce
 
 
+
+class TerminalRegistration(BaseModel):
+    connector_id: str = Field(min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._-]+$")
+    account_number: str = Field(min_length=5, max_length=32)
+    label: str = Field(min_length=2, max_length=120)
+    subscriber_id: int | None = Field(default=None, gt=0)
+
+
+def _subscriber_terminal_entitlement(db, subscriber_id: int):
+    onboarding = db.query(ClientOnboarding).filter(ClientOnboarding.subscriber_id == subscriber_id).first()
+    if onboarding is None or onboarding.plan_id is None:
+        raise HTTPException(409, "Subscriber must select a subscription plan before terminals can be assigned")
+    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == onboarding.plan_id).first()
+    if plan is None:
+        raise HTTPException(409, "Subscriber subscription plan is unavailable")
+    limit = PLAN_TERMINAL_LIMITS.get(plan.name)
+    if limit is None:
+        raise HTTPException(409, "Subscription plan has no terminal entitlement configured")
+    return plan, limit
+
+
+def _terminal_metadata(db, item):
+    registry = db.query(MasterTerminalRegistry).filter(MasterTerminalRegistry.connector_id == item.connector_id).first()
+    subscriber = None
+    plan = None
+    terminal_limit = None
+    terminal_count = None
+    if registry and registry.subscriber_id:
+        subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == registry.subscriber_id).first()
+        try:
+            plan, terminal_limit = _subscriber_terminal_entitlement(db, registry.subscriber_id)
+        except HTTPException:
+            plan = None
+            terminal_limit = None
+        terminal_count = db.query(MasterTerminalRegistry).filter(
+            MasterTerminalRegistry.subscriber_id == registry.subscriber_id,
+            MasterTerminalRegistry.active.is_(True),
+        ).count()
+    return {
+        "registry_id": registry.id if registry else None,
+        "label": registry.label if registry else item.connector_id,
+        "subscriber_id": registry.subscriber_id if registry else None,
+        "subscriber_name": subscriber.name if subscriber else None,
+        "plan_name": plan.name if plan else None,
+        "terminal_limit": terminal_limit,
+        "terminal_count": terminal_count,
+        "registered": registry is not None,
+        "registry_active": bool(registry.active) if registry else True,
+    }
+
+
+@router.post("/admin/terminals", status_code=201)
+def register_terminal(data: TerminalRegistration, _admin=Depends(require_super_admin)):
+    db = SessionLocal()
+    try:
+        if db.query(MasterTerminalRegistry).filter(MasterTerminalRegistry.connector_id == data.connector_id).first():
+            raise HTTPException(409, "Connector ID is already registered")
+        conflict = db.query(MasterTerminalRegistry).filter(
+            MasterTerminalRegistry.account_number == data.account_number,
+            MasterTerminalRegistry.active.is_(True),
+        ).first()
+        if conflict:
+            raise HTTPException(409, "This MT5 account is already assigned to an active terminal")
+
+        plan_name = None
+        terminal_limit = None
+        terminal_number = None
+        if data.subscriber_id is not None:
+            subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == data.subscriber_id).first()
+            if subscriber is None:
+                raise HTTPException(404, "Subscriber not found")
+            plan, terminal_limit = _subscriber_terminal_entitlement(db, data.subscriber_id)
+            current = db.query(MasterTerminalRegistry).filter(
+                MasterTerminalRegistry.subscriber_id == data.subscriber_id,
+                MasterTerminalRegistry.active.is_(True),
+            ).count()
+            if current >= terminal_limit:
+                raise HTTPException(409, f"{plan.name} allows {terminal_limit} MT5 terminal(s); entitlement is already fully assigned")
+            plan_name = plan.name
+            terminal_number = current + 1
+
+        record = MasterTerminalRegistry(
+            connector_id=data.connector_id,
+            subscriber_id=data.subscriber_id,
+            label=data.label.strip(),
+            account_number=data.account_number.strip(),
+            active=True,
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return {
+            "status": "registered",
+            "read_only": True,
+            "terminal": {
+                "id": record.id,
+                "connector_id": record.connector_id,
+                "label": record.label,
+                "account_number": record.account_number,
+                "subscriber_id": record.subscriber_id,
+                "plan_name": plan_name,
+                "terminal_number": terminal_number,
+                "terminal_limit": terminal_limit,
+            },
+        }
+    finally:
+        db.close()
+
+
 @router.post("/snapshot", status_code=202)
 async def ingest_snapshot(request: Request):
     body = await request.body()
@@ -117,17 +236,6 @@ async def ingest_snapshot(request: Request):
         payload = Snapshot.model_validate(json.loads(body))
     except Exception:
         raise HTTPException(422, "Invalid snapshot payload")
-
-    allowed = {
-        value.strip()
-        for value in os.getenv("MASTER_MT5_ACCOUNTS", "49617874").split(",")
-        if value.strip()
-    }
-    if payload.account_number not in allowed:
-        raise HTTPException(403, "Account is not an approved master account")
-    configured_mode = os.getenv("MASTER_ACCOUNT_MODE", "DEMO").upper()
-    if payload.mode != configured_mode:
-        raise HTTPException(403, "Account mode does not match server configuration")
 
     now = datetime.now(timezone.utc)
     observed = payload.observed_at
@@ -143,6 +251,40 @@ async def ingest_snapshot(request: Request):
         ).delete(synchronize_session=False)
         db.add(ConnectorNonce(connector_id=connector_id, nonce=nonce))
         db.flush()
+
+        registry = db.query(MasterTerminalRegistry).filter(
+            MasterTerminalRegistry.connector_id == connector_id
+        ).first()
+
+        if registry is None:
+            # Backward-compatible bootstrap for the existing owner/master connector only.
+            # All additional terminals must first be registered by Super Admin.
+            bootstrap_accounts = {
+                value.strip()
+                for value in os.getenv("MASTER_MT5_ACCOUNTS", "49617874").split(",")
+                if value.strip()
+            }
+            if payload.account_number not in bootstrap_accounts:
+                raise HTTPException(
+                    403,
+                    "Terminal is not registered. Super Admin must register this connector before telemetry is accepted",
+                )
+            bootstrap_mode = os.getenv("MASTER_ACCOUNT_MODE", "DEMO").upper()
+            if payload.mode != bootstrap_mode:
+                raise HTTPException(403, "Bootstrap master account mode does not match server configuration")
+            registry = MasterTerminalRegistry(
+                connector_id=connector_id,
+                subscriber_id=None,
+                label=f"Master Terminal - {payload.account_number}",
+                account_number=payload.account_number,
+                active=True,
+            )
+            db.add(registry)
+            db.flush()
+        elif not registry.active:
+            raise HTTPException(403, "This terminal registration is disabled")
+        elif registry.account_number != payload.account_number:
+            raise HTTPException(409, "Connector account does not match its registered MT5 account")
 
         db.add(
             EquitySnapshot(
@@ -278,9 +420,11 @@ def connector_status(_admin=Depends(require_admin)):
             positions = db.query(ConnectorPosition).filter(
                 ConnectorPosition.connector_id == item.connector_id
             ).order_by(ConnectorPosition.symbol, ConnectorPosition.ticket).all()
+            metadata = _terminal_metadata(db, item)
             connectors.append(
                 {
                     "connector_id": item.connector_id,
+                    **metadata,
                     "connection_status": "ONLINE" if age_seconds <= 150 else "STALE",
                     "read_only": True,
                     "last_seen": item.received_at.isoformat() + "Z",
