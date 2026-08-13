@@ -44,9 +44,27 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile native KYC source
-        run: python -m py_compile api/kyc/native_models.py api/kyc/native_engine.py api/kyc/native_routes.py api/kyc/admin_review_routes.py api/kyc/routes.py scripts/refresh_bethel_sanctions.py render_app.py
+        run: python -m py_compile api/kyc/native_models.py api/kyc/native_engine.py api/kyc/ai_assessment.py api/kyc/native_routes.py api/kyc/admin_review_routes.py api/kyc/routes.py scripts/refresh_bethel_sanctions.py render_app.py
       - name: Check native KYC admin JavaScript syntax
         run: node --check admin-frontend/js/admin-kyc-review.js && node --check admin-frontend/js/api.js
+      - name: Verify assisted scoring fails closed on missing biometrics/OCR
+        run: |
+          python - <<'PY'
+          from types import SimpleNamespace
+          from api.kyc.ai_assessment import assisted_assessment
+          def row(status, score=None): return SimpleNamespace(status=status, score=score, reasons=[])
+          checks={
+            "document": row("passed",100), "malware": row("passed",100),
+            "authenticity": row("passed",100), "sanctions": row("passed",100),
+            "ocr": row("not_available"), "field_match": row("not_available"),
+            "liveness": row("not_available"), "face_match": row("not_available"),
+          }
+          result=assisted_assessment(checks)
+          assert result["recommendation"] == "MANUAL_REVIEW_REQUIRED"
+          assert result["auto_decision"] is False
+          assert result["evidence_coverage_score"] < 100
+          print(result)
+          PY
       - name: Verify native KYC tables and readiness
         run: |
           python - <<'PY'
