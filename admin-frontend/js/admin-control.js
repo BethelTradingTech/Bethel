@@ -17,6 +17,7 @@ async function loadOverview(){
  const s=subscribers.status==="fulfilled"?(Array.isArray(subscribers.value)?subscribers.value:(subscribers.value.subscribers||[])):[];$("#subscriber-count").textContent=s.length;
  await renderSubscribers(s);renderPositions(p);renderDetails("#mt5-details",a);if(copy.status==="fulfilled")renderDetails("#copy-details",copy.value);if(performance.status==="fulfilled")renderDetails("#performance-details",performance.value);
  try{const inv=await apiGet("/admin/investors");renderInvestors(inv.investors||inv||[])}catch(e){$("#investors-table").innerHTML='<tr><td colspan="5">Investor API unavailable</td></tr>'}
+ await loadOverviewPublicMt5Display();
 }
 function renderConnectorStatus(data){
  const badge=$("#connector-badge"),target=$("#connector-details"),alert=$("#connector-alert"),items=data.connectors||[];
@@ -58,13 +59,51 @@ if(terminalForm)terminalForm.addEventListener("submit",async event=>{
 const reloadTerminals=$("#reload-terminals");if(reloadTerminals)reloadTerminals.onclick=loadMasterTerminals;
 
 
+async function loadOverviewPublicMt5Display(){
+ const state=$("#overview-public-mt5-state"),terminal=$("#overview-public-mt5-terminal"),status=$("#overview-public-mt5-status");
+ if(!state||!terminal||!status)return;
+ try{
+  const [config,connector]=await Promise.all([apiGet("/connector/v1/admin/public-display"),apiGet("/connector/v1/status")]);
+  const rows=(connector.connectors||[]).filter(row=>!row.subscriber_id);
+  const selected=rows.find(row=>Number(row.registry_id)===Number(config.terminal_registry_id));
+  state.textContent=config.enabled?"PUBLIC DISPLAY ON":"PUBLIC DISPLAY OFF";
+  terminal.textContent=selected?(selected.label||selected.account_number):"Not selected";
+  status.textContent=config.enabled?(selected?.connection_status||"UNAVAILABLE"):"OFF";
+  const enable=$("#overview-public-mt5-enable"),disable=$("#overview-public-mt5-disable");
+  if(enable)enable.disabled=Boolean(config.enabled)||!selected;
+  if(disable)disable.disabled=!config.enabled;
+ }catch(error){
+  state.textContent="UNAVAILABLE";terminal.textContent="—";status.textContent="—";
+ }
+}
+async function setOverviewPublicMt5Display(enabled){
+ try{
+  const config=await apiGet("/connector/v1/admin/public-display");
+  if(enabled&&!config.terminal_registry_id){
+   setStatus("Select an owner/master terminal under Master Terminals first",true);
+   showView("terminals");
+   return;
+  }
+  if(enabled&&!confirm("Publish sanitized live MT5 telemetry publicly now?"))return;
+  await apiRequest("/connector/v1/admin/public-display",{method:"PUT",body:JSON.stringify({
+   enabled,
+   terminal_registry_id:config.terminal_registry_id,
+   confirm_publish:enabled
+  })});
+  setStatus(enabled?"Public MT5 display enabled":"Public MT5 display disabled");
+  await loadOverviewPublicMt5Display();
+ }catch(error){setStatus(error.message||"Unable to update public MT5 display",true)}
+}
+const overviewPublicEnable=$("#overview-public-mt5-enable");if(overviewPublicEnable)overviewPublicEnable.onclick=()=>setOverviewPublicMt5Display(true);
+const overviewPublicDisable=$("#overview-public-mt5-disable");if(overviewPublicDisable)overviewPublicDisable.onclick=()=>setOverviewPublicMt5Display(false);
+
 async function loadPublicMt5Display(){
  const form=$("#public-mt5-display-form");if(!form)return;
  const select=$("#public-mt5-terminal"),enabled=$("#public-mt5-enabled"),state=$("#public-mt5-display-state"),result=$("#public-mt5-display-result");
  try{
   const [config,status]=await Promise.all([apiGet("/connector/v1/admin/public-display"),apiGet("/connector/v1/status")]);
-  const rows=status.connectors||[];
-  select.innerHTML=rows.map(row=>`<option value="${row.registry_id}">${escapeHtml(row.label||row.connector_id)} · ${escapeHtml(row.account_number)} · ${escapeHtml(row.connection_status)}</option>`).join("")||'<option value="">No registered terminals available</option>';
+  const rows=(status.connectors||[]).filter(row=>!row.subscriber_id);
+  select.innerHTML=rows.map(row=>`<option value="${row.registry_id}">${escapeHtml(row.label||row.connector_id)} · ${escapeHtml(row.account_number)} · ${escapeHtml(row.connection_status)}</option>`).join("")||'<option value="">No owner/master terminals available</option>';
   if(config.terminal_registry_id)select.value=String(config.terminal_registry_id);
   enabled.checked=Boolean(config.enabled);
   state.textContent=config.enabled?"PUBLIC DISPLAY ON":"PUBLIC DISPLAY OFF";
@@ -76,7 +115,9 @@ if(publicMt5DisplayForm)publicMt5DisplayForm.addEventListener("submit",async eve
  event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),result=$("#public-mt5-display-result");button.disabled=true;
  try{
   const terminalValue=$("#public-mt5-terminal").value;
-  const payload={enabled:$("#public-mt5-enabled").checked,terminal_registry_id:terminalValue?Number(terminalValue):null};
+  const wantsEnabled=$("#public-mt5-enabled").checked;
+  if(wantsEnabled&&!confirm("Publish sanitized live MT5 telemetry from the selected owner/master terminal on the public website?")){button.disabled=false;return}
+  const payload={enabled:wantsEnabled,terminal_registry_id:terminalValue?Number(terminalValue):null,confirm_publish:wantsEnabled};
   const response=await apiRequest("/connector/v1/admin/public-display",{method:"PUT",body:JSON.stringify(payload)});
   result.textContent=response.enabled?"Public live MT5 display is ON.":"Public live MT5 display is OFF.";setStatus(result.textContent);await loadPublicMt5Display();
  }catch(error){result.textContent=error.message||"Unable to update public display";setStatus(result.textContent,true)}finally{button.disabled=false}

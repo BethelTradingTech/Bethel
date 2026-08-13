@@ -415,6 +415,7 @@ async def ingest_snapshot(request: Request):
 class PublicMt5DisplayUpdate(BaseModel):
     enabled: bool
     terminal_registry_id: int | None = Field(default=None, gt=0)
+    confirm_publish: bool = False
 
 
 def _public_display_setting(db):
@@ -439,7 +440,12 @@ def public_live_mt5_display():
     db = SessionLocal()
     try:
         setting = _public_display_setting(db)
-        headers = {"Cache-Control": "no-store, max-age=0"}
+        headers = {
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        }
         if not setting.enabled or not setting.terminal_registry_id:
             return JSONResponse({"enabled": False, "read_only": True, "execution_owner": "METATRADER_EA"}, headers=headers)
 
@@ -503,9 +509,35 @@ def update_public_mt5_display(data: PublicMt5DisplayUpdate, _admin=Depends(requi
             ).first()
             if terminal is None:
                 raise HTTPException(404, "Selected MT5 terminal is unavailable")
+            if terminal.subscriber_id is not None:
+                raise HTTPException(
+                    403,
+                    "Subscriber-assigned MT5 terminals cannot be published publicly",
+                )
             setting.terminal_registry_id = terminal.id
-        if data.enabled and setting.terminal_registry_id is None:
-            raise HTTPException(422, "Select a registered MT5 terminal before enabling the public display")
+
+        if data.enabled:
+            if not data.confirm_publish:
+                raise HTTPException(
+                    422,
+                    "Explicit Super Admin publication confirmation is required",
+                )
+            if setting.terminal_registry_id is None:
+                raise HTTPException(
+                    422,
+                    "Select a registered owner/master MT5 terminal before enabling the public display",
+                )
+            terminal = db.query(MasterTerminalRegistry).filter(
+                MasterTerminalRegistry.id == setting.terminal_registry_id,
+                MasterTerminalRegistry.active.is_(True),
+                MasterTerminalRegistry.subscriber_id.is_(None),
+            ).first()
+            if terminal is None:
+                raise HTTPException(
+                    403,
+                    "Only active owner/master terminals can be published publicly",
+                )
+
         setting.enabled = data.enabled
         db.commit(); db.refresh(setting)
         return {"status": "updated", "enabled": bool(setting.enabled), "terminal_registry_id": setting.terminal_registry_id, "read_only": True, "execution_owner": "METATRADER_EA"}
