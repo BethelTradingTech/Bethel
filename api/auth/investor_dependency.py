@@ -17,7 +17,7 @@ def get_current_user(
             credentials.credentials
         )
 
-        if payload.get("role") not in {"investor", "admin"}:
+        if payload.get("role") not in {"investor", "admin", "super_admin"}:
             raise HTTPException(
                 status_code=403,
                 detail="Invalid role"

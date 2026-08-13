@@ -26,7 +26,6 @@
       <button class="nav-item" data-view="operations">⛨ <span>Backup & Security</span></button>
       <button class="nav-item" data-view="notifications">✉ <span>Notifications</span></button>
       <button class="nav-item" data-view="legal">⚖ <span>Legal Consent</span></button>
-      <button class="nav-item" data-view="profitshare">％ <span>Profit Split</span></button>
       <button class="nav-item" data-view="subscriptions">🗓 <span>Subscriptions</span></button>
       <button class="nav-item" data-view="payments">💳 <span>Payments</span></button>
       <button class="nav-item" data-view="mt5">📈 <span>Trading Accounts</span></button>
@@ -112,6 +111,20 @@
       <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Portfolio</th><th>Action</th></tr></thead><tbody id="investors-table"><tr><td colspan="5">Loading…</td></tr></tbody></table></div></article>
     </section>
 
+    <section id="view-customer" class="view">
+      <article class="panel">
+        <div class="section-heading">
+          <div>
+            <h2 id="customer-view-title">Customer View</h2>
+            <p>Super Admin read-only view of the selected customer's dashboard data.</p>
+          </div>
+          <button id="customer-view-back" type="button">Back</button>
+        </div>
+        <div class="notice"><strong>SUPER ADMIN VIEW · READ ONLY</strong> — This screen cannot submit KYC, accept legal agreements, make payments, change passwords, or execute trades.</div>
+        <div id="customer-view-details" class="detail-grid"><p>Select an investor or subscriber from the management tables.</p></div>
+      </article>
+    </section>
+
     <section id="view-subscribers" class="view">
       <article class="panel">
         <div class="section-heading"><div><h2>Subscriber Onboarding Review</h2><p>Verify KYC, payment and MT5 before final activation.</p></div></div>
@@ -157,14 +170,6 @@
       </article>
     </section>
 
-    <section id="view-profitshare" class="view">
-      <article class="panel">
-        <div class="section-heading"><div><h2>20% Profit Split</h2><p>Monthly realized-profit accruals with high-water-mark protection.</p></div><strong id="profit-share-outstanding">—</strong></div>
-        <div class="notice">Calculations are statements only. They do not withdraw or charge subscriber funds automatically.</div>
-        <div class="table-wrap"><table class="profit-share-table"><thead><tr><th>Subscriber</th><th>Realized net</th><th>High-water mark</th><th>Eligible profit</th><th>20% accrued</th><th>Action</th></tr></thead><tbody id="profit-share-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
-      </article>
-    </section>
-
     <section id="view-subscriptions" class="view">
       <div class="metric-grid subscription-metrics">
         <article class="metric"><small>Active</small><strong id="subscriptions-active">—</strong></article>
@@ -173,7 +178,7 @@
         <article class="metric"><small>Suspended</small><strong id="subscriptions-suspended">—</strong></article>
       </div>
       <article class="panel subscription-panel">
-        <div class="section-heading"><div><h2>Subscription Lifecycle</h2><p>Renewals, grace periods, expiry and copy-trading access.</p></div><button id="sweep-subscriptions" type="button">Run expiry check</button></div>
+        <div class="section-heading"><div><h2>Subscription Lifecycle</h2><p>Renewals, grace periods, expiry and read-only monitoring access.</p></div><button id="sweep-subscriptions" type="button">Run expiry check</button></div>
         <div class="table-wrap"><table class="subscription-table"><thead><tr><th>Subscriber</th><th>Status</th><th>Period ends</th><th>Grace ends</th><th>Days</th><th>Actions</th></tr></thead><tbody id="subscriptions-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
       </article>
     </section>
