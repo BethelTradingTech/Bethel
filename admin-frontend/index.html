@@ -216,6 +216,15 @@
           <button type="submit">Register read-only terminal</button>
           <p id="register-terminal-result" class="notice"></p>
         </form>
+        <form id="public-mt5-display-form" class="form-panel" autocomplete="off">
+          <div class="section-heading"><div><h3>Public Live MT5 Display</h3><p>Publish sanitized, read-only terminal telemetry on the public website. Credentials, server details, tickets and SL/TP are never exposed.</p></div><span id="public-mt5-display-state" class="notice">Loading...</span></div>
+          <div class="form-grid">
+            <label>Public terminal<select id="public-mt5-terminal" name="terminal_registry_id"></select></label>
+            <label><input id="public-mt5-enabled" name="enabled" type="checkbox"> Display live MT5 telemetry publicly</label>
+          </div>
+          <button type="submit">Save public display setting</button>
+          <p id="public-mt5-display-result" class="notice" aria-live="polite"></p>
+        </form>
         <div class="table-wrap"><table><thead><tr><th>Terminal</th><th>Subscriber / Plan</th><th>MT5 Account</th><th>Connection</th><th>Balance / Equity</th><th>Open Positions</th><th>Last Seen</th></tr></thead><tbody id="master-terminals-table"><tr><td colspan="7">Loading...</td></tr></tbody></table></div>
         <p class="notice">Terminal entitlement: Starter 1 · Standard 2 · Professional 3 · Enterprise 5. Lot size and all trading decisions remain controlled exclusively by each MT5 EA.</p>
       </article>

@@ -2,7 +2,7 @@ if(typeof requireAuthentication==="function"&&!requireAuthentication()){throw ne
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=v=>new Intl.NumberFormat("en-BB",{style:"currency",currency:"BBD"}).format(Number(v||0));
 const titles={customer:"Customer View",overview:"Overview",website:"Website Management",investors:"Investor Management",subscribers:"Subscriber Management",operations:"Backup & Security",notifications:"Notifications",legal:"Legal Consent",subscriptions:"Subscription Lifecycle",payments:"Payment Reconciliation",mt5:"MT5 Accounts",terminals:"Master Terminals",analytics:"Performance & Analytics",api:"API & Routes",security:"Security",settings:"System Settings"};
-function showView(name){$$(".view").forEach(x=>x.classList.remove("active"));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.view===name));$("#view-"+name).classList.add("active");$("#page-title").textContent=titles[name];closeMenu();if(name==="api")loadRoutes();if(name==="payments")loadPayments();if(name==="subscriptions")loadSubscriptions();if(name==="legal")loadLegalAdmin();if(name==="notifications")loadNotifications();if(name==="operations")loadOperations();if(name==="analytics")loadAnalytics();if(name==="terminals")loadMasterTerminals()}
+function showView(name){$$(".view").forEach(x=>x.classList.remove("active"));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.view===name));$("#view-"+name).classList.add("active");$("#page-title").textContent=titles[name];closeMenu();if(name==="api")loadRoutes();if(name==="payments")loadPayments();if(name==="subscriptions")loadSubscriptions();if(name==="legal")loadLegalAdmin();if(name==="notifications")loadNotifications();if(name==="operations")loadOperations();if(name==="analytics")loadAnalytics();if(name==="terminals"){loadMasterTerminals();loadPublicMt5Display()}}
 function openMenu(){$("#sidebar").classList.add("open");$("#overlay").classList.add("show")}function closeMenu(){$("#sidebar").classList.remove("open");$("#overlay").classList.remove("show")}
 $$(".nav-item").forEach(b=>b.onclick=()=>showView(b.dataset.view));$$("[data-go]").forEach(b=>b.onclick=()=>showView(b.dataset.go));$("#menu-button").onclick=openMenu;$("#overlay").onclick=closeMenu;$("#logout-button").onclick=()=>typeof logout==="function"?logout():localStorage.clear();
 function setStatus(t,error=false){$("#save-status").textContent=t;$("#save-status").style.color=error?"#ef4444":"#10b981";setTimeout(()=>$("#save-status").textContent="",5000)}
@@ -56,6 +56,31 @@ if(terminalForm)terminalForm.addEventListener("submit",async event=>{
  finally{button.disabled=false}
 });
 const reloadTerminals=$("#reload-terminals");if(reloadTerminals)reloadTerminals.onclick=loadMasterTerminals;
+
+
+async function loadPublicMt5Display(){
+ const form=$("#public-mt5-display-form");if(!form)return;
+ const select=$("#public-mt5-terminal"),enabled=$("#public-mt5-enabled"),state=$("#public-mt5-display-state"),result=$("#public-mt5-display-result");
+ try{
+  const [config,status]=await Promise.all([apiGet("/connector/v1/admin/public-display"),apiGet("/connector/v1/status")]);
+  const rows=status.connectors||[];
+  select.innerHTML=rows.map(row=>`<option value="${row.registry_id}">${escapeHtml(row.label||row.connector_id)} · ${escapeHtml(row.account_number)} · ${escapeHtml(row.connection_status)}</option>`).join("")||'<option value="">No registered terminals available</option>';
+  if(config.terminal_registry_id)select.value=String(config.terminal_registry_id);
+  enabled.checked=Boolean(config.enabled);
+  state.textContent=config.enabled?"PUBLIC DISPLAY ON":"PUBLIC DISPLAY OFF";
+  result.textContent=config.enabled?"Sanitized MT5 telemetry is visible on the public website.":"No MT5 telemetry is currently published publicly.";
+ }catch(error){state.textContent="UNAVAILABLE";result.textContent=error.message||"Unable to load public display setting"}
+}
+const publicMt5DisplayForm=$("#public-mt5-display-form");
+if(publicMt5DisplayForm)publicMt5DisplayForm.addEventListener("submit",async event=>{
+ event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),result=$("#public-mt5-display-result");button.disabled=true;
+ try{
+  const terminalValue=$("#public-mt5-terminal").value;
+  const payload={enabled:$("#public-mt5-enabled").checked,terminal_registry_id:terminalValue?Number(terminalValue):null};
+  const response=await apiRequest("/connector/v1/admin/public-display",{method:"PUT",body:JSON.stringify(payload)});
+  result.textContent=response.enabled?"Public live MT5 display is ON.":"Public live MT5 display is OFF.";setStatus(result.textContent);await loadPublicMt5Display();
+ }catch(error){result.textContent=error.message||"Unable to update public display";setStatus(result.textContent,true)}finally{button.disabled=false}
+});
 
 function renderDetails(selector,obj){const el=$(selector);if(!el)return;el.innerHTML=Object.entries(obj||{}).filter(([,v])=>typeof v!=="object").slice(0,20).map(([k,v])=>`<div><small>${k.replaceAll("_"," ")}</small><strong>${v??"—"}</strong></div>`).join("")||"<p>No data available.</p>"}
 const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));

@@ -7,6 +7,7 @@ import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 
@@ -22,6 +23,7 @@ from api.mt5_ingest.models import (
     ConnectorPosition,
     ConnectorStatus,
     MasterTerminalRegistry,
+    PublicMt5DisplaySetting,
 )
 
 
@@ -407,6 +409,108 @@ async def ingest_snapshot(request: Request):
         db.close()
     return {"status": "accepted", "read_only": True}
 
+
+
+
+class PublicMt5DisplayUpdate(BaseModel):
+    enabled: bool
+    terminal_registry_id: int | None = Field(default=None, gt=0)
+
+
+def _public_display_setting(db):
+    PublicMt5DisplaySetting.__table__.create(bind=db.get_bind(), checkfirst=True)
+    setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
+    if setting is None:
+        setting = PublicMt5DisplaySetting(id=1, enabled=False, terminal_registry_id=None)
+        db.add(setting)
+        db.commit()
+        db.refresh(setting)
+    return setting
+
+
+def _mask_public_account(value: str) -> str:
+    value = str(value or "")
+    return ("*" * max(0, len(value) - 4)) + value[-4:]
+
+
+@router.get("/public/live")
+def public_live_mt5_display():
+    """Sanitized public telemetry only. No credentials or trade controls."""
+    db = SessionLocal()
+    try:
+        setting = _public_display_setting(db)
+        headers = {"Cache-Control": "no-store, max-age=0"}
+        if not setting.enabled or not setting.terminal_registry_id:
+            return JSONResponse({"enabled": False, "read_only": True, "execution_owner": "METATRADER_EA"}, headers=headers)
+
+        registry = db.query(MasterTerminalRegistry).filter(
+            MasterTerminalRegistry.id == setting.terminal_registry_id,
+            MasterTerminalRegistry.active.is_(True),
+        ).first()
+        if registry is None:
+            return JSONResponse({"enabled": True, "available": False, "connection_status": "OFFLINE", "read_only": True, "execution_owner": "METATRADER_EA"}, headers=headers)
+
+        status = db.query(ConnectorStatus).filter(ConnectorStatus.connector_id == registry.connector_id).first()
+        if status is None:
+            return JSONResponse({
+                "enabled": True, "available": False, "terminal_label": registry.label,
+                "account": _mask_public_account(registry.account_number), "connection_status": "OFFLINE",
+                "read_only": True, "execution_owner": "METATRADER_EA"
+            }, headers=headers)
+
+        age_seconds = max(0, int((_utc_now_naive() - status.received_at).total_seconds()))
+        open_count = db.query(ConnectorPosition).filter(ConnectorPosition.connector_id == registry.connector_id).count()
+        return JSONResponse({
+            "enabled": True,
+            "available": True,
+            "read_only": True,
+            "execution_owner": "METATRADER_EA",
+            "terminal_label": registry.label,
+            "account": _mask_public_account(status.account_number),
+            "account_mode": status.mode,
+            "currency": status.currency,
+            "connection_status": "ONLINE" if age_seconds <= 150 else "STALE",
+            "balance": status.balance,
+            "equity": status.equity,
+            "floating_profit": status.floating_profit,
+            "open_position_count": open_count,
+            "last_seen": status.received_at.isoformat() + "Z",
+            "age_seconds": age_seconds,
+        }, headers=headers)
+    finally:
+        db.close()
+
+
+@router.get("/admin/public-display")
+def get_public_mt5_display(_admin=Depends(require_super_admin)):
+    db = SessionLocal()
+    try:
+        setting = _public_display_setting(db)
+        return {"enabled": bool(setting.enabled), "terminal_registry_id": setting.terminal_registry_id, "read_only": True}
+    finally:
+        db.close()
+
+
+@router.put("/admin/public-display")
+def update_public_mt5_display(data: PublicMt5DisplayUpdate, _admin=Depends(require_super_admin)):
+    db = SessionLocal()
+    try:
+        setting = _public_display_setting(db)
+        if data.terminal_registry_id is not None:
+            terminal = db.query(MasterTerminalRegistry).filter(
+                MasterTerminalRegistry.id == data.terminal_registry_id,
+                MasterTerminalRegistry.active.is_(True),
+            ).first()
+            if terminal is None:
+                raise HTTPException(404, "Selected MT5 terminal is unavailable")
+            setting.terminal_registry_id = terminal.id
+        if data.enabled and setting.terminal_registry_id is None:
+            raise HTTPException(422, "Select a registered MT5 terminal before enabling the public display")
+        setting.enabled = data.enabled
+        db.commit(); db.refresh(setting)
+        return {"status": "updated", "enabled": bool(setting.enabled), "terminal_registry_id": setting.terminal_registry_id, "read_only": True, "execution_owner": "METATRADER_EA"}
+    finally:
+        db.close()
 
 @router.get("/status")
 def connector_status(_admin=Depends(require_admin)):
