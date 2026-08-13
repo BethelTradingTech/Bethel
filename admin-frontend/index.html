@@ -30,7 +30,7 @@
       <button class="nav-item" data-view="subscriptions">🗓 <span>Subscriptions</span></button>
       <button class="nav-item" data-view="payments">💳 <span>Payments</span></button>
       <button class="nav-item" data-view="mt5">📈 <span>Trading Accounts</span></button>
-      <button class="nav-item" data-view="copytrading">⇄ <span>Copy Trading</span></button>
+      <button class="nav-item" data-view="terminals">▣ <span>Master Terminals</span></button>
       <button class="nav-item" data-view="analytics">⌁ <span>Performance</span></button>
       <button class="nav-item" data-view="api">⌘ <span>API & Routes</span></button>
       <button class="nav-item" data-view="security">🔐 <span>Security</span></button>
@@ -199,14 +199,22 @@
 
     <section id="view-mt5" class="view"><article class="panel"><h2>Trading Account Control</h2><div id="mt5-details" class="detail-grid"></div><h3>Open Positions</h3><div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Type</th><th>Volume</th><th>Profit</th></tr></thead><tbody id="positions-table"></tbody></table></div></article></section>
 
-    <section id="view-copytrading" class="view">
-      <article class="panel copier-control">
-        <div class="section-heading"><div><h2>Bethel Copier Control</h2><p>One master account, authorized subscriber installations and emergency pause controls.</p></div><button id="reload-copyhub">Reload</button></div>
-        <div class="copier-global"><span id="copyhub-master">Master —</span><span id="copyhub-global-state" class="review-state">Loading</span><button id="copyhub-global-toggle" class="danger-button">Emergency pause</button></div>
-        <div class="table-wrap"><table><thead><tr><th>Receiver</th><th>Account</th><th>Mode</th><th>Currency</th><th>Connection</th><th>State</th><th>Controls</th></tr></thead><tbody id="copyhub-table"><tr><td colspan="7">Loading…</td></tr></tbody></table></div>
-        <p class="notice">New receivers remain inactive and paused until terminal verification and explicit Super Admin activation.</p>
+    <section id="view-terminals" class="view">
+      <article class="panel">
+        <div class="section-heading"><div><h2>Read-Only Master Terminals</h2><p>Super Admin visibility across all registered MT5 terminals. Bethel never opens, modifies or closes trades.</p></div><button id="reload-terminals" type="button">Reload terminals</button></div>
+        <form id="register-terminal-form" class="form-panel" autocomplete="off">
+          <div class="form-grid">
+            <label>Terminal label<input name="label" required maxlength="120"></label>
+            <label>Connector ID<input name="connector_id" required maxlength="100"></label>
+            <label>MT5 account number<input name="account_number" required maxlength="32"></label>
+            <label>Subscriber ID (optional owner/master)<input name="subscriber_id" type="number" min="1"></label>
+          </div>
+          <button type="submit">Register read-only terminal</button>
+          <p id="register-terminal-result" class="notice"></p>
+        </form>
+        <div class="table-wrap"><table><thead><tr><th>Terminal</th><th>Subscriber / Plan</th><th>MT5 Account</th><th>Connection</th><th>Balance / Equity</th><th>Open Positions</th><th>Last Seen</th></tr></thead><tbody id="master-terminals-table"><tr><td colspan="7">Loading...</td></tr></tbody></table></div>
+        <p class="notice">Terminal entitlement: Starter 1 · Standard 2 · Professional 3 · Enterprise 5. Lot size and all trading decisions remain controlled exclusively by each MT5 EA.</p>
       </article>
-      <article class="panel"><h2>Legacy Copy Summary</h2><div id="copy-details" class="detail-grid"></div></article>
     </section>
 
     <section id="view-analytics" class="view"><article class="panel"><h2>Performance & Analytics</h2><div id="performance-details" class="detail-grid"></div></article></section>

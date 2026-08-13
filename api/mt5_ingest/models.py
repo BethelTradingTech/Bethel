@@ -1,12 +1,25 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, UniqueConstraint
 
 from api.database import Base
 
 
 def utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class MasterTerminalRegistry(Base):
+    __tablename__ = "master_terminal_registry"
+
+    id = Column(Integer, primary_key=True)
+    connector_id = Column(String(100), nullable=False, unique=True, index=True)
+    subscriber_id = Column(Integer, nullable=True, index=True)
+    label = Column(String(120), nullable=False)
+    account_number = Column(String(32), nullable=False, index=True)
+    active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, nullable=False, onupdate=utc_now)
 
 
 class ConnectorNonce(Base):
