@@ -4,12 +4,14 @@ Bethel Trading Technologies
 Subscriber Management API
 
 Purpose:
-    Manage subscriber profiles and dashboards.
+    Provide authenticated, read-only subscriber monitoring and performance views.
 
 Does NOT:
     - Handle payments
-    - Execute trades
+    - Open, modify, or close trades
     - Manage funds
+
+Trading execution is owned exclusively by MetaTrader EAs.
 """
 
 
@@ -169,7 +171,7 @@ def get_subscriber(
 
 
 # =====================================================
-# SUBSCRIBER COPY TRADING DASHBOARD
+# SUBSCRIBER READ-ONLY ACTIVITY DASHBOARD
 # =====================================================
 
 
@@ -297,7 +299,11 @@ def subscriber_dashboard(
         "status":"success",
 
 
-        "mode":"PAPER",
+        "mode":"READ_ONLY_MONITORING",
+
+        "platform_access":"READ_ONLY",
+
+        "execution_owner":"METATRADER_EA",
 
 
 
@@ -343,22 +349,24 @@ def subscriber_dashboard(
 
 
 
-        "copy_trading":{
+        "data_source_note":"Historical CopyOrder records are displayed as observed EA activity only; Bethel does not execute them.",
+
+        "ea_activity":{
 
 
             "total_orders":
                 total_orders,
 
 
-            "executed_orders":
+            "observed_completed_records":
                 executed_orders,
 
 
-            "pending_orders":
+            "pending_observation_records":
                 pending_orders,
 
 
-            "execution_logs":
+            "observation_logs":
                 execution_logs
 
         }
@@ -488,7 +496,7 @@ def get_subscriber_performance(
         },
 
 
-        "copy_activity": {
+        "ea_activity": {
 
             "last_activity": last_activity
 
@@ -590,7 +598,7 @@ def subscriber_performance(
     }
 
 # =====================================================
-# CLOSED TRADE SYNC
+# HISTORICAL CLOSED-TRADE RECONCILIATION
 # =====================================================
 
 @router.post("/performance/close-sync")
@@ -604,7 +612,7 @@ def run_close_sync(
 
 
 # =====================================================
-# COPY PERFORMANCE SYNC
+# HISTORICAL PERFORMANCE RECONCILIATION
 # =====================================================
 
 @router.post("/performance/sync")

@@ -1,10 +1,10 @@
 """
 Bethel Trading Technologies
 
-Copy Trading Dashboard API
+Read-Only Historical Activity Dashboard API
 
-Provides summary statistics for the legacy copy-trading records while deriving
-its displayed operating mode from the current secure Copy Hub receivers.
+Provides admin-only summary statistics for historical activity records.
+Bethel does not execute trades; MetaTrader EAs are the exclusive execution owner.
 """
 
 from fastapi import APIRouter, Depends
@@ -18,7 +18,7 @@ from api.database import get_db
 
 router = APIRouter(
     prefix="/copytrading",
-    tags=["Copy Trading Dashboard"],
+    tags=["Read-Only Activity Dashboard"],
 )
 
 
@@ -75,15 +75,16 @@ def copytrading_dashboard(
     return {
         "status": "success",
         "mode": mode,
-        "mode_source": "secure_copy_hub_receivers",
+        "mode_source": "historical_receiver_records",
+        "platform_access": "READ_ONLY",
         "demo_receivers": demo_receivers,
         "live_receivers": live_receivers,
-        "execution_path": "SUBSCRIBER_MT5_TERMINAL",
+        "execution_owner": "METATRADER_EA",
         "subscribers": {
             "total": total_subscribers,
             "active": active_subscribers,
         },
-        "trading": {
+        "historical_activity": {
             "master_trades": total_master_trades,
             "copy_orders": total_copy_orders,
             "pending_orders": pending_orders,
