@@ -12,6 +12,7 @@ from fastapi import HTTPException
 
 from main import app
 from api.mt5_ingest.routes import router as mt5_ingest_router
+from api.broadcast.routes import router as broadcast_router
 from api.copyhub.live_activation_fix import router as live_activation_router
 from api.payment_route_loader import mount_payment_routes
 from api.database import Base as ApiBase, SessionLocal, engine as api_engine
@@ -20,6 +21,7 @@ from api.traffic.routes import router as traffic_router
 
 
 SNAPSHOT_PATH = "/connector/v1/snapshot"
+BROADCAST_WORKER_CONFIG_PATH = "/broadcast/v1/worker/config"
 COPIER_ACTIVATION_PATH = "/copyhub/v1/receiver/activate"
 TRAFFIC_VISIT_PATH = "/traffic/visit"
 NOTIFICATIONS_PATH = "/admin/notifications"
@@ -36,6 +38,10 @@ def _route_exists(path: str) -> bool:
 if not _route_exists(SNAPSHOT_PATH):
     app.include_router(mt5_ingest_router)
     print("MT5 Connector API Loaded (isolated Render entry point)")
+
+if not _route_exists(BROADCAST_WORKER_CONFIG_PATH):
+    app.include_router(broadcast_router)
+    print("Broadcast API Loaded (isolated Render entry point)")
 
 app.router.routes[:] = [
     route
