@@ -20,6 +20,9 @@ from fastapi import (
     Depends,
     HTTPException
 )
+from pydantic import BaseModel, Field
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 
 from sqlalchemy.orm import Session
 from api.copytrading.performance_service import sync_copy_performance
@@ -44,6 +47,75 @@ router = APIRouter(
 
 )
 
+
+
+class SubscriberAdminCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: str = Field(min_length=5, max_length=255)
+    account_number: str = Field(min_length=4, max_length=20)
+
+
+@router.post("/")
+def create_subscriber_read_only(
+    data: SubscriberAdminCreate,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    """Create or update a subscriber profile without configuring trade sizing.
+
+    allocation_percent is retained only as legacy database metadata at 100.0.
+    It is not used to determine lot size, order size, or execution.
+    """
+    email = data.email.strip().lower()
+    account_number = data.account_number.strip()
+
+    matches = db.query(CopySubscriber).filter(or_(
+        func.lower(CopySubscriber.email) == email,
+        CopySubscriber.mt5_account == account_number,
+    )).all()
+
+    if len({row.id for row in matches}) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="The email and MT5 account belong to different subscribers",
+        )
+
+    record = matches[0] if matches else CopySubscriber(
+        name=data.name.strip(),
+        email=email,
+        mt5_account=account_number,
+        allocation_percent=100.0,
+        status="PENDING",
+        payment_status="UNPAID",
+    )
+
+    if not matches:
+        db.add(record)
+    else:
+        record.name = data.name.strip()
+        record.email = email
+        record.mt5_account = account_number
+        record.allocation_percent = 100.0
+
+    try:
+        db.commit()
+        db.refresh(record)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="This email address or MT5 account is already registered",
+        ) from exc
+
+    return {
+        "id": record.id,
+        "name": record.name,
+        "email": record.email,
+        "mt5_account": record.mt5_account,
+        "status": record.status,
+        "platform_access": "READ_ONLY",
+        "execution_owner": "METATRADER_EA",
+    }
 
 
 # =====================================================
