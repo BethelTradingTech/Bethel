@@ -69,6 +69,13 @@ def load_evidence(subscriber_id: int, reference: str, category: str, storage_key
     return AESGCM(_key()).decrypt(nonce, ciphertext, aad)
 
 
+def _safe_http_reason(response) -> str:
+    """Return useful diagnostics without leaking service payloads or credentials."""
+    request_id = response.headers.get("x-request-id") or response.headers.get("x-correlation-id")
+    suffix = f" request_id={request_id}" if request_id else ""
+    return f"HTTP {response.status_code}{suffix}"[:180]
+
+
 def _service(base_env: str, key_env: str, path: str, payload: dict, check_type: str, timeout: int = 90) -> CheckResult:
     base = (os.getenv(base_env) or "").rstrip("/")
     key = (os.getenv(key_env) or "").strip()
@@ -81,8 +88,15 @@ def _service(base_env: str, key_env: str, path: str, payload: dict, check_type: 
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             timeout=timeout,
         )
-        response.raise_for_status()
+        if not response.ok:
+            return CheckResult(check_type, "not_available", reasons=[f"{check_type} service unavailable: {_safe_http_reason(response)}"])
         body = response.json()
+    except requests.Timeout:
+        return CheckResult(check_type, "not_available", reasons=[f"{check_type} service timed out after {timeout}s"])
+    except requests.ConnectionError:
+        return CheckResult(check_type, "not_available", reasons=[f"{check_type} service connection failed"])
+    except ValueError:
+        return CheckResult(check_type, "not_available", reasons=[f"{check_type} service returned invalid JSON"])
     except Exception as exc:
         return CheckResult(check_type, "not_available", reasons=[f"{check_type} service unavailable: {type(exc).__name__}"])
     raw = str(body.get("status") or body.get("result") or "review").lower()
@@ -95,6 +109,28 @@ def _service(base_env: str, key_env: str, path: str, payload: dict, check_type: 
     if isinstance(reasons, str):
         reasons = [reasons]
     return CheckResult(check_type, status, score, [str(x) for x in reasons], body)
+
+
+def _service_health(base_env: str, key_env: str) -> dict:
+    base = (os.getenv(base_env) or "").rstrip("/")
+    key = (os.getenv(key_env) or "").strip()
+    if not base or not key:
+        return {"configured": False, "reachable": False, "reason": "not_configured"}
+    headers = {"Authorization": f"Bearer {key}", "Accept": "application/json"}
+    last_reason = "health_endpoint_unavailable"
+    for path in ("/health", "/ready"):
+        try:
+            response = requests.get(f"{base}{path}", headers=headers, timeout=8)
+            if response.ok:
+                return {"configured": True, "reachable": True, "endpoint": path, "status_code": response.status_code}
+            last_reason = _safe_http_reason(response)
+        except requests.Timeout:
+            last_reason = "timeout"
+        except requests.ConnectionError:
+            last_reason = "connection_failed"
+        except Exception as exc:
+            last_reason = type(exc).__name__
+    return {"configured": True, "reachable": False, "reason": last_reason}
 
 
 def _norm(value: str | None) -> str:
@@ -171,13 +207,21 @@ def readiness(db: Session) -> dict:
         "biometric_engine": env("KYC_BIOMETRIC_VERIFIER_BASE_URL") and env("KYC_BIOMETRIC_VERIFIER_API_KEY"),
         "sanctions_data": sanctions_ready,
     }
+    service_health = {
+        "malware_scanner": _service_health("KYC_MALWARE_SCANNER_BASE_URL", "KYC_MALWARE_SCANNER_API_KEY"),
+        "ocr_engine": _service_health("KYC_OCR_BASE_URL", "KYC_OCR_API_KEY"),
+        "document_authenticity_engine": _service_health("KYC_AUTHENTICITY_VERIFIER_BASE_URL", "KYC_AUTHENTICITY_VERIFIER_API_KEY"),
+        "biometric_engine": _service_health("KYC_BIOMETRIC_VERIFIER_BASE_URL", "KYC_BIOMETRIC_VERIFIER_API_KEY"),
+    }
+    reachable = all(value.get("reachable") for value in service_health.values())
     return {
-        "ready_for_native_identity": all(checks.values()),
-        "ready_for_native_cutover": all(checks.values()),
+        "ready_for_native_identity": all(checks.values()) and reachable,
+        "ready_for_native_cutover": all(checks.values()) and reachable,
         "full_aml_ready": False,
         "aml_followup_required": True,
         "aml_followup_policy": "PEP and adverse-media gaps do not block Bethel identity verification; they remain Compliance follow-up items.",
         "checks": checks,
+        "service_health": service_health,
         "storage": {"root": storage_root or None, "persistent_confirmed": persistent_confirmed, "writable": storage_ready},
         "sanctions_dataset": {"ready": sanctions_ready, "dataset_id": dataset.id if dataset else None, "source": dataset.source_name if dataset else None, "age_days": (date.today() - dataset.effective_date).days if dataset and dataset.effective_date else None},
     }
