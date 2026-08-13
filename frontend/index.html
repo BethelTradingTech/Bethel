@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -52,7 +52,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         :root {
             --bg-color: #0b0f19;
@@ -533,6 +533,8 @@
                 font-size: 0.9rem;
             }
         }
+
+        .live-mt5-public{display:none}.live-mt5-shell{background:var(--card-bg);border:1px solid rgba(16,185,129,.35);border-radius:16px;padding:2rem}.live-mt5-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}.live-mt5-badge{display:inline-flex;padding:.45rem .8rem;border-radius:999px;background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.30);color:var(--accent-color);font-size:.8rem;font-weight:700}.live-mt5-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem}.live-mt5-metric{background:rgba(255,255,255,.025);border:1px solid var(--border-color);border-radius:12px;padding:1rem}.live-mt5-metric small{display:block;color:var(--text-secondary);margin-bottom:.35rem}.live-mt5-metric strong{font-size:1.15rem}.live-mt5-note{color:var(--text-secondary);font-size:.8rem;margin-top:1rem}
     </style>
 </head>
 <body>
@@ -634,7 +636,7 @@
             <div class="contact-info">
                 <h3>Let's Build the Future of Your Capital</h3>
                 <p>Get in touch to request our historical pitch books, discuss technical API integration, or learn how to partner with our automated trading systems.</p>
-                
+
                 <div class="contact-method">
                     <div class="contact-icon"><i class="fa-solid fa-envelope"></i></div>
                     <div>
@@ -655,7 +657,7 @@
                     <a href="https://wa.me/12462590997" target="_blank" class="social-item" title="WhatsApp Business"><i class="fa-brands fa-whatsapp"></i></a>
                 </div>
             </div>
-            
+
             <div class="contact-form">
                 <form action="https://formspree.io/f/xbjnqozp" method="POST">
                     <div class="form-group">
@@ -676,7 +678,18 @@
         </div>
     </section>
 
-    <footer>
+        <section id="public-live-mt5" class="live-mt5-public" aria-live="polite">
+      <div class="section-header"><h2>Live MT5 Read-Only Telemetry</h2><p>Live account telemetry published from an authorized Bethel monitoring connector.</p></div>
+      <div class="live-mt5-shell">
+        <div class="live-mt5-heading"><div><strong id="public-mt5-label">MT5 Terminal</strong><div id="public-mt5-account" style="color:var(--text-secondary);font-size:.9rem"></div></div><span id="public-mt5-status" class="live-mt5-badge">CONNECTING</span></div>
+        <div class="live-mt5-grid">
+          <div class="live-mt5-metric"><small>Balance</small><strong id="public-mt5-balance">—</strong></div><div class="live-mt5-metric"><small>Equity</small><strong id="public-mt5-equity">—</strong></div><div class="live-mt5-metric"><small>Floating P/L</small><strong id="public-mt5-floating">—</strong></div><div class="live-mt5-metric"><small>Open Positions</small><strong id="public-mt5-positions">—</strong></div><div class="live-mt5-metric"><small>Account Mode</small><strong id="public-mt5-mode">—</strong></div><div class="live-mt5-metric"><small>Last Update</small><strong id="public-mt5-updated">—</strong></div>
+        </div>
+        <p class="live-mt5-note">READ ONLY · MetaTrader EA is the execution owner. No credentials, broker-server secrets, tickets, SL/TP or execution controls are published.</p>
+      </div>
+    </section>
+
+<footer>
         <div class="footer-content">
             <div class="footer-top">
                 <a href="#" class="logo" aria-label="Bethel Trading Technologies home">
@@ -705,5 +718,24 @@
     }).catch(function(){});
 })();
 </script>
+
+<script>
+(function(){
+ const API="https://api.betheltradingtechnologies.com",section=document.getElementById("public-live-mt5");if(!section)return;
+ const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v==null?"—":String(v)};
+ const money=(v,c)=>{try{return new Intl.NumberFormat(undefined,{style:"currency",currency:c||"USD",maximumFractionDigits:2}).format(Number(v||0))}catch(_){return Number(v||0).toFixed(2)+" "+(c||"USD")}};
+ async function refreshPublicMt5(){
+  try{
+   const response=await fetch(API+"/connector/v1/public/live?ts="+Date.now(),{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error();const d=await response.json();
+   if(!d.enabled){section.style.display="none";return}section.style.display="block";
+   set("public-mt5-label",d.terminal_label||"MT5 Terminal");set("public-mt5-account",d.account?("Account "+d.account):"Read-only telemetry");set("public-mt5-status",d.connection_status||"OFFLINE");
+   if(!d.available){set("public-mt5-balance","—");set("public-mt5-equity","—");set("public-mt5-floating","—");set("public-mt5-positions","—");set("public-mt5-mode","—");set("public-mt5-updated","Awaiting terminal");return}
+   set("public-mt5-balance",money(d.balance,d.currency));set("public-mt5-equity",money(d.equity,d.currency));set("public-mt5-floating",money(d.floating_profit,d.currency));set("public-mt5-positions",d.open_position_count);set("public-mt5-mode",d.account_mode||"—");set("public-mt5-updated",d.last_seen?new Date(d.last_seen).toLocaleTimeString():"—");
+  }catch(_){section.style.display="none"}
+ }
+ refreshPublicMt5();window.setInterval(refreshPublicMt5,3000);
+})();
+</script>
+
 </body>
 </html>

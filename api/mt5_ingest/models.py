@@ -100,3 +100,11 @@ class ConnectorCashFlow(Base):
     amount = Column(Float, nullable=False)
     occurred_at = Column(DateTime, nullable=False, index=True)
     received_at = Column(DateTime, default=utc_now, nullable=False)
+
+class PublicMt5DisplaySetting(Base):
+    __tablename__ = "public_mt5_display_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    enabled = Column(Boolean, nullable=False, default=False)
+    terminal_registry_id = Column(Integer, nullable=True, index=True)
+    updated_at = Column(DateTime, default=utc_now, nullable=False, onupdate=utc_now)
