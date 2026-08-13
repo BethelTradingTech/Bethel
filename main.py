@@ -9,6 +9,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import settings
@@ -25,9 +26,25 @@ logger = get_logger("BETHEL_SYSTEM")
 
 app = FastAPI(
     title="Bethel Trading Technologies",
-    description="Institutional Algorithmic Trading & Copy Trading Platform",
+    description="Read-Only Algorithmic Trading Monitoring Platform",
     version=settings.VERSION
 )
+
+FORBIDDEN_TRADING_MUTATION_PREFIXES = (
+    "/copytrading/sync-trade",
+    "/copytrading/sync/",
+    "/copytrading/sync-open/",
+    "/copytrading/bridge-execute",
+    "/copyhub/v1/",
+)
+
+@app.middleware("http")
+async def permanent_read_only_trading_guard(request, call_next):
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        path = request.url.path
+        if any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in FORBIDDEN_TRADING_MUTATION_PREFIXES):
+            return JSONResponse(status_code=405, content={"detail": "Bethel is permanently read-only. Trading execution is owned exclusively by MetaTrader EAs."})
+    return await call_next(request)
 
 
 # ======================================
@@ -213,32 +230,12 @@ print("âœ“ Subscriber Authentication API Loaded")
 
 
 # ======================================
-# COPY TRADING
+# COPY TRADING - PERMANENTLY READ ONLY
 # ======================================
 
-try:
-
-    from api.copytrading.routes import router as copy_router
-
-
-    app.include_router(
-
-        copy_router,
-
-        prefix="/copytrading",
-
-        tags=["Copy Trading"]
-
-    )
-
-
-    print("âœ“ Copy Trading API Loaded")
-
-
-except Exception as e:
-
-    print("Copy Trading Load Error:", e)
-
+# Legacy mutating copy-trading routes are intentionally not mounted.
+# Read-only subscriber/order/dashboard routes remain available for monitoring.
+print("Copy Trading mutation API disabled - permanent read-only mode")
 
 
 # ======================================
@@ -418,8 +415,8 @@ try:
     from api.media.routes import router as media_router
     app.include_router(media_router)
     from api.copyhub import models as copyhub_models
-    from api.copyhub.routes import router as copyhub_router
-    app.include_router(copyhub_router)
+    # Copy Hub models remain for historical/audit compatibility only.
+    # Its mutation/event router is permanently disabled; MetaTrader EAs execute trades.
     app.add_middleware(SecurityAuditMiddleware)
 
     from api.production_security import ProductionSecurityMiddleware
