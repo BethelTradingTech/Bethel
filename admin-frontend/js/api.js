@@ -134,4 +134,8 @@ window.addEventListener("DOMContentLoaded",()=>{
  document.querySelector('[data-view="analytics"]')?.addEventListener("click",()=>setTimeout(refreshCompletePerformance,50));
  document.querySelector('#refresh-button')?.addEventListener("click",()=>setTimeout(refreshCompletePerformance,50));
  setInterval(refreshCompletePerformance,60000);
+ const nativeReviewScript=document.createElement("script");
+ nativeReviewScript.src="/admin-frontend/js/admin-kyc-review.js?v=1";
+ nativeReviewScript.defer=true;
+ document.head.appendChild(nativeReviewScript);
 });

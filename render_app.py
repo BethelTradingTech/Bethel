@@ -26,6 +26,7 @@ NOTIFICATIONS_PATH = "/admin/notifications"
 LEGAL_DOCUMENTS_PATH = "/legal/documents"
 PROFIT_SHARE_PATH = "/profit-share/{subscriber_id}"
 NATIVE_KYC_READINESS_PATH = "/kyc/native/readiness"
+NATIVE_KYC_ADMIN_REVIEW_PATH = "/admin/kyc/native/{subscriber_id}"
 
 
 def _route_exists(path: str) -> bool:
@@ -86,6 +87,7 @@ except Exception as error:
 # deployments without touching trading or subscriber tables.
 try:
     from api.kyc import native_models as native_kyc_models
+    from api.kyc.admin_review_routes import router as native_kyc_admin_review_router
     from api.kyc.native_engine import readiness as native_kyc_readiness
     from api.kyc.native_routes import router as native_kyc_router
 
@@ -93,6 +95,9 @@ try:
     if not _route_exists(NATIVE_KYC_READINESS_PATH):
         app.include_router(native_kyc_router)
         print("Bethel Native KYC API Loaded (isolated Render entry point)")
+    if not _route_exists(NATIVE_KYC_ADMIN_REVIEW_PATH):
+        app.include_router(native_kyc_admin_review_router)
+        print("Bethel Native KYC Compliance Review API Loaded")
 except Exception as error:
     native_kyc_readiness = None
     print("Bethel Native KYC isolated load error:", error)
