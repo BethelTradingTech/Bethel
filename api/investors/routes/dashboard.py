@@ -40,7 +40,7 @@ def investor_dashboard(
 
     # Security check
     if (
-        current.get("role") != "admin"
+        current.get("role") not in {"admin", "super_admin"}
         and current.get("investor_id") != investor_id
     ):
 
