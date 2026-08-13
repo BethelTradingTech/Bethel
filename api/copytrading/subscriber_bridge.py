@@ -15,7 +15,7 @@ from api.subscription_lifecycle.service import subscriber_can_copy
 
 class SubscriberBridge:
     @staticmethod
-    def calculate_volume(master_volume: float) -> float:
+    def observed_volume(master_volume: float) -> float:
         """Display the master volume for monitoring; never submit it to a broker."""
         return round(master_volume, 2)
 
@@ -44,7 +44,7 @@ class SubscriberBridge:
                 "copy_order_id": copy_order.id,
             }
 
-        monitored_volume = SubscriberBridge.calculate_volume(copy_order.volume)
+        monitored_volume = SubscriberBridge.observed_volume(copy_order.volume)
         copy_order.status = "EA_MANAGED"
         copy_order.executed_at = None
         db.add(models.CopyExecutionLog(
