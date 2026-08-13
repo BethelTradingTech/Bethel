@@ -397,8 +397,8 @@ try:
     app.include_router(fund_management_router)
 
     from api.profit_share import models as profit_share_models
-    from api.profit_share.routes import router as profit_share_router
-    app.include_router(profit_share_router)
+    # Historical profit-share models are retained for audit/data compatibility.
+    # Customer and admin profit-share routes are disabled for subscription-first launch.
 
     from api.legal import models as legal_models
     from api.legal.routes import router as legal_consent_router

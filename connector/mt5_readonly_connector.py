@@ -116,7 +116,7 @@ def send(payload):
         "Content-Type":"application/json", "X-Bethel-Connector-Id":CONNECTOR_ID,
         "X-Bethel-Timestamp":timestamp, "X-Bethel-Nonce":nonce, "X-Bethel-Signature":signature,
     })
-    response.raise_for_status()
+    if not response.ok: print("SERVER RESPONSE:", response.status_code, response.text); response.raise_for_status()
 
 
 if __name__ == "__main__":

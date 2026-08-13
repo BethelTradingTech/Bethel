@@ -1,4 +1,4 @@
-﻿const ONBOARDING_API =
+const ONBOARDING_API =
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname.startsWith("192.168.")
@@ -472,31 +472,6 @@ document.getElementById("accept-legal-documents").addEventListener("click",async
  }catch(error){setMessage("legal-consent-message",error.message,"error");button.disabled=false}
 });
 
-async function loadProfitShare(){
- if(!subscriberToken()||!subscriberId())return;
- try{
-  const data=await apiRequest(`/profit-share/${subscriberId()}`,{headers:subscriberHeaders()});
-  const button=document.getElementById("accept-profit-share");
-  const consent=document.getElementById("profit-share-consent");
-  if(data.accepted){button.disabled=true;button.textContent="Agreement accepted";consent.checked=true;consent.disabled=true}
-  const account=data.account;
-  document.getElementById("profit-share-summary").textContent=account
-   ?`Realized net profit: ${account.cumulative_net_profit} ${account.currency} | High-water mark: ${account.high_water_mark} | Projected 20% fee: ${account.projected_fee} ${account.currency}`
-   :"No profit-share calculations begin until the agreement is accepted.";
- }catch(error){setMessage("profit-share-message",error.message,"error")}
-}
-document.getElementById("accept-profit-share").addEventListener("click",async event=>{
- if(!document.getElementById("profit-share-consent").checked){setMessage("profit-share-message","Tick the acceptance box first.","error");return}
- const button=event.currentTarget;button.disabled=true;
- try{
-  await apiRequest(`/profit-share/${subscriberId()}/accept`,{
-   method:"POST",headers:subscriberHeaders(true),body:JSON.stringify({accepted:true})
-  });
-  setMessage("profit-share-message","20% profit-share agreement accepted.","success");
-  await Promise.all([loadProfitShare(),refreshStatus()]);
- }catch(error){setMessage("profit-share-message",error.message,"error");button.disabled=false}
-});
-
 document.getElementById("refresh-status").addEventListener("click",refreshStatus);
 document.getElementById("subscriber-logout").addEventListener("click",()=>{clearSubscriberSession();showLogin();});
 
@@ -505,7 +480,7 @@ const REGISTRATION_STEPS=[
     {step:4,displayStep:2,label:"Identity",description:"Identity verification",target:"registration-step-4"},
     {step:5,displayStep:3,label:"Broker",description:"Link standard or cent account",target:"registration-step-5"},
     {step:6,displayStep:4,label:"Legal",description:"Accept agreements",target:"legal-consent-panel"},
-    {step:7,displayStep:5,label:"Fees",description:"Profit-share terms",target:"profit-share-panel"},
+    {step:7,displayStep:5,label:"Fees",description:"Activation fee",target:"activation-fee-panel"},
     {step:8,displayStep:6,label:"Payment",description:"Confirm subscription",target:"registration-step-8"},
     {step:9,displayStep:7,label:"Review",description:"Compliance review",target:"registration-step-9"},
     {step:10,displayStep:8,label:"Active",description:"Dashboard access",target:"registration-step-9"}

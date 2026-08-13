@@ -19,6 +19,33 @@ from api.onboarding.service import (
 
 router = APIRouter(prefix="/onboarding", tags=["Client Onboarding"])
 
+ACTIVATION_FEE_USD = 100.0
+LAUNCH_PLANS = (
+    {"name": "Starter", "description": "Entry subscription for individual Bethel accounts.", "price": 49.0},
+    {"name": "Standard", "description": "Standard Bethel subscription for active individual accounts.", "price": 99.0},
+    {"name": "Professional", "description": "Advanced Bethel subscription with expanded service access.", "price": 199.0},
+    {"name": "Enterprise", "description": "Custom commercial plan. Contact Bethel for enterprise pricing.", "price": 0.0},
+)
+
+
+def _sync_launch_plans(db: Session):
+    for item in LAUNCH_PLANS:
+        plan = (
+            db.query(SubscriptionPlan)
+            .filter(SubscriptionPlan.name == item["name"])
+            .first()
+        )
+        if plan is None:
+            plan = SubscriptionPlan(name=item["name"])
+            db.add(plan)
+        plan.description = item["description"]
+        plan.price = item["price"]
+        plan.currency = "USD"
+        plan.billing_interval = "MONTHLY"
+        plan.allocation_percent = 100.0
+        plan.active = True
+    db.commit()
+
 
 class PlanCreate(BaseModel):
     name: str = Field(min_length=2, max_length=100)
@@ -57,26 +84,25 @@ def _plan_dict(plan: SubscriptionPlan):
         "billing_interval": plan.billing_interval,
         "allocation_percent": plan.allocation_percent,
         "active": plan.active,
+        "activation_fee_usd": ACTIVATION_FEE_USD,
+        "checkout_available": float(plan.price) > 0,
     }
 
 
 @router.get("/plans")
 def list_plans(db: Session = Depends(get_db)):
-    if db.query(SubscriptionPlan).count() == 0:
-        db.add(SubscriptionPlan(
-            name="Standard",
-            description="Bethel copy-trading subscription with non-custodial broker account linking.",
-            price=100.0,
-            currency="USD",
-            billing_interval="MONTHLY",
-            allocation_percent=100.0,
-            active=True,
-        ))
-        db.commit()
+    _sync_launch_plans(db)
+    launch_names = [item["name"] for item in LAUNCH_PLANS]
     plans = (
         db.query(SubscriptionPlan)
-        .filter(SubscriptionPlan.active.is_(True))
-        .order_by(SubscriptionPlan.price)
+        .filter(
+            SubscriptionPlan.active.is_(True),
+            SubscriptionPlan.name.in_(launch_names),
+        )
+        .order_by(
+            SubscriptionPlan.price == 0,
+            SubscriptionPlan.price,
+        )
         .all()
     )
     return [_plan_dict(plan) for plan in plans]
@@ -139,6 +165,11 @@ def select_subscription(
     )
     if plan is None:
         raise HTTPException(status_code=404, detail="Subscription plan not found")
+    if float(plan.price) <= 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Enterprise pricing requires a custom commercial agreement",
+        )
 
     subscriber = get_subscriber(db, subscriber_id)
     onboarding = get_or_create_onboarding(db, subscriber_id)
