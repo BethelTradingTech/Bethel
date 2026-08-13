@@ -412,6 +412,9 @@ try:
     from api.mt5_ingest import models as mt5_ingest_models
     from api.mt5_ingest.routes import router as mt5_ingest_router
     app.include_router(mt5_ingest_router)
+    from api.broadcast import models as broadcast_models
+    from api.broadcast.routes import router as broadcast_router
+    app.include_router(broadcast_router)
     from api.media.routes import router as media_router
     app.include_router(media_router)
     from api.copyhub import models as copyhub_models

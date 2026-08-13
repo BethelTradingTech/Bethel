@@ -18,6 +18,7 @@ async function loadOverview(){
  await renderSubscribers(s);renderPositions(p);renderDetails("#mt5-details",a);if(copy.status==="fulfilled")renderDetails("#copy-details",copy.value);if(performance.status==="fulfilled")renderDetails("#performance-details",performance.value);
  try{const inv=await apiGet("/admin/investors");renderInvestors(inv.investors||inv||[])}catch(e){$("#investors-table").innerHTML='<tr><td colspan="5">Investor API unavailable</td></tr>'}
  await loadOverviewPublicMt5Display();
+ await loadBroadcastEngine();
 }
 function renderConnectorStatus(data){
  const badge=$("#connector-badge"),target=$("#connector-details"),alert=$("#connector-alert"),items=data.connectors||[];
@@ -58,6 +59,10 @@ if(terminalForm)terminalForm.addEventListener("submit",async event=>{
 });
 const reloadTerminals=$("#reload-terminals");if(reloadTerminals)reloadTerminals.onclick=loadMasterTerminals;
 
+
+async function loadBroadcastEngine(){const s=$("#broadcast-engine-state"),w=$("#broadcast-worker-state"),src=$("#broadcast-source-terminal"),sel=$("#broadcast-terminal");if(!s||!w||!src||!sel)return;try{const [c,x]=await Promise.all([apiGet("/broadcast/v1/admin/control"),apiGet("/connector/v1/status")]);const rows=(x.connectors||[]).filter(r=>!r.subscriber_id);sel.innerHTML=rows.map(r=>`<option value="${r.registry_id}">${escapeHtml(r.label||r.connector_id)} · ${escapeHtml(r.connection_status)}</option>`).join("")||'<option value="">No owner/master terminals</option>';if(c.terminal_registry_id)sel.value=String(c.terminal_registry_id);$("#broadcast-landscape").checked=!!c.landscape_enabled;$("#broadcast-vertical").checked=!!c.vertical_enabled;$("#broadcast-website").checked=!!c.website_enabled;const chosen=rows.find(r=>Number(r.registry_id)===Number(c.terminal_registry_id));s.textContent=c.enabled?"BROADCAST ON":"BROADCAST OFF";w.textContent=c.worker_state||"OFF";src.textContent=chosen?(chosen.label||chosen.account_number):"Not selected";$("#broadcast-start").disabled=!!c.enabled||!rows.length;$("#broadcast-stop").disabled=!c.enabled;if(c.worker_message)$("#broadcast-engine-result").textContent=c.worker_message}catch(e){s.textContent="UNAVAILABLE";w.textContent="—";src.textContent="—"}}
+async function setBroadcastEngine(enabled){try{const v=$("#broadcast-terminal").value;if(enabled&&!v){setStatus("Select an owner/master terminal first",true);return}if(enabled&&!confirm("Start Bethel video generation from sanitized owner/master MT5 telemetry?"))return;await apiRequest("/broadcast/v1/admin/control",{method:"PUT",body:JSON.stringify({enabled,terminal_registry_id:v?Number(v):null,landscape_enabled:$("#broadcast-landscape").checked,vertical_enabled:$("#broadcast-vertical").checked,website_enabled:$("#broadcast-website").checked,confirm_start:enabled})});setStatus(enabled?"Broadcast engine start requested":"Broadcast engine stop requested");await loadBroadcastEngine()}catch(e){setStatus(e.message||"Unable to update broadcast engine",true)}}
+const bs=$("#broadcast-start");if(bs)bs.onclick=()=>setBroadcastEngine(true);const bx=$("#broadcast-stop");if(bx)bx.onclick=()=>setBroadcastEngine(false);
 
 async function loadOverviewPublicMt5Display(){
  const state=$("#overview-public-mt5-state"),terminal=$("#overview-public-mt5-terminal"),status=$("#overview-public-mt5-status");

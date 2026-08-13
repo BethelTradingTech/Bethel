@@ -24,6 +24,21 @@ services:
         value: "49617874"
       - key: MASTER_ACCOUNT_MODE
         value: DEMO
+      - key: BROADCAST_WORKER_SECRET
+        sync: false
+
+  - type: web
+    name: bethel-broadcast
+    runtime: docker
+    dockerfilePath: ./broadcast-worker/Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: BETHEL_API_BASE
+        value: https://api.betheltradingtechnologies.com
+      - key: BROADCAST_WORKER_SECRET
+        sync: false
 
 databases:
   - name: bethel-db
