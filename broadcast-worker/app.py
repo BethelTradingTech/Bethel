@@ -1,13 +1,14 @@
-import os,shutil,subprocess,threading,time
+import os,shutil,subprocess,threading,time,uuid,json
 from pathlib import Path
 import requests
-from fastapi import FastAPI,HTTPException
+from fastapi import FastAPI,HTTPException,Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from PIL import Image,ImageDraw,ImageFont
 API=os.getenv("BETHEL_API_BASE","https://api.betheltradingtechnologies.com").rstrip("/")
 SECRET=os.getenv("BROADCAST_WORKER_SECRET","")
 ROOT=Path("/tmp/bethel-broadcast"); ROOT.mkdir(parents=True,exist_ok=True)
+MEDIA_ROOT=Path(os.getenv("MEDIA_ROOT","/var/data/bethel-media")); MEDIA_ROOT.mkdir(parents=True,exist_ok=True)
 SOCIAL_URLS={
  "youtube":os.getenv("YOUTUBE_RTMPS_URL","").strip(),
  "facebook":os.getenv("FACEBOOK_RTMPS_URL","").strip(),
@@ -28,6 +29,9 @@ app.add_middleware(
 )
 runtime={"state":"OFF","landscape":False,"vertical":False}
 def hdr():return {"X-Bethel-Broadcast-Secret":SECRET}
+def media_auth(v):
+ if len(SECRET)<64 or not v or v!=SECRET:raise HTTPException(401,"Invalid media worker authentication")
+ return True
 def get(p):
  r=requests.get(API+p,headers=hdr(),timeout=10);r.raise_for_status();return r.json()
 def beat(s,m=None):
@@ -123,3 +127,36 @@ def segment(layout:str,segment:str):
  p=ROOT/layout/segment
  if not p.exists():raise HTTPException(404,"Segment unavailable")
  return FileResponse(p,media_type='video/mp2t',headers={'Cache-Control':'no-store','Access-Control-Allow-Origin':'https://betheltradingtechnologies.com'})
+
+@app.post('/media/generate')
+def generate_media(payload:dict,x_bethel_broadcast_secret:str=Header(default="")):
+ media_auth(x_bethel_broadcast_secret);layout=str(payload.get("layout","landscape")).lower()
+ if layout not in {"landscape","vertical"}:raise HTTPException(422,"Unknown media layout")
+ duration=max(8,min(60,int(payload.get("duration_seconds",15))));src=get("/broadcast/v1/worker/source")
+ if not src.get("available"):raise HTTPException(409,"Owner/master telemetry unavailable")
+ size=(1280,720) if layout=="landscape" else (720,1280);im=frame(src,size);stamp=time.strftime("%Y%m%d-%H%M%S",time.gmtime());name=f"bethel-weekly-{layout}-{stamp}-{uuid.uuid4().hex[:16]}.mp4";out=MEDIA_ROOT/name
+ cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-f","rawvideo","-pix_fmt","rgb24","-s",f"{size[0]}x{size[1]}","-r","2","-i","-","-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100","-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-c:a","aac","-b:a","128k","-t",str(duration),"-movflags","+faststart",str(out)]
+ p=subprocess.Popen(cmd,stdin=subprocess.PIPE)
+ for _ in range(duration*2):p.stdin.write(im.tobytes())
+ p.stdin.close();p.wait(timeout=45)
+ if p.returncode!=0 or not out.exists():raise HTTPException(500,"Media generation failed")
+ meta={"filename":name,"layout":layout,"duration_seconds":duration,"created_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"title":f"Bethel Weekly {layout.title()} Update","account_mode":src.get("account_mode"),"read_only":True};(MEDIA_ROOT/(name+".json")).write_text(json.dumps(meta),encoding="utf-8")
+ return {**meta,"url":f"https://bethel-broadcast.onrender.com/media/{name}"}
+
+@app.get('/media/list')
+def media_list(x_bethel_broadcast_secret:str=Header(default="")):
+ media_auth(x_bethel_broadcast_secret);items=[]
+ for mp4 in sorted(MEDIA_ROOT.glob("*.mp4"),key=lambda p:p.stat().st_mtime,reverse=True)[:50]:
+  meta={};m=MEDIA_ROOT/(mp4.name+".json")
+  if m.exists():
+   try:meta=json.loads(m.read_text(encoding="utf-8"))
+   except Exception:pass
+  items.append({**meta,"filename":mp4.name,"size_bytes":mp4.stat().st_size,"url":f"https://bethel-broadcast.onrender.com/media/{mp4.name}"})
+ return {"items":items,"read_only":True}
+
+@app.get('/media/{filename}')
+def media_file(filename:str):
+ if "/" in filename or ".." in filename or not filename.endswith(".mp4"):raise HTTPException(404,"Media unavailable")
+ p=MEDIA_ROOT/filename
+ if not p.exists():raise HTTPException(404,"Media unavailable")
+ return FileResponse(p,media_type="video/mp4",filename=filename,headers={"Cache-Control":"public, max-age=300"})
