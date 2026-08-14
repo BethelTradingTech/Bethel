@@ -78,7 +78,7 @@ class Encoder:
  def start(self,cfg):
   self.stop();self.o.mkdir(parents=True,exist_ok=True);social=self.wanted(cfg);self.sig=social
   hls=str(self.o/"live.m3u8")
-  cmd=["ffmpeg","-hide_banner","-loglevel","error","-f","rawvideo","-pix_fmt","rgb24","-s",f"{self.w}x{self.h}","-r","2","-i","-","-f","lavfi","-i","sine=frequency=220:sample_rate=44100","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-pix_fmt","yuv420p","-g","4","-c:a","aac","-b:a","128k"]
+  cmd=["ffmpeg","-hide_banner","-loglevel","error","-f","rawvideo","-pix_fmt","rgb24","-s",f"{self.w}x{self.h}","-r","2","-i","-","-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-pix_fmt","yuv420p","-g","4","-c:a","aac","-b:a","128k"]
   if not social:
    cmd+=["-f","hls","-hls_time","2","-hls_list_size","5","-hls_flags","delete_segments+append_list+omit_endlist",hls]
   else:
