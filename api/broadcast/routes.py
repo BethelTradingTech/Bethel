@@ -81,16 +81,26 @@ def set_control(data:BroadcastUpdate,_=Depends(require_super_admin)):
 def admin_media_list(_=Depends(require_super_admin)):
     data=worker_media_request("GET","/media/list")
     for item in data.get("items",[]):
-        text=f"Bethel weekly media: {item.get('title','Trading Technology Update')} {item.get('url','')}"
-        item["whatsapp_url"]=f"https://wa.me/{MEDIA_WHATSAPP_NUMBER}?text={quote(text)}" if MEDIA_WHATSAPP_NUMBER else None
+        url=item.get("url")
+        if url and item.get("share_status")=="ACTIVE":
+            text=f"Bethel weekly media: {item.get('title','Trading Technology Update')} {url}"
+            item["whatsapp_url"]=f"https://wa.me/{MEDIA_WHATSAPP_NUMBER}?text={quote(text)}" if MEDIA_WHATSAPP_NUMBER else None
+        else:
+            item["whatsapp_url"]=None
     return data
 
 @router.post('/admin/media/generate')
 def admin_media_generate(data:MediaGenerate,_=Depends(require_super_admin)):
     item=worker_media_request("POST","/media/generate",{"layout":data.layout,"duration_seconds":data.duration_seconds})
     text=f"Bethel weekly media: {item.get('title','Trading Technology Update')} {item.get('url','')}"
-    item["whatsapp_url"]=f"https://wa.me/{MEDIA_WHATSAPP_NUMBER}?text={quote(text)}" if MEDIA_WHATSAPP_NUMBER else None
+    item["whatsapp_url"]=f"https://wa.me/{MEDIA_WHATSAPP_NUMBER}?text={quote(text)}" if MEDIA_WHATSAPP_NUMBER and item.get("url") else None
     return item
+
+@router.post('/admin/media/revoke/{token}')
+def admin_media_revoke(token:str,_=Depends(require_super_admin)):
+    if len(token)!=64 or not all(c in "0123456789abcdef" for c in token.lower()):
+        raise HTTPException(404,"Media unavailable")
+    return worker_media_request("POST",f"/media/revoke/{token}")
 
 @router.get('/public/status')
 def public_status():
