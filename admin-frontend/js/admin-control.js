@@ -64,6 +64,36 @@ async function loadBroadcastEngine(){const s=$("#broadcast-engine-state"),w=$("#
 async function setBroadcastEngine(enabled){try{const v=$("#broadcast-terminal").value;if(enabled&&!v){setStatus("Select an owner/master terminal first",true);return}if(enabled&&!confirm("Start Bethel video generation from sanitized owner/master MT5 telemetry?"))return;await apiRequest("/broadcast/v1/admin/control",{method:"PUT",body:JSON.stringify({enabled,terminal_registry_id:v?Number(v):null,landscape_enabled:$("#broadcast-landscape").checked,vertical_enabled:$("#broadcast-vertical").checked,website_enabled:$("#broadcast-website").checked,confirm_start:enabled})});setStatus(enabled?"Broadcast engine start requested":"Broadcast engine stop requested");await loadBroadcastEngine()}catch(e){setStatus(e.message||"Unable to update broadcast engine",true)}}
 const bs=$("#broadcast-start");if(bs)bs.onclick=()=>setBroadcastEngine(true);const bx=$("#broadcast-stop");if(bx)bx.onclick=()=>setBroadcastEngine(false);
 
+const broadcastWebsite=$("#broadcast-website");
+if(broadcastWebsite)broadcastWebsite.addEventListener("change",async()=>{
+ try{
+  const c=await apiGet("/broadcast/v1/admin/control");
+  const v=$("#broadcast-terminal").value;
+  const enabled=Boolean(c.enabled);
+  if(enabled&&!v){
+   setStatus("Select an owner/master terminal before enabling website video output",true);
+   broadcastWebsite.checked=false;
+   return;
+  }
+  await apiRequest("/broadcast/v1/admin/control",{
+   method:"PUT",
+   body:JSON.stringify({
+    enabled,
+    terminal_registry_id:v?Number(v):c.terminal_registry_id,
+    landscape_enabled:$("#broadcast-landscape").checked,
+    vertical_enabled:$("#broadcast-vertical").checked,
+    website_enabled:broadcastWebsite.checked,
+    confirm_start:enabled
+   })
+  });
+  setStatus(broadcastWebsite.checked?"Website video output enabled":"Website video output disabled");
+  await loadBroadcastEngine();
+ }catch(e){
+  broadcastWebsite.checked=!broadcastWebsite.checked;
+  setStatus(e.message||"Unable to update website video output",true);
+ }
+});
+
 async function loadOverviewPublicMt5Display(){
  const state=$("#overview-public-mt5-state"),terminal=$("#overview-public-mt5-terminal"),status=$("#overview-public-mt5-status");
  if(!state||!terminal||!status)return;
