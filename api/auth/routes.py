@@ -1,42 +1,18 @@
-from fastapi import APIRouter, Form
-from fastapi.responses import RedirectResponse
+"""Legacy administrator login compatibility route.
 
-from api.auth.security import (
-    authenticate_user,
-    create_token
-)
+This route is intentionally disabled. Bethel's supported administrator login is
+/api/auth/routes/auth.py at POST /auth/login, which uses database-backed users,
+login throttling, and secure cookies.
+"""
 
+from fastapi import APIRouter, HTTPException
 
-router = APIRouter()
-
+router = APIRouter(include_in_schema=False)
 
 
 @router.post("/login")
-def login(
-    username: str = Form(...),
-    password: str = Form(...)
-):
-
-    if authenticate_user(
-        username,
-        password
-    ):
-
-        response = RedirectResponse(
-            "/",
-            status_code=302
-        )
-
-
-        response.set_cookie(
-            key="access_token",
-            value=create_token()
-        )
-
-
-        return response
-
-
-    return {
-        "error":"Invalid login"
-    }
+def legacy_login_disabled():
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy administrator login is disabled. Use /auth/login.",
+    )
