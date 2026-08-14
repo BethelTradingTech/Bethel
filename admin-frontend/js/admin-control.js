@@ -60,11 +60,47 @@ if(terminalForm)terminalForm.addEventListener("submit",async event=>{
 const reloadTerminals=$("#reload-terminals");if(reloadTerminals)reloadTerminals.onclick=loadMasterTerminals;
 
 
-async function loadBroadcastEngine(){const s=$("#broadcast-engine-state"),w=$("#broadcast-worker-state"),src=$("#broadcast-source-terminal"),sel=$("#broadcast-terminal");if(!s||!w||!src||!sel)return;try{const [c,x]=await Promise.all([apiGet("/broadcast/v1/admin/control"),apiGet("/connector/v1/status")]);const rows=(x.connectors||[]).filter(r=>!r.subscriber_id);sel.innerHTML=rows.map(r=>`<option value="${r.registry_id}">${escapeHtml(r.label||r.connector_id)} · ${escapeHtml(r.connection_status)}</option>`).join("")||'<option value="">No owner/master terminals</option>';if(c.terminal_registry_id)sel.value=String(c.terminal_registry_id);$("#broadcast-landscape").checked=!!c.landscape_enabled;$("#broadcast-vertical").checked=!!c.vertical_enabled;$("#broadcast-website").checked=!!c.website_enabled;const chosen=rows.find(r=>Number(r.registry_id)===Number(c.terminal_registry_id));s.textContent=c.enabled?"BROADCAST ON":"BROADCAST OFF";w.textContent=c.worker_state||"OFF";src.textContent=chosen?(chosen.label||chosen.account_number):"Not selected";$("#broadcast-start").disabled=!!c.enabled||!rows.length;$("#broadcast-stop").disabled=!c.enabled;if(c.worker_message)$("#broadcast-engine-result").textContent=c.worker_message}catch(e){s.textContent="UNAVAILABLE";w.textContent="—";src.textContent="—"}}
+async function loadBroadcastEngine(){const s=$("#broadcast-engine-state"),w=$("#broadcast-worker-state"),src=$("#broadcast-source-terminal"),sel=$("#broadcast-terminal");if(!s||!w||!src||!sel)return;try{const [c,x]=await Promise.all([apiGet("/broadcast/v1/admin/control"),apiGet("/connector/v1/status")]);const rows=(x.connectors||[]).filter(r=>!r.subscriber_id);sel.innerHTML=rows.map(r=>`<option value="${r.registry_id}">${escapeHtml(r.label||r.connector_id)} · ${escapeHtml(r.connection_status)}</option>`).join("")||'<option value="">No owner/master terminals</option>';if(c.terminal_registry_id)sel.value=String(c.terminal_registry_id);$("#broadcast-landscape").checked=!!c.landscape_enabled;$("#broadcast-vertical").checked=!!c.vertical_enabled;$("#broadcast-website").checked=!!c.website_enabled;const chosen=rows.find(r=>Number(r.registry_id)===Number(c.terminal_registry_id));s.textContent=c.enabled?"BROADCAST ON":"BROADCAST OFF";w.textContent=c.worker_state||"OFF";src.textContent=chosen?(chosen.label||chosen.account_number):"Not selected";$("#broadcast-start").disabled=!!c.enabled||!rows.length;$("#broadcast-stop").disabled=!c.enabled;const bwe=$("#broadcast-website-enable"),bwd=$("#broadcast-website-disable");if(bwe)bwe.disabled=!c.enabled||!!c.website_enabled;if(bwd)bwd.disabled=!c.enabled||!c.website_enabled;if(c.worker_message)$("#broadcast-engine-result").textContent=c.worker_message}catch(e){s.textContent="UNAVAILABLE";w.textContent="—";src.textContent="—"}}
 async function setBroadcastEngine(enabled){try{const v=$("#broadcast-terminal").value;if(enabled&&!v){setStatus("Select an owner/master terminal first",true);return}if(enabled&&!confirm("Start Bethel video generation from sanitized owner/master MT5 telemetry?"))return;await apiRequest("/broadcast/v1/admin/control",{method:"PUT",body:JSON.stringify({enabled,terminal_registry_id:v?Number(v):null,landscape_enabled:$("#broadcast-landscape").checked,vertical_enabled:$("#broadcast-vertical").checked,website_enabled:$("#broadcast-website").checked,confirm_start:enabled})});setStatus(enabled?"Broadcast engine start requested":"Broadcast engine stop requested");await loadBroadcastEngine()}catch(e){setStatus(e.message||"Unable to update broadcast engine",true)}}
 const bs=$("#broadcast-start");if(bs)bs.onclick=()=>setBroadcastEngine(true);const bx=$("#broadcast-stop");if(bx)bx.onclick=()=>setBroadcastEngine(false);
 
+async function setBroadcastWebsiteOutput(wantsEnabled){
+ try{
+  const c=await apiGet("/broadcast/v1/admin/control");
+  const v=$("#broadcast-terminal").value;
+  if(!c.enabled){
+   setStatus("Start the Broadcast Engine before publishing video to the website",true);
+   return;
+  }
+  if(!v){
+   setStatus("Select an owner/master terminal first",true);
+   return;
+  }
+  if(wantsEnabled&&!confirm("Publish the live read-only Bethel video on the public website now?"))return;
+  await apiRequest("/broadcast/v1/admin/control",{
+   method:"PUT",
+   body:JSON.stringify({
+    enabled:true,
+    terminal_registry_id:Number(v),
+    landscape_enabled:$("#broadcast-landscape").checked,
+    vertical_enabled:$("#broadcast-vertical").checked,
+    website_enabled:wantsEnabled,
+    confirm_start:true
+   })
+  });
+  $("#broadcast-website").checked=wantsEnabled;
+  setStatus(wantsEnabled?"Website video output enabled":"Website video output disabled");
+  await loadBroadcastEngine();
+ }catch(e){
+  setStatus(e.message||"Unable to update website video output",true);
+ }
+}
 const broadcastWebsite=$("#broadcast-website");
+const broadcastWebsiteEnable=$("#broadcast-website-enable");
+if(broadcastWebsiteEnable)broadcastWebsiteEnable.onclick=()=>setBroadcastWebsiteOutput(true);
+const broadcastWebsiteDisable=$("#broadcast-website-disable");
+if(broadcastWebsiteDisable)broadcastWebsiteDisable.onclick=()=>setBroadcastWebsiteOutput(false);
+
 if(broadcastWebsite)broadcastWebsite.addEventListener("change",async()=>{
  try{
   const c=await apiGet("/broadcast/v1/admin/control");
