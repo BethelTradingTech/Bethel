@@ -1,4 +1,4 @@
-import os,shutil,subprocess,threading,time,uuid,json
+import os,shutil,subprocess,threading,time,uuid,json,hmac
 from pathlib import Path
 import requests
 from fastapi import FastAPI,HTTPException,Header
@@ -9,6 +9,7 @@ API=os.getenv("BETHEL_API_BASE","https://api.betheltradingtechnologies.com").rst
 SECRET=os.getenv("BROADCAST_WORKER_SECRET","")
 ROOT=Path("/tmp/bethel-broadcast"); ROOT.mkdir(parents=True,exist_ok=True)
 MEDIA_ROOT=Path(os.getenv("MEDIA_ROOT","/var/data/bethel-media")); MEDIA_ROOT.mkdir(parents=True,exist_ok=True)
+MEDIA_SHARE_TTL_SECONDS=max(3600,min(30*24*3600,int(os.getenv("MEDIA_SHARE_TTL_HOURS","168"))*3600))
 SOCIAL_URLS={
  "youtube":os.getenv("YOUTUBE_RTMPS_URL","").strip(),
  "facebook":os.getenv("FACEBOOK_RTMPS_URL","").strip(),
@@ -30,7 +31,7 @@ app.add_middleware(
 runtime={"state":"OFF","landscape":False,"vertical":False}
 def hdr():return {"X-Bethel-Broadcast-Secret":SECRET}
 def media_auth(v):
- if len(SECRET)<64 or not v or v!=SECRET:raise HTTPException(401,"Invalid media worker authentication")
+ if len(SECRET)<64 or not v or not hmac.compare_digest(v,SECRET):raise HTTPException(401,"Invalid media worker authentication")
  return True
 def get(p):
  r=requests.get(API+p,headers=hdr(),timeout=10);r.raise_for_status();return r.json()
@@ -128,6 +129,18 @@ def segment(layout:str,segment:str):
  if not p.exists():raise HTTPException(404,"Segment unavailable")
  return FileResponse(p,media_type='video/mp2t',headers={'Cache-Control':'no-store','Access-Control-Allow-Origin':'https://betheltradingtechnologies.com'})
 
+def _load_media_meta(meta_path):
+ try:return json.loads(meta_path.read_text(encoding="utf-8"))
+ except Exception:return {}
+def _share_active(meta,now_epoch=None):
+ now_epoch=int(time.time()) if now_epoch is None else int(now_epoch)
+ return bool(meta.get("share_token") and not meta.get("share_revoked",False) and int(meta.get("share_expires_at",0) or 0)>now_epoch)
+def _share_status(meta):
+ if meta.get("share_revoked",False):return "REVOKED"
+ if not meta.get("share_expires_at"):return "LEGACY_EXPIRED"
+ if int(meta.get("share_expires_at",0))<=int(time.time()):return "EXPIRED"
+ return "ACTIVE" if meta.get("share_token") else "UNAVAILABLE"
+
 @app.post('/media/generate')
 def generate_media(payload:dict,x_bethel_broadcast_secret:str=Header(default="")):
  media_auth(x_bethel_broadcast_secret);layout=str(payload.get("layout","landscape")).lower()
@@ -140,29 +153,37 @@ def generate_media(payload:dict,x_bethel_broadcast_secret:str=Header(default="")
  for _ in range(duration*2):p.stdin.write(im.tobytes())
  p.stdin.close();p.wait(timeout=45)
  if p.returncode!=0 or not out.exists():raise HTTPException(500,"Media generation failed")
- share_token=uuid.uuid4().hex+uuid.uuid4().hex
- meta={"filename":name,"layout":layout,"duration_seconds":duration,"created_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"title":f"Bethel Weekly {layout.title()} Update","account_mode":src.get("account_mode"),"read_only":True,"share_token":share_token,"audio":"generated_ambient_music"};(MEDIA_ROOT/(name+".json")).write_text(json.dumps(meta),encoding="utf-8")
- return {**meta,"url":f"https://bethel-broadcast.onrender.com/media/share/{share_token}"}
+ share_token=uuid.uuid4().hex+uuid.uuid4().hex;share_expires_at=int(time.time())+MEDIA_SHARE_TTL_SECONDS
+ meta={"filename":name,"layout":layout,"duration_seconds":duration,"created_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"title":f"Bethel Weekly {layout.title()} Update","account_mode":src.get("account_mode"),"read_only":True,"share_token":share_token,"share_expires_at":share_expires_at,"share_revoked":False,"audio":"generated_ambient_music"};(MEDIA_ROOT/(name+".json")).write_text(json.dumps(meta),encoding="utf-8")
+ return {**meta,"share_status":"ACTIVE","url":f"https://bethel-broadcast.onrender.com/media/share/{share_token}"}
 
 @app.get('/media/list')
 def media_list(x_bethel_broadcast_secret:str=Header(default="")):
  media_auth(x_bethel_broadcast_secret);items=[]
  for mp4 in sorted(MEDIA_ROOT.glob("*.mp4"),key=lambda p:p.stat().st_mtime,reverse=True)[:50]:
-  meta={};m=MEDIA_ROOT/(mp4.name+".json")
-  if m.exists():
-   try:meta=json.loads(m.read_text(encoding="utf-8"))
-   except Exception:pass
-  items.append({**meta,"filename":mp4.name,"size_bytes":mp4.stat().st_size,"url":f"https://bethel-broadcast.onrender.com/media/share/{meta.get('share_token','')}" if meta.get("share_token") else None})
- return {"items":items,"read_only":True}
+  meta=_load_media_meta(MEDIA_ROOT/(mp4.name+".json"));active=_share_active(meta)
+  items.append({**meta,"filename":mp4.name,"size_bytes":mp4.stat().st_size,"share_status":_share_status(meta),"url":f"https://bethel-broadcast.onrender.com/media/share/{meta.get('share_token','')}" if active else None})
+ return {"items":items,"read_only":True,"share_ttl_seconds":MEDIA_SHARE_TTL_SECONDS}
+
+@app.post('/media/revoke/{token}')
+def media_revoke(token:str,x_bethel_broadcast_secret:str=Header(default="")):
+ media_auth(x_bethel_broadcast_secret)
+ if len(token)!=64 or not all(c in "0123456789abcdef" for c in token.lower()):raise HTTPException(404,"Media unavailable")
+ for meta_path in MEDIA_ROOT.glob("*.mp4.json"):
+  meta=_load_media_meta(meta_path);stored=str(meta.get("share_token",''))
+  if stored and hmac.compare_digest(stored,token):
+   meta["share_revoked"]=True;meta_path.write_text(json.dumps(meta),encoding="utf-8")
+   return {"status":"revoked","filename":meta.get("filename"),"read_only":True}
+ raise HTTPException(404,"Media unavailable")
 
 @app.get('/media/share/{token}')
 def media_share(token:str):
  if len(token)!=64 or not all(c in "0123456789abcdef" for c in token.lower()):raise HTTPException(404,"Media unavailable")
  for meta_path in MEDIA_ROOT.glob("*.mp4.json"):
-  try:meta=json.loads(meta_path.read_text(encoding="utf-8"))
-  except Exception:continue
-  if meta.get("share_token")!=token:continue
+  meta=_load_media_meta(meta_path);stored=str(meta.get("share_token",''))
+  if not stored or not hmac.compare_digest(stored,token):continue
+  if not _share_active(meta):raise HTTPException(410,"Media review link expired or revoked")
   p=MEDIA_ROOT/meta.get("filename","")
   if not p.exists():raise HTTPException(404,"Media unavailable")
-  return FileResponse(p,media_type="video/mp4",filename=p.name,headers={"Cache-Control":"private, max-age=300","X-Robots-Tag":"noindex, nofollow, noarchive"})
+  return FileResponse(p,media_type="video/mp4",filename=p.name,headers={"Cache-Control":"private, no-store","Pragma":"no-cache","X-Robots-Tag":"noindex, nofollow, noarchive"})
  raise HTTPException(404,"Media unavailable")
