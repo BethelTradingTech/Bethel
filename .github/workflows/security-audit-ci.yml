@@ -1,0 +1,42 @@
+name: Security Audit CI
+
+on:
+  pull_request:
+    paths:
+      - 'api/auth/**'
+      - 'api/mt5_ingest/**'
+      - 'api/broadcast/**'
+      - 'broadcast-worker/**'
+      - 'main.py'
+      - 'scripts/security_audit_gate.py'
+      - '.github/workflows/security-audit-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'api/auth/**'
+      - 'api/mt5_ingest/**'
+      - 'api/broadcast/**'
+      - 'broadcast-worker/**'
+      - 'main.py'
+      - 'scripts/security_audit_gate.py'
+
+permissions:
+  contents: read
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile hardened Python modules
+        run: |
+          python -m py_compile api/auth/routes.py
+          python -m py_compile api/auth/routes/auth.py
+          python -m py_compile api/broadcast/routes.py
+          python -m py_compile broadcast-worker/app.py
+      - name: Verify security invariants
+        run: python scripts/security_audit_gate.py
