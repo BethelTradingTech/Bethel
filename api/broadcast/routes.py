@@ -54,6 +54,14 @@ def set_control(data:BroadcastUpdate,_=Depends(require_super_admin)):
         if not data.enabled: x.worker_state='STOPPING'; x.worker_message='Broadcast disabled by Super Admin'
         db.commit(); db.refresh(x); return dump(x)
     finally:db.close()
+@router.get('/public/status')
+def public_status():
+    db=SessionLocal()
+    try:
+        x=ctl(db)
+        live=bool(x.enabled and x.website_enabled and x.worker_state=='STREAMING')
+        return {'enabled':live,'layout':'landscape','hls_url':'https://bethel-broadcast.onrender.com/live/landscape/live.m3u8' if live else None,'read_only':True}
+    finally:db.close()
 @router.get('/worker/config')
 def worker_config(_=Depends(worker_auth)):
     db=SessionLocal()
