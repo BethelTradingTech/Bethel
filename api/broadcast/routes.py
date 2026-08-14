@@ -90,7 +90,6 @@ def admin_media_generate(data:MediaGenerate,_=Depends(require_super_admin)):
     item=worker_media_request("POST","/media/generate",{"layout":data.layout,"duration_seconds":data.duration_seconds})
     text=f"Bethel weekly media: {item.get('title','Trading Technology Update')} {item.get('url','')}"
     item["whatsapp_url"]=f"https://wa.me/{MEDIA_WHATSAPP_NUMBER}?text={quote(text)}" if MEDIA_WHATSAPP_NUMBER else None
-    item["social_queue"]={"youtube":"READY_FOR_UPLOAD","facebook":"READY_FOR_UPLOAD","instagram":"READY_FOR_UPLOAD","tiktok":"READY_FOR_UPLOAD"}
     return item
 
 @router.get('/public/status')

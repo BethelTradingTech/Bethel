@@ -78,7 +78,7 @@ class Encoder:
  def start(self,cfg):
   self.stop();self.o.mkdir(parents=True,exist_ok=True);social=self.wanted(cfg);self.sig=social
   hls=str(self.o/"live.m3u8")
-  cmd=["ffmpeg","-hide_banner","-loglevel","error","-f","rawvideo","-pix_fmt","rgb24","-s",f"{self.w}x{self.h}","-r","2","-i","-","-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-pix_fmt","yuv420p","-g","4","-c:a","aac","-b:a","128k"]
+  cmd=["ffmpeg","-hide_banner","-loglevel","error","-f","rawvideo","-pix_fmt","rgb24","-s",f"{self.w}x{self.h}","-r","2","-i","-","-f","lavfi","-i","sine=frequency=220:sample_rate=44100","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-pix_fmt","yuv420p","-g","4","-c:a","aac","-b:a","128k"]
   if not social:
    cmd+=["-f","hls","-hls_time","2","-hls_list_size","5","-hls_flags","delete_segments+append_list+omit_endlist",hls]
   else:
@@ -135,13 +135,14 @@ def generate_media(payload:dict,x_bethel_broadcast_secret:str=Header(default="")
  duration=max(8,min(60,int(payload.get("duration_seconds",15))));src=get("/broadcast/v1/worker/source")
  if not src.get("available"):raise HTTPException(409,"Owner/master telemetry unavailable")
  size=(1280,720) if layout=="landscape" else (720,1280);im=frame(src,size);stamp=time.strftime("%Y%m%d-%H%M%S",time.gmtime());name=f"bethel-weekly-{layout}-{stamp}-{uuid.uuid4().hex[:16]}.mp4";out=MEDIA_ROOT/name
- cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-f","rawvideo","-pix_fmt","rgb24","-s",f"{size[0]}x{size[1]}","-r","2","-i","-","-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100","-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-c:a","aac","-b:a","128k","-t",str(duration),"-movflags","+faststart",str(out)]
+ cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-f","rawvideo","-pix_fmt","rgb24","-s",f"{size[0]}x{size[1]}","-r","2","-i","-","-f","lavfi","-i","sine=frequency=220:sample_rate=44100","-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-filter:a","volume=0.08","-ac","2","-c:a","aac","-b:a","128k","-t",str(duration),"-movflags","+faststart",str(out)]
  p=subprocess.Popen(cmd,stdin=subprocess.PIPE)
  for _ in range(duration*2):p.stdin.write(im.tobytes())
  p.stdin.close();p.wait(timeout=45)
  if p.returncode!=0 or not out.exists():raise HTTPException(500,"Media generation failed")
- meta={"filename":name,"layout":layout,"duration_seconds":duration,"created_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"title":f"Bethel Weekly {layout.title()} Update","account_mode":src.get("account_mode"),"read_only":True};(MEDIA_ROOT/(name+".json")).write_text(json.dumps(meta),encoding="utf-8")
- return {**meta,"url":f"https://bethel-broadcast.onrender.com/media/{name}"}
+ share_token=uuid.uuid4().hex+uuid.uuid4().hex
+ meta={"filename":name,"layout":layout,"duration_seconds":duration,"created_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"title":f"Bethel Weekly {layout.title()} Update","account_mode":src.get("account_mode"),"read_only":True,"share_token":share_token,"audio":"synthetic_tone"};(MEDIA_ROOT/(name+".json")).write_text(json.dumps(meta),encoding="utf-8")
+ return {**meta,"url":f"https://bethel-broadcast.onrender.com/media/share/{share_token}"}
 
 @app.get('/media/list')
 def media_list(x_bethel_broadcast_secret:str=Header(default="")):
@@ -151,12 +152,17 @@ def media_list(x_bethel_broadcast_secret:str=Header(default="")):
   if m.exists():
    try:meta=json.loads(m.read_text(encoding="utf-8"))
    except Exception:pass
-  items.append({**meta,"filename":mp4.name,"size_bytes":mp4.stat().st_size,"url":f"https://bethel-broadcast.onrender.com/media/{mp4.name}"})
+  items.append({**meta,"filename":mp4.name,"size_bytes":mp4.stat().st_size,"url":f"https://bethel-broadcast.onrender.com/media/share/{meta.get('share_token','')}" if meta.get("share_token") else None})
  return {"items":items,"read_only":True}
 
-@app.get('/media/{filename}')
-def media_file(filename:str):
- if "/" in filename or ".." in filename or not filename.endswith(".mp4"):raise HTTPException(404,"Media unavailable")
- p=MEDIA_ROOT/filename
- if not p.exists():raise HTTPException(404,"Media unavailable")
- return FileResponse(p,media_type="video/mp4",filename=filename,headers={"Cache-Control":"public, max-age=300"})
+@app.get('/media/share/{token}')
+def media_share(token:str):
+ if len(token)!=64 or not all(c in "0123456789abcdef" for c in token.lower()):raise HTTPException(404,"Media unavailable")
+ for meta_path in MEDIA_ROOT.glob("*.mp4.json"):
+  try:meta=json.loads(meta_path.read_text(encoding="utf-8"))
+  except Exception:continue
+  if meta.get("share_token")!=token:continue
+  p=MEDIA_ROOT/meta.get("filename","")
+  if not p.exists():raise HTTPException(404,"Media unavailable")
+  return FileResponse(p,media_type="video/mp4",filename=p.name,headers={"Cache-Control":"private, max-age=300","X-Robots-Tag":"noindex, nofollow, noarchive"})
+ raise HTTPException(404,"Media unavailable")
