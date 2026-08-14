@@ -6,8 +6,10 @@ on:
       - 'api/auth/**'
       - 'api/mt5_ingest/**'
       - 'api/broadcast/**'
+      - 'api/kyc/**'
       - 'broadcast-worker/**'
       - 'main.py'
+      - 'render_app.py'
       - 'scripts/security_audit_gate.py'
       - '.github/workflows/security-audit-ci.yml'
   push:
@@ -16,8 +18,10 @@ on:
       - 'api/auth/**'
       - 'api/mt5_ingest/**'
       - 'api/broadcast/**'
+      - 'api/kyc/**'
       - 'broadcast-worker/**'
       - 'main.py'
+      - 'render_app.py'
       - 'scripts/security_audit_gate.py'
 
 permissions:
@@ -38,5 +42,6 @@ jobs:
           python -m py_compile api/auth/routes/auth.py
           python -m py_compile api/broadcast/routes.py
           python -m py_compile broadcast-worker/app.py
+          python -m py_compile render_app.py
       - name: Verify security invariants
         run: python scripts/security_audit_gate.py
