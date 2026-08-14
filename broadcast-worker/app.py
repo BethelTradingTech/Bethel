@@ -47,7 +47,23 @@ def frame(data,size):
  y=140
  for k,v in vals:d.text((30,y),f"{k}: {v}",font=font(max(18,W//50)),fill=(210,216,226));y+=48
  d.text((30,y+15),f"{data.get('terminal_label','Owner / Master')} · {data.get('account_mode','—')} · {data.get('connection_status','OFFLINE')}",font=font(max(16,W//55)),fill=(155,165,180));y+=75
- for p in data.get("positions",[])[:6]:d.text((45,y),f"{p.get('symbol','')} {p.get('direction','')} · Vol {p.get('volume','')} · {money(p.get('profit'),c)}",font=font(max(15,W//60)),fill=(190,198,210));y+=38
+ open_rows=data.get("positions",[])[:5]
+ closed_rows=data.get("recent_deals",[])[:5]
+ d.text((30,y),"OPEN TRADES",font=font(max(16,W//58)),fill=(16,185,129));y+=34
+ if open_rows:
+  for p in open_rows:
+   pnl=money(p.get("profit"),c);color=(80,220,150) if float(p.get("profit") or 0)>=0 else (248,113,113)
+   d.text((45,y),f"{p.get('symbol','')}  {p.get('direction','')}  Vol {p.get('volume','')}  P/L {pnl}",font=font(max(14,W//64)),fill=color);y+=32
+ else:
+  d.text((45,y),"No open trades at this moment",font=font(max(14,W//64)),fill=(155,165,180));y+=36
+ y+=8
+ d.text((30,y),"RECENT CLOSED TRADES",font=font(max(16,W//58)),fill=(34,211,238));y+=34
+ if closed_rows:
+  for p in closed_rows:
+   pnl=money(p.get("profit"),c);color=(80,220,150) if float(p.get("profit") or 0)>=0 else (248,113,113)
+   d.text((45,y),f"{p.get('symbol','')}  {p.get('direction','')}  Vol {p.get('volume','')}  P/L {pnl}",font=font(max(14,W//64)),fill=color);y+=32
+ else:
+  d.text((45,y),"No recent closed trades available",font=font(max(14,W//64)),fill=(155,165,180))
  d.text((30,H-45),"MetaTrader EA execution · No trade controls · Past performance does not guarantee future results.",font=font(max(13,W//75)),fill=(115,125,140));return im
 class Encoder:
  def __init__(self,n,w,h):self.n=n;self.w=w;self.h=h;self.p=None;self.o=ROOT/n;self.sig=()

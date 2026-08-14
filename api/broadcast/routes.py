@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from api.auth.dependency import require_super_admin
 from api.database import SessionLocal
 from api.broadcast.models import BroadcastControl
-from api.mt5_ingest.models import ConnectorPosition, ConnectorStatus, MasterTerminalRegistry
+from api.mt5_ingest.models import ConnectorDeal, ConnectorPosition, ConnectorStatus, MasterTerminalRegistry
 
 router=APIRouter(prefix="/broadcast/v1",tags=["Read-only broadcast engine"])
 def now(): return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -84,9 +84,10 @@ def worker_source(_=Depends(worker_auth)):
         if reg is None: raise HTTPException(409,"Broadcast source unavailable")
         st=db.query(ConnectorStatus).filter(ConnectorStatus.connector_id==reg.connector_id).first()
         if st is None:return {"enabled":True,"available":False,"read_only":True}
-        pos=db.query(ConnectorPosition).filter(ConnectorPosition.connector_id==reg.connector_id).limit(8).all()
+        pos=db.query(ConnectorPosition).filter(ConnectorPosition.connector_id==reg.connector_id).order_by(ConnectorPosition.observed_at.desc()).limit(8).all()
+        deals=db.query(ConnectorDeal).filter(ConnectorDeal.connector_id==reg.connector_id).order_by(ConnectorDeal.closed_at.desc()).limit(8).all()
         age=max(0,int((now()-st.received_at).total_seconds()))
-        return {"enabled":True,"available":True,"read_only":True,"execution_owner":"METATRADER_EA","terminal_label":reg.label,"account_mode":st.mode,"currency":st.currency,"connection_status":"ONLINE" if age<=150 else "STALE","balance":st.balance,"equity":st.equity,"floating_profit":st.floating_profit,"open_position_count":len(pos),"positions":[{"symbol":p.symbol,"direction":p.direction,"volume":p.volume,"profit":p.profit} for p in pos]}
+        return {"enabled":True,"available":True,"read_only":True,"execution_owner":"METATRADER_EA","terminal_label":reg.label,"account_mode":st.mode,"currency":st.currency,"connection_status":"ONLINE" if age<=150 else "STALE","balance":st.balance,"equity":st.equity,"floating_profit":st.floating_profit,"open_position_count":len(pos),"positions":[{"symbol":p.symbol,"direction":p.direction,"volume":p.volume,"profit":p.profit} for p in pos],"recent_deals":[{"symbol":d.symbol,"direction":d.deal_type,"volume":d.volume,"profit":d.profit,"closed_at":d.closed_at.isoformat()+"Z" if d.closed_at else None} for d in deals]}
     finally:db.close()
 @router.post('/worker/heartbeat')
 def heartbeat(data:Heartbeat,_=Depends(worker_auth)):
