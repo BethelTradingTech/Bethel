@@ -2,6 +2,7 @@ import os,shutil,subprocess,threading,time
 from pathlib import Path
 import requests
 from fastapi import FastAPI,HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from PIL import Image,ImageDraw,ImageFont
 API=os.getenv("BETHEL_API_BASE","https://api.betheltradingtechnologies.com").rstrip("/")
@@ -14,6 +15,17 @@ SOCIAL_URLS={
  "tiktok":os.getenv("TIKTOK_RTMPS_URL","").strip(),
 }
 app=FastAPI(title="Bethel Broadcast Worker")
+app.add_middleware(
+ CORSMiddleware,
+ allow_origins=[
+  "https://betheltradingtechnologies.com",
+  "https://www.betheltradingtechnologies.com",
+ ],
+ allow_credentials=False,
+ allow_methods=["GET","OPTIONS"],
+ allow_headers=["*"],
+ expose_headers=["Content-Length","Content-Range"],
+)
 runtime={"state":"OFF","landscape":False,"vertical":False}
 def hdr():return {"X-Bethel-Broadcast-Secret":SECRET}
 def get(p):
@@ -88,10 +100,10 @@ def health():return {"status":"healthy",**runtime}
 def playlist(layout:str):
  p=ROOT/layout/'live.m3u8'
  if layout not in {'landscape','vertical'} or not p.exists():raise HTTPException(404,"Broadcast is not active")
- return FileResponse(p,media_type='application/vnd.apple.mpegurl',headers={'Cache-Control':'no-store'})
+ return FileResponse(p,media_type='application/vnd.apple.mpegurl',headers={'Cache-Control':'no-store','Access-Control-Allow-Origin':'https://betheltradingtechnologies.com'})
 @app.get('/live/{layout}/{segment}')
 def segment(layout:str,segment:str):
  if layout not in {'landscape','vertical'} or '/' in segment or '..' in segment:raise HTTPException(404,"Unknown segment")
  p=ROOT/layout/segment
  if not p.exists():raise HTTPException(404,"Segment unavailable")
- return FileResponse(p,media_type='video/mp2t',headers={'Cache-Control':'no-store'})
+ return FileResponse(p,media_type='video/mp2t',headers={'Cache-Control':'no-store','Access-Control-Allow-Origin':'https://betheltradingtechnologies.com'})
