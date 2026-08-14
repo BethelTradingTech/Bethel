@@ -39,6 +39,12 @@ services:
         value: https://api.betheltradingtechnologies.com
       - key: BROADCAST_WORKER_SECRET
         sync: false
+      - key: MEDIA_ROOT
+        value: /var/data/bethel-media
+    disk:
+      name: bethel-media
+      mountPath: /var/data
+      sizeGB: 1
 
 databases:
   - name: bethel-db

@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 import hmac, os
+import requests
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 from api.auth.dependency import require_super_admin
@@ -8,6 +10,17 @@ from api.broadcast.models import BroadcastControl
 from api.mt5_ingest.models import ConnectorDeal, ConnectorPosition, ConnectorStatus, MasterTerminalRegistry
 
 router=APIRouter(prefix="/broadcast/v1",tags=["Read-only broadcast engine"])
+BROADCAST_WORKER_BASE=os.getenv("BROADCAST_WORKER_BASE","https://bethel-broadcast.onrender.com").rstrip("/")
+MEDIA_WHATSAPP_NUMBER=os.getenv("MEDIA_WHATSAPP_NUMBER","12462590997").strip()
+def worker_media_request(method,path,payload=None):
+    secret=os.getenv("BROADCAST_WORKER_SECRET","")
+    if len(secret)<64: raise HTTPException(503,"Broadcast worker secret is not configured")
+    try:
+        r=requests.request(method,BROADCAST_WORKER_BASE+path,headers={"X-Bethel-Broadcast-Secret":secret},json=payload,timeout=45)
+        if r.status_code>=400: raise HTTPException(r.status_code,r.text[:500])
+        return r.json()
+    except HTTPException: raise
+    except Exception as exc: raise HTTPException(502,f"Media worker unavailable: {exc}")
 def now(): return datetime.now(timezone.utc).replace(tzinfo=None)
 def ctl(db):
     BroadcastControl.__table__.create(bind=db.get_bind(),checkfirst=True)
@@ -31,6 +44,9 @@ class BroadcastUpdate(BaseModel):
     instagram_enabled: bool=False
     tiktok_enabled: bool=False
     confirm_start: bool=False
+class MediaGenerate(BaseModel):
+    layout:str=Field(default="landscape",pattern="^(landscape|vertical)$")
+    duration_seconds:int=Field(default=15,ge=8,le=60)
 class Heartbeat(BaseModel):
     state:str=Field(min_length=2,max_length=32)
     message:str|None=Field(default=None,max_length=255)
@@ -61,6 +77,21 @@ def set_control(data:BroadcastUpdate,_=Depends(require_super_admin)):
         if not data.enabled: x.worker_state='STOPPING'; x.worker_message='Broadcast disabled by Super Admin'
         db.commit(); db.refresh(x); return dump(x)
     finally:db.close()
+@router.get('/admin/media')
+def admin_media_list(_=Depends(require_super_admin)):
+    data=worker_media_request("GET","/media/list")
+    for item in data.get("items",[]):
+        text=f"Bethel weekly media: {item.get('title','Trading Technology Update')} {item.get('url','')}"
+        item["whatsapp_url"]=f"https://wa.me/{MEDIA_WHATSAPP_NUMBER}?text={quote(text)}" if MEDIA_WHATSAPP_NUMBER else None
+    return data
+
+@router.post('/admin/media/generate')
+def admin_media_generate(data:MediaGenerate,_=Depends(require_super_admin)):
+    item=worker_media_request("POST","/media/generate",{"layout":data.layout,"duration_seconds":data.duration_seconds})
+    text=f"Bethel weekly media: {item.get('title','Trading Technology Update')} {item.get('url','')}"
+    item["whatsapp_url"]=f"https://wa.me/{MEDIA_WHATSAPP_NUMBER}?text={quote(text)}" if MEDIA_WHATSAPP_NUMBER else None
+    return item
+
 @router.get('/public/status')
 def public_status():
     db=SessionLocal()

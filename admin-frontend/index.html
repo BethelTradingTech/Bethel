@@ -21,6 +21,7 @@
     <nav>
       <button class="nav-item active" data-view="overview">▦ <span>Overview</span></button>
       <button class="nav-item" data-view="website">🌐 <span>Website Management</span></button>
+      <button class="nav-item" data-view="media">🎬 <span>Media Department</span></button>
       <button class="nav-item" data-view="investors">👥 <span>Investors</span></button>
       <button class="nav-item" data-view="subscribers">⧉ <span>Subscribers</span></button>
       <button class="nav-item" data-view="operations">⛨ <span>Backup & Security</span></button>
@@ -97,6 +98,15 @@
           <a class="portal-link" href="/admin-frontend/" target="_blank">Admin Control</a>
         </article>
       </div>
+    </section>
+
+    <section id="view-media" class="view">
+      <article class="panel">
+        <div class="section-heading"><div><h2>Media Department</h2><p>Create private weekly review videos from sanitized owner/master telemetry. Review them first, then send only to the Bethel WhatsApp number.</p></div><button id="media-refresh" type="button">Refresh Library</button></div>
+        <div class="review-actions"><button id="media-generate-landscape" type="button">Generate Weekly Landscape Video</button><button id="media-generate-vertical" type="button">Generate Weekly Vertical Video</button><a class="portal-link" href="https://wa.me/12462590997" target="_blank" rel="noopener noreferrer">Open WhatsApp</a></div>
+        <p id="media-result" class="notice">Private review workflow: generate the video, review it, then send it to the Bethel WhatsApp number. Public social posting is not automatic.</p>
+        <div class="table-wrap"><table><thead><tr><th>Created</th><th>Video</th><th>Layout</th><th>Mode</th><th>Actions</th></tr></thead><tbody id="media-library"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+      </article>
     </section>
 
     <section id="view-website" class="view">
