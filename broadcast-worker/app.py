@@ -135,13 +135,13 @@ def generate_media(payload:dict,x_bethel_broadcast_secret:str=Header(default="")
  duration=max(8,min(60,int(payload.get("duration_seconds",15))));src=get("/broadcast/v1/worker/source")
  if not src.get("available"):raise HTTPException(409,"Owner/master telemetry unavailable")
  size=(1280,720) if layout=="landscape" else (720,1280);im=frame(src,size);stamp=time.strftime("%Y%m%d-%H%M%S",time.gmtime());name=f"bethel-weekly-{layout}-{stamp}-{uuid.uuid4().hex[:16]}.mp4";out=MEDIA_ROOT/name
- cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-f","rawvideo","-pix_fmt","rgb24","-s",f"{size[0]}x{size[1]}","-r","2","-i","-","-f","lavfi","-i","sine=frequency=220:sample_rate=44100","-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-filter:a","volume=0.08","-ac","2","-c:a","aac","-b:a","128k","-t",str(duration),"-movflags","+faststart",str(out)]
+ cmd=["ffmpeg","-hide_banner","-loglevel","error","-y","-f","rawvideo","-pix_fmt","rgb24","-s",f"{size[0]}x{size[1]}","-r","2","-i","-","-f","lavfi","-i","aevalsrc=(0.11+0.03*sin(2*PI*0.18*t))*(sin(2*PI*220*t)+0.72*sin(2*PI*277.18*t)+0.56*sin(2*PI*329.63*t)+0.30*sin(2*PI*440*t)):s=44100","-c:v","libx264","-preset","veryfast","-pix_fmt","yuv420p","-filter:a","volume=0.28,afade=t=in:st=0:d=1","-ac","2","-c:a","aac","-b:a","160k","-t",str(duration),"-movflags","+faststart",str(out)]
  p=subprocess.Popen(cmd,stdin=subprocess.PIPE)
  for _ in range(duration*2):p.stdin.write(im.tobytes())
  p.stdin.close();p.wait(timeout=45)
  if p.returncode!=0 or not out.exists():raise HTTPException(500,"Media generation failed")
  share_token=uuid.uuid4().hex+uuid.uuid4().hex
- meta={"filename":name,"layout":layout,"duration_seconds":duration,"created_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"title":f"Bethel Weekly {layout.title()} Update","account_mode":src.get("account_mode"),"read_only":True,"share_token":share_token,"audio":"synthetic_tone"};(MEDIA_ROOT/(name+".json")).write_text(json.dumps(meta),encoding="utf-8")
+ meta={"filename":name,"layout":layout,"duration_seconds":duration,"created_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"title":f"Bethel Weekly {layout.title()} Update","account_mode":src.get("account_mode"),"read_only":True,"share_token":share_token,"audio":"generated_ambient_music"};(MEDIA_ROOT/(name+".json")).write_text(json.dumps(meta),encoding="utf-8")
  return {**meta,"url":f"https://bethel-broadcast.onrender.com/media/share/{share_token}"}
 
 @app.get('/media/list')
