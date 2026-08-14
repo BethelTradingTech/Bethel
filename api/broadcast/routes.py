@@ -26,12 +26,16 @@ class BroadcastUpdate(BaseModel):
     landscape_enabled: bool=True
     vertical_enabled: bool=True
     website_enabled: bool=False
+    youtube_enabled: bool=False
+    facebook_enabled: bool=False
+    instagram_enabled: bool=False
+    tiktok_enabled: bool=False
     confirm_start: bool=False
 class Heartbeat(BaseModel):
     state:str=Field(min_length=2,max_length=32)
     message:str|None=Field(default=None,max_length=255)
 def dump(x):
-    return {"enabled":bool(x.enabled),"terminal_registry_id":x.terminal_registry_id,"landscape_enabled":bool(x.landscape_enabled),"vertical_enabled":bool(x.vertical_enabled),"website_enabled":bool(x.website_enabled),"destinations":{"youtube":False,"facebook":False,"instagram":False,"tiktok":False},"worker_state":x.worker_state,"worker_message":x.worker_message,"worker_last_seen":x.worker_last_seen.isoformat()+"Z" if x.worker_last_seen else None,"read_only":True,"execution_owner":"METATRADER_EA"}
+    return {"enabled":bool(x.enabled),"terminal_registry_id":x.terminal_registry_id,"landscape_enabled":bool(x.landscape_enabled),"vertical_enabled":bool(x.vertical_enabled),"website_enabled":bool(x.website_enabled),"destinations":{"youtube":bool(x.youtube_enabled),"facebook":bool(x.facebook_enabled),"instagram":bool(x.instagram_enabled),"tiktok":bool(x.tiktok_enabled)},"worker_state":x.worker_state,"worker_message":x.worker_message,"worker_last_seen":x.worker_last_seen.isoformat()+"Z" if x.worker_last_seen else None,"read_only":True,"execution_owner":"METATRADER_EA"}
 @router.get('/admin/control')
 def get_control(_=Depends(require_super_admin)):
     db=SessionLocal()
@@ -50,7 +54,10 @@ def set_control(data:BroadcastUpdate,_=Depends(require_super_admin)):
             if not data.landscape_enabled and not data.vertical_enabled: raise HTTPException(422,"Enable at least one video layout")
             x.terminal_registry_id=t.id
         x.enabled=data.enabled; x.landscape_enabled=data.landscape_enabled; x.vertical_enabled=data.vertical_enabled; x.website_enabled=data.website_enabled
-        x.youtube_enabled=x.facebook_enabled=x.instagram_enabled=x.tiktok_enabled=False
+        x.youtube_enabled=data.youtube_enabled
+        x.facebook_enabled=data.facebook_enabled
+        x.instagram_enabled=data.instagram_enabled
+        x.tiktok_enabled=data.tiktok_enabled
         if not data.enabled: x.worker_state='STOPPING'; x.worker_message='Broadcast disabled by Super Admin'
         db.commit(); db.refresh(x); return dump(x)
     finally:db.close()
