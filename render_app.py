@@ -8,9 +8,11 @@ optional integration fails during main.py startup.
 
 import os
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from main import app
+from api.auth.dependency import require_admin
 from api.mt5_ingest.routes import router as mt5_ingest_router
 from api.broadcast.routes import router as broadcast_router
 from api.copyhub.live_activation_fix import router as live_activation_router
@@ -109,6 +111,40 @@ except Exception as error:
     print("Bethel Native KYC isolated load error:", error)
 
 
+def _native_public_state(native: dict, selected: bool) -> dict:
+    """Expose only customer-safe KYC availability, never internal topology."""
+    return {
+        "provider": "bethel_native" if selected else "sumsub",
+        "selected": selected,
+        "available": bool(native.get("ready_for_native_identity")) if selected else True,
+        "status": "available" if (not selected or native.get("ready_for_native_identity")) else "temporarily_unavailable",
+    }
+
+
+@app.middleware("http")
+async def sanitize_native_kyc_readiness(request: Request, call_next):
+    if request.url.path != NATIVE_KYC_READINESS_PATH:
+        return await call_next(request)
+    db = SessionLocal()
+    try:
+        native = native_kyc_readiness(db) if native_kyc_readiness else {}
+        selected = (os.getenv("IDENTITY_VERIFICATION_MODE") or "sumsub").strip().lower() == "native"
+        return JSONResponse(_native_public_state(native, selected), headers={"Cache-Control": "no-store"})
+    finally:
+        db.close()
+
+
+@app.get("/admin/kyc/native/readiness")
+def admin_native_kyc_readiness(_=Depends(require_admin)):
+    db = SessionLocal()
+    try:
+        native = native_kyc_readiness(db) if native_kyc_readiness else {"ready_for_native_cutover": False, "ready_for_native_identity": False, "error": "native_kyc_not_loaded"}
+        selected = (os.getenv("IDENTITY_VERIFICATION_MODE") or "sumsub").strip().lower() == "native"
+        return {"provider": "bethel_native", "selected": selected, **native}
+    finally:
+        db.close()
+
+
 @app.get("/ready")
 def production_readiness():
     db = SessionLocal()
@@ -116,19 +152,18 @@ def production_readiness():
         native = native_kyc_readiness(db) if native_kyc_readiness else {"ready_for_native_cutover": False, "ready_for_native_identity": False, "error": "native_kyc_not_loaded"}
         selected = (os.getenv("IDENTITY_VERIFICATION_MODE") or "sumsub").strip().lower() == "native"
         if selected and not native.get("ready_for_native_cutover"):
-            raise HTTPException(status_code=503, detail={"message": "Bethel Native KYC cutover selected but production readiness checks are incomplete", "native_kyc": native})
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "message": "Bethel Native KYC cutover selected but production readiness checks are incomplete",
+                    "identity_verification_provider": "bethel_native",
+                    "native_identity_verification": "implemented_fail_closed",
+                },
+            )
         return {
             "status": "ready",
             "identity_verification_provider": "bethel_native" if selected else "sumsub",
             "native_identity_verification": "ready_for_cutover" if native.get("ready_for_native_cutover") else "implemented_fail_closed",
-            "native_kyc": native,
-            "legacy_sumsub": {
-                "selected": not selected,
-                "mode": "disabled_by_native_cutover" if selected else "legacy_identity",
-                "app_token_configured": bool((os.getenv("SUMSUB_APP_TOKEN") or "").strip()) if not selected else False,
-                "level_configured": bool((os.getenv("SUMSUB_LEVEL_NAME") or "").strip()) if not selected else False,
-                "webhook_verification": "disabled_by_native_cutover" if selected else bool((os.getenv("SUMSUB_WEBHOOK_SECRET") or "").strip()),
-            },
         }
     finally:
         db.close()
