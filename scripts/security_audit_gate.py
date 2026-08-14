@@ -80,4 +80,21 @@ require(
     "Depends(require_super_admin)",
 )
 
+# Public KYC readiness must never disclose service topology, storage or datasets.
+require(
+    "render_app.py",
+    "sanitize_native_kyc_readiness",
+    "_native_public_state",
+    '@app.get("/admin/kyc/native/readiness")',
+    "Depends(require_admin)",
+    '"Cache-Control": "no-store"',
+)
+forbid(
+    "render_app.py",
+    '"native_kyc": native',
+    '"app_token_configured"',
+    '"level_configured"',
+    '"webhook_verification"',
+)
+
 print("PASS: Bethel security audit regression gate")
