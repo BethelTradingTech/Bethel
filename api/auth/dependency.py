@@ -10,14 +10,15 @@ from jose import JWTError, jwt
 
 
 def _get_token(request: Request):
-    token = request.cookies.get("access_token")
+    """Prefer explicit bearer auth, then hardened admin/subscriber cookies."""
+    authorization = request.headers.get("Authorization")
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ", 1)[1]
 
-    if not token:
-        authorization = request.headers.get("Authorization")
-        if authorization and authorization.startswith("Bearer "):
-            token = authorization.split(" ", 1)[1]
-
-    return token
+    return (
+        request.cookies.get("access_token")
+        or request.cookies.get("subscriber_access_token")
+    )
 
 
 ADMIN_ROLES = {"admin", "super_admin"}
@@ -75,41 +76,27 @@ def require_subscriber_or_admin(request: Request, subscriber_id: int):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    if subscriber_payload.get("token_type") != "subscriber":
+        raise HTTPException(status_code=401, detail="Invalid subscriber token")
+
     if subscriber_payload.get("subscriber_id") != subscriber_id:
         raise HTTPException(status_code=403, detail="Subscriber access denied")
 
     return subscriber_payload
 
 
-
 def check_auth(request: Request):
-
-
     token = _get_token(request)
 
-
-
     if not token:
-
-        return RedirectResponse(
-            "/login"
-        )
-
-
+        return RedirectResponse("/login")
 
     try:
-
         payload = decode_token(token)
         if payload.get("role") not in ADMIN_ROLES:
             return RedirectResponse("/login")
-
-
     except JWTError:
-
-        return RedirectResponse(
-            "/login"
-        )
-
+        return RedirectResponse("/login")
 
     return None
 
