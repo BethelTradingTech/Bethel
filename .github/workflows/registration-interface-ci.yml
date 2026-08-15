@@ -13,7 +13,7 @@ jobs:
   registration-ui:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate registration JavaScript
         run: node --check investor-frontend/js/onboarding.js
       - name: Validate required navigation hooks
