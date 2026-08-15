@@ -27,7 +27,6 @@ def forbid(path: str, *needles: str) -> None:
         raise SystemExit(f"SECURITY GATE FAIL {path}: forbidden {present}")
 
 
-# Supported administrator login: throttled, hardened cookie and explicit logout.
 require(
     "api/auth/routes/auth.py",
     "check_login_allowed(request, data.identifier)",
@@ -39,7 +38,6 @@ require(
     "response.delete_cookie(",
 )
 
-# Subscriber login: throttled, hardened cookie, bounded input and explicit logout.
 require(
     "api/copytrading/subscriber_auth_routes.py",
     "check_login_allowed(request, email)",
@@ -53,7 +51,6 @@ require(
     "record.used_at = datetime.utcnow()",
 )
 
-# Authorization must enforce token type and subscriber ownership.
 require(
     "api/auth/dependency.py",
     'request.cookies.get("subscriber_access_token")',
@@ -63,11 +60,31 @@ require(
     'payload.get("role") != "super_admin"',
 )
 
-# Legacy login must never mint a token or cookie again.
+# Security alerts use the existing SMTP path, suppress duplicates, and never
+# become a prerequisite for enforcement.
+require(
+    "api/security_alerts.py",
+    "SECURITY_ALERT_EMAIL",
+    "SMTP_FROM_EMAIL",
+    "SECURITY_ALERT_DEDUP_MINUTES",
+    'message_type="SECURITY_ALERT"',
+    "deduplication_key=deduplication_key",
+)
+require(
+    "api/auth/rate_limit.py",
+    "send_security_alert(",
+    'event="Authentication abuse blocked"',
+    'event="Registration abuse blocked"',
+)
+require(
+    "scripts/security_compliance_snapshot.py",
+    "send_security_alert(",
+    'event="Production compliance check failed"',
+)
+
 require("api/auth/routes.py", "status_code=410", "Legacy administrator login is disabled")
 forbid("api/auth/routes.py", "set_cookie(", "create_token(")
 
-# Production browser/API hardening and abuse controls.
 require(
     "api/production_security.py",
     '"X-Content-Type-Options"',
@@ -80,7 +97,6 @@ require(
     '"/copytrading/auth/resend-verification"',
 )
 
-# CORS must stay allow-listed in production.
 require(
     "main.py",
     "PRODUCTION_ORIGINS",
@@ -90,7 +106,6 @@ require(
 )
 forbid("main.py", 'allow_origins=["*"]')
 
-# Platform trade execution remains blocked.
 require(
     "main.py",
     "permanent_read_only_trading_guard",
@@ -99,7 +114,6 @@ require(
     '"/copyhub/v1/"',
 )
 
-# Connector requests must remain signed, time-bound and replay-aware.
 require(
     "api/mt5_ingest/routes.py",
     "MT5_CONNECTOR_SECRET",
@@ -109,7 +123,6 @@ require(
     "ConnectorNonce",
 )
 
-# Broadcast/media worker authentication and expiring/revocable review links.
 require(
     "broadcast-worker/app.py",
     "hmac.compare_digest(v,SECRET)",
@@ -120,7 +133,6 @@ require(
     '"Cache-Control":"private, no-store"',
 )
 
-# Admin API remains Super-Admin gated for media generation/list/revocation.
 require(
     "api/broadcast/routes.py",
     "@router.get('/admin/media')",
@@ -129,7 +141,6 @@ require(
     "Depends(require_super_admin)",
 )
 
-# Native KYC ownership, upload limits and public diagnostic sanitization.
 require(
     "api/kyc/native_routes.py",
     "Depends(require_subscriber_or_admin)",
@@ -153,11 +164,12 @@ forbid(
     '"webhook_verification"',
 )
 
-# Automated sanctions refresh must remain tied to the private managed database.
 require(
     "render.yaml",
     "bethel-sanctions-refresh",
     "python scripts/refresh_bethel_sanctions.py",
+    "bethel-security-compliance-check",
+    "python scripts/security_compliance_snapshot.py",
     "fromDatabase:",
     "property: connectionString",
 )
