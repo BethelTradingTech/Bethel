@@ -17,10 +17,10 @@
     </div>
     <div class="bethel-chat-messages" aria-live="polite"></div>
     <form class="bethel-chat-form">
-      <input class="bethel-chat-input" maxlength="1000" autocomplete="off" placeholder="Ask a question…" aria-label="Your question">
+      <input class="bethel-chat-input" maxlength="500" autocomplete="off" placeholder="Ask a question…" aria-label="Your question">
       <button class="bethel-chat-send" type="submit">Send</button>
     </form>
-    <div class="bethel-chat-note">General information only. For account-specific help, email <a href="mailto:${SUPPORT}">${SUPPORT}</a>.</div>`;
+    <div class="bethel-chat-note">For all inquiries, email <a href="mailto:${SUPPORT}">${SUPPORT}</a>. General information only.</div>`;
 
   document.body.appendChild(panel);
   document.body.appendChild(launcher);
@@ -29,6 +29,12 @@
   const form=panel.querySelector(".bethel-chat-form");
   const input=panel.querySelector(".bethel-chat-input");
   const send=panel.querySelector(".bethel-chat-send");
+
+  function ensureSupportEmail(text){
+    const value=String(text||"").trim();
+    if(value.toLowerCase().includes(SUPPORT.toLowerCase()))return value;
+    return (value?value+"\n\n":"")+"For further inquiries, email: "+SUPPORT;
+  }
 
   function addMessage(text,who){
     const item=document.createElement("div");
@@ -42,7 +48,7 @@
     messages.scrollTop=messages.scrollHeight;
   }
 
-  addMessage("Hello! I’m the Bethel website assistant. Ask me a quick question about Bethel, registration, services or general support.","bot");
+  addMessage(ensureSupportEmail("Hello! I’m the Bethel website assistant. Ask me a quick question about Bethel, registration, services or general support."),"bot");
 
   launcher.addEventListener("click",()=>{panel.classList.toggle("open");if(panel.classList.contains("open"))input.focus();});
   panel.querySelector(".bethel-chat-close").addEventListener("click",()=>panel.classList.remove("open"));
@@ -57,9 +63,9 @@
       const response=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({message:question})});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.detail||"Assistant unavailable");
-      addMessage(data.answer||`I can’t confirm that right now. Please email ${SUPPORT}.`,"bot");
+      addMessage(ensureSupportEmail(data.answer||"I can’t confirm that right now."),"bot");
     }catch(_){
-      addMessage(`I’m unable to answer that right now. Please email ${SUPPORT} and the Bethel team can help you.`,"bot");
+      addMessage(ensureSupportEmail("I’m unable to answer that right now. The Bethel team can help you."),"bot");
     }finally{
       input.disabled=false;send.disabled=false;input.focus();
     }
