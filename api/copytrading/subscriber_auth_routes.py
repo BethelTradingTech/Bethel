@@ -9,6 +9,7 @@ Handles:
 - Subscriber login
 - Password reset
 - JWT token generation
+- Hardened subscriber session cookie and logout
 
 Does NOT:
 - Handle payments
@@ -22,7 +23,7 @@ import os
 import secrets
 import string
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -38,7 +39,12 @@ from api.auth.rate_limit import (
     record_login_failure,
 )
 from api.notifications.emailer import portal_url, record_and_send
-from api.security import hash_password, verify_password, create_access_token
+from api.security import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    hash_password,
+    verify_password,
+    create_access_token,
+)
 
 
 router = APIRouter(
@@ -54,8 +60,8 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
 
 
 class ResendVerificationRequest(BaseModel):
@@ -350,8 +356,8 @@ def reset_subscriber_password(data: ResetPasswordRequest):
 
 
 @router.post("/login")
-def subscriber_login(data: LoginRequest, request: Request):
-    email = data.email.strip().lower()
+def subscriber_login(data: LoginRequest, request: Request, response: Response):
+    email = str(data.email).strip().lower()
     check_login_allowed(request, email)
     db = SessionLocal()
     try:
@@ -378,6 +384,15 @@ def subscriber_login(data: LoginRequest, request: Request):
 
         clear_login_failures(request, email)
         token = create_access_token({"subscriber_id": subscriber.id})
+        response.set_cookie(
+            key="subscriber_access_token",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+        )
         return {
             "status": "success",
             "access_token": token,
@@ -388,3 +403,15 @@ def subscriber_login(data: LoginRequest, request: Request):
         }
     finally:
         db.close()
+
+
+@router.post("/logout")
+def subscriber_logout(response: Response):
+    response.delete_cookie(
+        key="subscriber_access_token",
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
+    return {"status": "success", "message": "Logged out"}
