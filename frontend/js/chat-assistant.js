@@ -70,4 +70,7 @@
       input.disabled=false;send.disabled=false;input.focus();
     }
   });
+
+  if(!document.querySelector('link[href*="visitor-reviews.css"]')){const l=document.createElement("link");l.rel="stylesheet";l.href="css/visitor-reviews.css?v=1";document.head.appendChild(l);}
+  if(!document.querySelector('script[src*="visitor-reviews.js"]')){const s=document.createElement("script");s.src="js/visitor-reviews.js?v=1";s.defer=true;document.body.appendChild(s);}
 })();

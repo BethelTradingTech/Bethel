@@ -40,6 +40,8 @@ services:
         value: "140"
       - key: PUBLIC_SUPPORT_EMAIL
         value: info@betheltradingtechnologies.com
+      - key: REVIEW_HASH_SALT
+        generateValue: true
 
   - type: web
     name: bethel-broadcast
