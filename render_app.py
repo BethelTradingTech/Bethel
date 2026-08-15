@@ -18,6 +18,7 @@ from api.broadcast.routes import router as broadcast_router
 from api.copyhub.live_activation_fix import router as live_activation_router
 from api.payment_route_loader import mount_payment_routes
 from api.database import Base as ApiBase, SessionLocal, engine as api_engine
+from api.security_alerts import send_security_alert
 from api.traffic.models import WebsiteTrafficEvent
 from api.traffic.routes import router as traffic_router
 
@@ -89,10 +90,6 @@ try:
 except Exception as error:
     print("Profit Share isolated load error:", error)
 
-# Native identity verification is mounted independently so an unrelated
-# onboarding/payment integration cannot hide the KYC endpoints. Importing the
-# models before create_all ensures the tables are registered on existing
-# deployments without touching trading or subscriber tables.
 try:
     from api.kyc import native_models as native_kyc_models
     from api.kyc.admin_review_routes import router as native_kyc_admin_review_router
@@ -112,7 +109,6 @@ except Exception as error:
 
 
 def _native_public_state(native: dict, selected: bool) -> dict:
-    """Expose only customer-safe KYC availability, never internal topology."""
     return {
         "provider": "bethel_native" if selected else "sumsub",
         "selected": selected,
@@ -143,6 +139,21 @@ def admin_native_kyc_readiness(_=Depends(require_admin)):
         return {"provider": "bethel_native", "selected": selected, **native}
     finally:
         db.close()
+
+
+@app.post("/admin/security/test-alert")
+def admin_security_test_alert(_=Depends(require_admin)):
+    sent = send_security_alert(
+        event="Security notification test",
+        severity="info",
+        summary="Protected Bethel security-alert delivery test requested by an authenticated administrator.",
+    )
+    if not sent:
+        raise HTTPException(
+            status_code=503,
+            detail="Security alert email was not sent. Verify SECURITY_ALERT_EMAIL/SMTP configuration.",
+        )
+    return {"status": "sent"}
 
 
 @app.get("/ready")
