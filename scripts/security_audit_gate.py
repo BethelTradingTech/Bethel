@@ -60,8 +60,6 @@ require(
     'payload.get("role") != "super_admin"',
 )
 
-# Security alerts use the existing SMTP path, suppress duplicates, and never
-# become a prerequisite for enforcement.
 require(
     "api/security_alerts.py",
     "SECURITY_ALERT_EMAIL",
@@ -153,6 +151,8 @@ require(
     "sanitize_native_kyc_readiness",
     "_native_public_state",
     '@app.get("/admin/kyc/native/readiness")',
+    '@app.post("/admin/security/test-alert")',
+    'event="Security notification test"',
     "Depends(require_admin)",
     '"Cache-Control": "no-store"',
 )
