@@ -46,6 +46,19 @@ services:
       mountPath: /var/data
       sizeGB: 1
 
+  - type: cron
+    name: bethel-sanctions-refresh
+    runtime: docker
+    plan: starter
+    schedule: "0 2 * * *"
+    dockerCommand: python scripts/refresh_bethel_sanctions.py
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bethel-db
+          property: connectionString
+
 databases:
   - name: bethel-db
     plan: basic-256mb
