@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 
 from api.database import SessionLocal
 from api.kyc.native_models import BethelScreeningDataset
+from api.security_alerts import send_security_alert
 
 API_BASE = os.getenv("BETHEL_PUBLIC_API_BASE", "https://api.betheltradingtechnologies.com").rstrip("/")
 
@@ -51,15 +52,26 @@ def main() -> int:
         "native_kyc": kyc_code == 200 and kyc.get("available") is True,
         "sanctions_dataset_active": bool(sanctions and sanctions["active"]),
     }
+    passed = all(checks.values())
     evidence = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "environment": "production",
         "checks": checks,
         "sanctions_dataset": sanctions,
-        "overall_status": "PASS" if all(checks.values()) else "FAIL",
+        "overall_status": "PASS" if passed else "FAIL",
     }
     print(json.dumps(evidence, sort_keys=True))
-    return 0 if all(checks.values()) else 1
+
+    if not passed:
+        failed = ", ".join(name for name, ok in checks.items() if not ok)
+        send_security_alert(
+            event="Production compliance check failed",
+            severity="critical",
+            summary="One or more Bethel production security/readiness controls failed.",
+            details=f"Failed checks: {failed}",
+        )
+
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
