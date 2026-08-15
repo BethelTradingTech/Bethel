@@ -19,6 +19,7 @@ from api.copyhub.live_activation_fix import router as live_activation_router
 from api.payment_route_loader import mount_payment_routes
 from api.database import Base as ApiBase, SessionLocal, engine as api_engine
 from api.public_assistant import router as public_assistant_router
+from api.public_reviews import VisitorReview, router as public_reviews_router
 from api.security_alerts import send_security_alert
 from api.traffic.models import WebsiteTrafficEvent
 from api.traffic.routes import router as traffic_router
@@ -29,6 +30,7 @@ BROADCAST_WORKER_CONFIG_PATH = "/broadcast/v1/worker/config"
 COPIER_ACTIVATION_PATH = "/copyhub/v1/receiver/activate"
 TRAFFIC_VISIT_PATH = "/traffic/visit"
 PUBLIC_ASSISTANT_PATH = "/public/assistant/chat"
+PUBLIC_REVIEWS_PATH = "/public/reviews"
 NOTIFICATIONS_PATH = "/admin/notifications"
 LEGAL_DOCUMENTS_PATH = "/legal/documents"
 PROFIT_SHARE_PATH = "/profit-share/{subscriber_id}"
@@ -51,6 +53,12 @@ if not _route_exists(BROADCAST_WORKER_CONFIG_PATH):
 if not _route_exists(PUBLIC_ASSISTANT_PATH):
     app.include_router(public_assistant_router)
     print("Bethel public website assistant loaded")
+
+
+VisitorReview.__table__.create(bind=api_engine, checkfirst=True)
+if not _route_exists(PUBLIC_REVIEWS_PATH):
+    app.include_router(public_reviews_router)
+    print("Bethel moderated visitor reviews loaded")
 
 app.router.routes[:] = [
     route
