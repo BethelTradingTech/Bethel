@@ -6,6 +6,7 @@ on:
       - 'api/auth/**'
       - 'api/copytrading/subscriber_auth_routes.py'
       - 'api/security.py'
+      - 'api/security_alerts.py'
       - 'api/production_security.py'
       - 'api/mt5_ingest/**'
       - 'api/broadcast/**'
@@ -15,6 +16,7 @@ on:
       - 'render_app.py'
       - 'render.yaml'
       - 'scripts/security_audit_gate.py'
+      - 'scripts/security_compliance_snapshot.py'
       - 'scripts/secret_scan_gate.py'
       - '.github/workflows/security-audit-ci.yml'
       - '.github/dependabot.yml'
@@ -24,6 +26,7 @@ on:
       - 'api/auth/**'
       - 'api/copytrading/subscriber_auth_routes.py'
       - 'api/security.py'
+      - 'api/security_alerts.py'
       - 'api/production_security.py'
       - 'api/mt5_ingest/**'
       - 'api/broadcast/**'
@@ -33,7 +36,9 @@ on:
       - 'render_app.py'
       - 'render.yaml'
       - 'scripts/security_audit_gate.py'
+      - 'scripts/security_compliance_snapshot.py'
       - 'scripts/secret_scan_gate.py'
+      - '.github/workflows/security-audit-ci.yml'
       - '.github/dependabot.yml'
 
 permissions:
@@ -55,11 +60,14 @@ jobs:
           python -m py_compile api/auth/routes.py
           python -m py_compile api/auth/routes/auth.py
           python -m py_compile api/auth/dependency.py
+          python -m py_compile api/auth/rate_limit.py
           python -m py_compile api/copytrading/subscriber_auth_routes.py
+          python -m py_compile api/security_alerts.py
           python -m py_compile api/production_security.py
           python -m py_compile api/broadcast/routes.py
           python -m py_compile broadcast-worker/app.py
           python -m py_compile render_app.py
+          python -m py_compile scripts/security_compliance_snapshot.py
           python -m py_compile scripts/secret_scan_gate.py
       - name: Verify security invariants
         run: python scripts/security_audit_gate.py
