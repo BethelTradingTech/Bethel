@@ -1,8 +1,8 @@
 """Public, rate-limited Bethel website assistant.
 
-The OpenAI API key is used only server-side. When AI is unavailable or the
-question is outside the supported public-information scope, the assistant
-returns the public support email instead of guessing.
+The OpenAI API key is used only server-side. The assistant is limited to
+approved public information and every response is forced to include the public
+support email for human follow-up.
 """
 from __future__ import annotations
 
@@ -45,8 +45,10 @@ licences, regulator approvals, account status, staff details, broker terms or te
 security details. Never provide personalized financial, investment or trading advice. Never promise
 returns. Do not request passwords, API keys, seed phrases, card details, identity documents or other
 secrets. If a question requires account-specific help, private records, a human decision, or facts not
-listed below, say you cannot confirm that information and direct the visitor to {SUPPORT_EMAIL}.
-If the visitor asks how to contact Bethel, provide {SUPPORT_EMAIL}. Keep answers under 80 words.
+listed below, say you cannot confirm that information. Do not reveal internal architecture, database
+information, credentials, KYC evidence, customer records, admin records, proprietary trading logic,
+or private project information. Keep the informational portion under 80 words. The server will append
+the official support email to every response.
 
 VERIFIED PUBLIC FACTS:
 {PUBLIC_FACTS}
@@ -61,6 +63,16 @@ class AssistantResponse(BaseModel):
     answer: str
     support_email: str
     ai_available: bool
+
+
+def _with_support_email(answer: str) -> str:
+    text = (answer or "").strip()
+    footer = f"For further inquiries, email: {SUPPORT_EMAIL}"
+    if SUPPORT_EMAIL.casefold() in text.casefold():
+        return text
+    if not text:
+        return footer
+    return f"{text}\n\n{footer}"
 
 
 def _client_ip(request: Request) -> str:
@@ -81,7 +93,7 @@ def _check_rate_limit(request: Request) -> None:
         if len(events) >= MAX_REQUESTS:
             raise HTTPException(
                 status_code=429,
-                detail=f"Chat limit reached for this visitor. Please try again later or email {SUPPORT_EMAIL}.",
+                detail=f"Chat limit reached for this visitor. For further inquiries, email: {SUPPORT_EMAIL}",
                 headers={"Retry-After": str(WINDOW_SECONDS)},
             )
         events.append(now)
@@ -90,28 +102,16 @@ def _check_rate_limit(request: Request) -> None:
 def _fallback(message: str) -> str:
     lowered = message.casefold()
     if any(word in lowered for word in ("email", "contact", "support", "help", "reach")):
-        return f"You can contact Bethel Trading Technologies at {SUPPORT_EMAIL}."
+        return "You can contact Bethel Trading Technologies using the inquiry email below."
     if "kyc" in lowered or "identity" in lowered or "verify" in lowered:
-        return (
-            "Bethel uses its Native KYC process for identity verification. For help with a specific "
-            f"verification or account, please email {SUPPORT_EMAIL}."
-        )
+        return "Bethel uses its Native KYC process for identity verification. Account-specific verification questions require human support."
     if "register" in lowered or "sign up" in lowered or "signup" in lowered or "join" in lowered:
-        return (
-            "You can start from the Register Now link on the Bethel website and follow the subscriber "
-            f"onboarding steps. If you need help, email {SUPPORT_EMAIL}."
-        )
+        return "You can start from the Register Now link on the Bethel website and follow the subscriber onboarding steps."
     if "return" in lowered or "profit" in lowered or "guarantee" in lowered or "investment advice" in lowered:
-        return (
-            "Bethel does not guarantee investment returns, and the website assistant cannot provide "
-            f"personalized financial advice. For general company questions, email {SUPPORT_EMAIL}."
-        )
+        return "Bethel does not guarantee investment returns, and the website assistant cannot provide personalized financial advice."
     if "what is bethel" in lowered or "what does bethel" in lowered or "service" in lowered:
-        return (
-            "Bethel Trading Technologies develops algorithmic trading, copy-trading, financial analytics "
-            "and risk-management technology."
-        )
-    return f"I can't confirm that from the public information available to me. Please email {SUPPORT_EMAIL} for help."
+        return "Bethel Trading Technologies develops algorithmic trading, copy-trading, financial analytics and risk-management technology."
+    return "I can't confirm that from the approved public information available to me."
 
 
 def _extract_text(payload: dict) -> str:
@@ -130,7 +130,7 @@ def public_chat(data: AssistantRequest, request: Request):
     message = data.message.strip()
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
-        return AssistantResponse(answer=_fallback(message), support_email=SUPPORT_EMAIL, ai_available=False)
+        return AssistantResponse(answer=_with_support_email(_fallback(message)), support_email=SUPPORT_EMAIL, ai_available=False)
 
     try:
         response = requests.post(
@@ -151,6 +151,6 @@ def public_chat(data: AssistantRequest, request: Request):
         answer = _extract_text(response.json())
         if not answer:
             raise ValueError("empty assistant response")
-        return AssistantResponse(answer=answer, support_email=SUPPORT_EMAIL, ai_available=True)
+        return AssistantResponse(answer=_with_support_email(answer), support_email=SUPPORT_EMAIL, ai_available=True)
     except Exception:
-        return AssistantResponse(answer=_fallback(message), support_email=SUPPORT_EMAIL, ai_available=False)
+        return AssistantResponse(answer=_with_support_email(_fallback(message)), support_email=SUPPORT_EMAIL, ai_available=False)
