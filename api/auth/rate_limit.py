@@ -6,6 +6,8 @@ from time import monotonic
 
 from fastapi import HTTPException, Request
 
+from api.security_alerts import send_security_alert
+
 _LOGIN_WINDOW_SECONDS = 15 * 60
 _MAX_IDENTIFIER_FAILURES = 5
 _MAX_SOURCE_FAILURES = 20
@@ -39,28 +41,39 @@ def _prune(events, now: float, window: int) -> None:
 
 
 def check_login_allowed(request: Request, identifier: str) -> None:
-    """Block credential stuffing by account and by source address.
-
-    Identifier throttling remains effective if an attacker rotates IP addresses,
-    while source throttling limits one address from spraying many accounts.
-    """
+    """Block credential stuffing by account and by source address."""
     now = monotonic()
     identifier_key = _identifier_key(identifier)
     source_key = _client_ip(request)
+    blocked = False
+    retry_after = 0
+    reason = ""
     with _lock:
         identifier_events = _identifier_attempts[identifier_key]
         source_events = _source_attempts[source_key]
         _prune(identifier_events, now, _LOGIN_WINDOW_SECONDS)
         _prune(source_events, now, _LOGIN_WINDOW_SECONDS)
 
-        if len(identifier_events) >= _MAX_IDENTIFIER_FAILURES or len(source_events) >= _MAX_SOURCE_FAILURES:
-            oldest = identifier_events[0] if len(identifier_events) >= _MAX_IDENTIFIER_FAILURES else source_events[0]
+        identifier_blocked = len(identifier_events) >= _MAX_IDENTIFIER_FAILURES
+        source_blocked = len(source_events) >= _MAX_SOURCE_FAILURES
+        if identifier_blocked or source_blocked:
+            blocked = True
+            reason = "account threshold" if identifier_blocked else "source threshold"
+            oldest = identifier_events[0] if identifier_blocked else source_events[0]
             retry_after = max(1, int(_LOGIN_WINDOW_SECONDS - (now - oldest)))
-            raise HTTPException(
-                status_code=429,
-                detail="Too many failed login attempts. Try again later.",
-                headers={"Retry-After": str(retry_after)},
-            )
+
+    if blocked:
+        send_security_alert(
+            event="Authentication abuse blocked",
+            severity="high",
+            summary="Bethel blocked repeated failed login attempts.",
+            details=f"Source={source_key}; reason={reason}; retry_after_seconds={retry_after}",
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
 def record_login_failure(request: Request, identifier: str) -> None:
@@ -71,9 +84,6 @@ def record_login_failure(request: Request, identifier: str) -> None:
 
 
 def clear_login_failures(request: Request, identifier: str) -> None:
-    # A successful login clears the account-specific failures. Source failures
-    # remain briefly so one successful credential cannot reset a password-spray
-    # attack against other accounts from the same address.
     with _lock:
         _identifier_attempts.pop(_identifier_key(identifier), None)
 
@@ -82,14 +92,26 @@ def check_registration_allowed(request: Request) -> None:
     """Limit public account creation per source address."""
     address = _client_ip(request)
     now = monotonic()
+    blocked = False
+    retry_after = 0
     with _lock:
         events = _registration_attempts[address]
         _prune(events, now, _REGISTRATION_WINDOW_SECONDS)
         if len(events) >= _MAX_REGISTRATIONS:
+            blocked = True
             retry_after = max(1, int(_REGISTRATION_WINDOW_SECONDS - (now - events[0])))
-            raise HTTPException(
-                status_code=429,
-                detail="Too many registration attempts. Try again later.",
-                headers={"Retry-After": str(retry_after)},
-            )
-        events.append(now)
+        else:
+            events.append(now)
+
+    if blocked:
+        send_security_alert(
+            event="Registration abuse blocked",
+            severity="medium",
+            summary="Bethel blocked excessive public account or reset-related requests.",
+            details=f"Source={address}; retry_after_seconds={retry_after}",
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Too many registration attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
