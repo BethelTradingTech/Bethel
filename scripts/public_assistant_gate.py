@@ -22,8 +22,10 @@ require(
     'https://api.openai.com/v1/responses',
     'PUBLIC_SUPPORT_EMAIL',
     'info@betheltradingtechnologies.com',
-    'MAX_REQUESTS = 20',
-    'max_length=1000',
+    'BETHEL_ASSISTANT_MAX_REQUESTS_PER_WINDOW',
+    'BETHEL_ASSISTANT_MAX_MESSAGE_CHARS',
+    'BETHEL_ASSISTANT_MAX_OUTPUT_TOKENS',
+    'gpt-5.6-luna',
     'Never provide personalized financial, investment or trading advice',
 )
 require(
