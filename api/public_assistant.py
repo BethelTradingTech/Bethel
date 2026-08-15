@@ -18,9 +18,11 @@ from pydantic import BaseModel, Field
 router = APIRouter(prefix="/public/assistant", tags=["Public Website Assistant"])
 
 SUPPORT_EMAIL = os.getenv("PUBLIC_SUPPORT_EMAIL", "info@betheltradingtechnologies.com").strip()
-OPENAI_MODEL = os.getenv("BETHEL_ASSISTANT_MODEL", "gpt-5.6").strip()
-WINDOW_SECONDS = 600
-MAX_REQUESTS = 20
+OPENAI_MODEL = os.getenv("BETHEL_ASSISTANT_MODEL", "gpt-5.6-luna").strip()
+WINDOW_SECONDS = int(os.getenv("BETHEL_ASSISTANT_WINDOW_SECONDS", "3600"))
+MAX_REQUESTS = int(os.getenv("BETHEL_ASSISTANT_MAX_REQUESTS_PER_WINDOW", "8"))
+MAX_MESSAGE_CHARS = int(os.getenv("BETHEL_ASSISTANT_MAX_MESSAGE_CHARS", "500"))
+MAX_OUTPUT_TOKENS = int(os.getenv("BETHEL_ASSISTANT_MAX_OUTPUT_TOKENS", "140"))
 _attempts: dict[str, deque[float]] = defaultdict(deque)
 _lock = Lock()
 
@@ -44,7 +46,7 @@ security details. Never provide personalized financial, investment or trading ad
 returns. Do not request passwords, API keys, seed phrases, card details, identity documents or other
 secrets. If a question requires account-specific help, private records, a human decision, or facts not
 listed below, say you cannot confirm that information and direct the visitor to {SUPPORT_EMAIL}.
-If the visitor asks how to contact Bethel, provide {SUPPORT_EMAIL}. Keep answers under 120 words.
+If the visitor asks how to contact Bethel, provide {SUPPORT_EMAIL}. Keep answers under 80 words.
 
 VERIFIED PUBLIC FACTS:
 {PUBLIC_FACTS}
@@ -52,7 +54,7 @@ VERIFIED PUBLIC FACTS:
 
 
 class AssistantRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=1000)
+    message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
 
 
 class AssistantResponse(BaseModel):
@@ -79,7 +81,7 @@ def _check_rate_limit(request: Request) -> None:
         if len(events) >= MAX_REQUESTS:
             raise HTTPException(
                 status_code=429,
-                detail=f"Too many chat requests. Please try again later or email {SUPPORT_EMAIL}.",
+                detail=f"Chat limit reached for this visitor. Please try again later or email {SUPPORT_EMAIL}.",
                 headers={"Retry-After": str(WINDOW_SECONDS)},
             )
         events.append(now)
@@ -141,9 +143,9 @@ def public_chat(data: AssistantRequest, request: Request):
                 "model": OPENAI_MODEL,
                 "instructions": INSTRUCTIONS,
                 "input": message,
-                "max_output_tokens": 220,
+                "max_output_tokens": MAX_OUTPUT_TOKENS,
             },
-            timeout=25,
+            timeout=20,
         )
         response.raise_for_status()
         answer = _extract_text(response.json())
