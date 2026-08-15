@@ -26,6 +26,12 @@ services:
         value: DEMO
       - key: BROADCAST_WORKER_SECRET
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: BETHEL_ASSISTANT_MODEL
+        value: gpt-5.6
+      - key: PUBLIC_SUPPORT_EMAIL
+        value: info@betheltradingtechnologies.com
 
   - type: web
     name: bethel-broadcast
