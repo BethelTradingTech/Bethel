@@ -27,7 +27,7 @@ def forbid(path: str, *needles: str) -> None:
         raise SystemExit(f"SECURITY GATE FAIL {path}: forbidden {present}")
 
 
-# Supported administrator login: throttled and hardened cookie.
+# Supported administrator login: throttled, hardened cookie and explicit logout.
 require(
     "api/auth/routes/auth.py",
     "check_login_allowed(request, data.identifier)",
@@ -35,11 +35,60 @@ require(
     "httponly=True",
     "secure=True",
     'samesite="strict"',
+    '@router.post("/logout")',
+    "response.delete_cookie(",
+)
+
+# Subscriber login: throttled, hardened cookie, bounded input and explicit logout.
+require(
+    "api/copytrading/subscriber_auth_routes.py",
+    "check_login_allowed(request, email)",
+    'key="subscriber_access_token"',
+    "httponly=True",
+    "secure=True",
+    'samesite="strict"',
+    '@router.post("/logout")',
+    "ACCESS_TOKEN_EXPIRE_MINUTES * 60",
+    "token_hash == _token_hash(data.token)",
+    "record.used_at = datetime.utcnow()",
+)
+
+# Authorization must enforce token type and subscriber ownership.
+require(
+    "api/auth/dependency.py",
+    'request.cookies.get("subscriber_access_token")',
+    'subscriber_payload.get("token_type") != "subscriber"',
+    'subscriber_payload.get("subscriber_id") != subscriber_id',
+    'status_code=403, detail="Subscriber access denied"',
+    'payload.get("role") != "super_admin"',
 )
 
 # Legacy login must never mint a token or cookie again.
 require("api/auth/routes.py", "status_code=410", "Legacy administrator login is disabled")
 forbid("api/auth/routes.py", "set_cookie(", "create_token(")
+
+# Production browser/API hardening and abuse controls.
+require(
+    "api/production_security.py",
+    '"X-Content-Type-Options"',
+    '"X-Frame-Options"',
+    '"Strict-Transport-Security"',
+    '"Permissions-Policy"',
+    '"X-Permitted-Cross-Domain-Policies"',
+    '"Cache-Control"',
+    '"/copytrading/auth/register"',
+    '"/copytrading/auth/resend-verification"',
+)
+
+# CORS must stay allow-listed in production.
+require(
+    "main.py",
+    "PRODUCTION_ORIGINS",
+    '"https://betheltradingtechnologies.com"',
+    '"https://www.betheltradingtechnologies.com"',
+    "allow_credentials=True",
+)
+forbid("main.py", 'allow_origins=["*"]')
 
 # Platform trade execution remains blocked.
 require(
@@ -80,7 +129,14 @@ require(
     "Depends(require_super_admin)",
 )
 
-# Public KYC readiness must never disclose service topology, storage or datasets.
+# Native KYC ownership, upload limits and public diagnostic sanitization.
+require(
+    "api/kyc/native_routes.py",
+    "Depends(require_subscriber_or_admin)",
+    "MAX_UPLOAD",
+    "duplicate = db.query(BethelKYCSession)",
+    "challenge_consumed_at",
+)
 require(
     "render_app.py",
     "sanitize_native_kyc_readiness",
@@ -97,4 +153,13 @@ forbid(
     '"webhook_verification"',
 )
 
-print("PASS: Bethel security audit regression gate")
+# Automated sanctions refresh must remain tied to the private managed database.
+require(
+    "render.yaml",
+    "bethel-sanctions-refresh",
+    "python scripts/refresh_bethel_sanctions.py",
+    "fromDatabase:",
+    "property: connectionString",
+)
+
+print("PASS: Bethel combined security audit regression gate")
