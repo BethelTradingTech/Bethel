@@ -4,25 +4,37 @@ on:
   pull_request:
     paths:
       - 'api/auth/**'
+      - 'api/copytrading/subscriber_auth_routes.py'
+      - 'api/security.py'
+      - 'api/production_security.py'
       - 'api/mt5_ingest/**'
       - 'api/broadcast/**'
       - 'api/kyc/**'
       - 'broadcast-worker/**'
       - 'main.py'
       - 'render_app.py'
+      - 'render.yaml'
       - 'scripts/security_audit_gate.py'
+      - 'scripts/secret_scan_gate.py'
       - '.github/workflows/security-audit-ci.yml'
+      - '.github/dependabot.yml'
   push:
     branches: [main]
     paths:
       - 'api/auth/**'
+      - 'api/copytrading/subscriber_auth_routes.py'
+      - 'api/security.py'
+      - 'api/production_security.py'
       - 'api/mt5_ingest/**'
       - 'api/broadcast/**'
       - 'api/kyc/**'
       - 'broadcast-worker/**'
       - 'main.py'
       - 'render_app.py'
+      - 'render.yaml'
       - 'scripts/security_audit_gate.py'
+      - 'scripts/secret_scan_gate.py'
+      - '.github/dependabot.yml'
 
 permissions:
   contents: read
@@ -33,6 +45,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -40,8 +54,14 @@ jobs:
         run: |
           python -m py_compile api/auth/routes.py
           python -m py_compile api/auth/routes/auth.py
+          python -m py_compile api/auth/dependency.py
+          python -m py_compile api/copytrading/subscriber_auth_routes.py
+          python -m py_compile api/production_security.py
           python -m py_compile api/broadcast/routes.py
           python -m py_compile broadcast-worker/app.py
           python -m py_compile render_app.py
+          python -m py_compile scripts/secret_scan_gate.py
       - name: Verify security invariants
         run: python scripts/security_audit_gate.py
+      - name: Scan tracked repository files for high-confidence secrets
+        run: python scripts/secret_scan_gate.py
