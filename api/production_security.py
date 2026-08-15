@@ -16,12 +16,24 @@ AUTH_PATHS = {
     "/copytrading/auth/login",
     "/copytrading/auth/forgot-password",
     "/copytrading/auth/reset-password",
-    "/copytrading/auth/setup-password",
+    "/copytrading/auth/resend-verification",
+    "/copytrading/auth/register",
 }
 LIMIT = int(os.getenv("AUTH_RATE_LIMIT_REQUESTS", "12"))
 WINDOW_SECONDS = int(os.getenv("AUTH_RATE_LIMIT_WINDOW_SECONDS", "300"))
 _attempts: dict[str, deque] = defaultdict(deque)
 _lock = Lock()
+
+SENSITIVE_PREFIXES = (
+    "/admin/",
+    "/auth/",
+    "/copytrading/auth/",
+    "/kyc/",
+    "/connector/",
+    "/payments/",
+    "/payment/",
+    "/broadcast/v1/admin/",
+)
 
 
 def client_ip(request) -> str:
@@ -61,14 +73,12 @@ class ProductionSecurityMiddleware(BaseHTTPMiddleware):
             "camera=(), microphone=(), geolocation=(), payment=()"
         )
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         if request.headers.get("x-forwarded-proto") == "https":
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains"
             )
-        if (
-            path.startswith("/admin/")
-            or path.startswith("/auth/")
-            or path.startswith("/copytrading/auth/")
-        ):
-            response.headers["Cache-Control"] = "no-store"
+        if path.startswith(SENSITIVE_PREFIXES):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
         return response
