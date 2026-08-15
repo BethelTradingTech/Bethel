@@ -18,6 +18,7 @@ from api.broadcast.routes import router as broadcast_router
 from api.copyhub.live_activation_fix import router as live_activation_router
 from api.payment_route_loader import mount_payment_routes
 from api.database import Base as ApiBase, SessionLocal, engine as api_engine
+from api.public_assistant import router as public_assistant_router
 from api.security_alerts import send_security_alert
 from api.traffic.models import WebsiteTrafficEvent
 from api.traffic.routes import router as traffic_router
@@ -27,6 +28,7 @@ SNAPSHOT_PATH = "/connector/v1/snapshot"
 BROADCAST_WORKER_CONFIG_PATH = "/broadcast/v1/worker/config"
 COPIER_ACTIVATION_PATH = "/copyhub/v1/receiver/activate"
 TRAFFIC_VISIT_PATH = "/traffic/visit"
+PUBLIC_ASSISTANT_PATH = "/public/assistant/chat"
 NOTIFICATIONS_PATH = "/admin/notifications"
 LEGAL_DOCUMENTS_PATH = "/legal/documents"
 PROFIT_SHARE_PATH = "/profit-share/{subscriber_id}"
@@ -45,6 +47,10 @@ if not _route_exists(SNAPSHOT_PATH):
 if not _route_exists(BROADCAST_WORKER_CONFIG_PATH):
     app.include_router(broadcast_router)
     print("Broadcast API Loaded (isolated Render entry point)")
+
+if not _route_exists(PUBLIC_ASSISTANT_PATH):
+    app.include_router(public_assistant_router)
+    print("Bethel public website assistant loaded")
 
 app.router.routes[:] = [
     route
