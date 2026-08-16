@@ -10,6 +10,7 @@ import os
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import inspect, text
 
 from main import app
 from api.auth.dependency import require_admin
@@ -36,10 +37,30 @@ LEGAL_DOCUMENTS_PATH = "/legal/documents"
 PROFIT_SHARE_PATH = "/profit-share/{subscriber_id}"
 NATIVE_KYC_READINESS_PATH = "/kyc/native/readiness"
 NATIVE_KYC_ADMIN_REVIEW_PATH = "/admin/kyc/native/{subscriber_id}"
+PROMO_ADMIN_PATH = "/admin/pricing/promos"
 
 
 def _route_exists(path: str) -> bool:
     return any(getattr(route, "path", None) == path for route in app.routes)
+
+
+def _ensure_promo_scope_columns() -> None:
+    """Idempotently extend legacy promo tables without rewriting existing data."""
+    inspector = inspect(api_engine)
+    if "promo_codes" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("promo_codes")}
+    statements = []
+    if "scope" not in columns:
+        statements.append("ALTER TABLE promo_codes ADD COLUMN scope VARCHAR(30) NOT NULL DEFAULT 'ANY_SUBSCRIPTION'")
+    if "target_plan_id" not in columns:
+        statements.append("ALTER TABLE promo_codes ADD COLUMN target_plan_id INTEGER")
+    if not statements:
+        return
+    with api_engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+    print("Promotion scope columns ready")
 
 
 if not _route_exists(SNAPSHOT_PATH):
@@ -72,6 +93,19 @@ app.include_router(live_activation_router)
 print("Bethel Copier terminal activation fix loaded")
 
 mount_payment_routes(app)
+
+try:
+    from api.payment_admin.models import PromoCode, PromoRedemption
+
+    PromoCode.__table__.create(bind=api_engine, checkfirst=True)
+    PromoRedemption.__table__.create(bind=api_engine, checkfirst=True)
+    _ensure_promo_scope_columns()
+    from api.promo_admin_routes import router as promo_admin_router
+    if not _route_exists(PROMO_ADMIN_PATH):
+        app.include_router(promo_admin_router)
+        print("Scoped Promotion Admin API Loaded")
+except Exception as error:
+    print("Scoped Promotion Admin API load error:", error)
 
 try:
     from api.notifications.models import EmailDelivery
