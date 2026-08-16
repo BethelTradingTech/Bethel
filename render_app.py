@@ -1,9 +1,9 @@
 """Render entry point with critical route isolation.
 
 The main application keeps its existing startup behavior. This module ensures
-critical connector, payment, notification, legal, profit-share, native KYC,
-and private traffic-analytics routes remain available even when an unrelated
-optional integration fails during main.py startup.
+critical connector, payment, notification, legal, native KYC, and private
+traffic-analytics routes remain available even when an unrelated optional
+integration fails during main.py startup.
 """
 
 import os
@@ -34,7 +34,6 @@ PUBLIC_ASSISTANT_PATH = "/public/assistant/chat"
 PUBLIC_REVIEWS_PATH = "/public/reviews"
 NOTIFICATIONS_PATH = "/admin/notifications"
 LEGAL_DOCUMENTS_PATH = "/legal/documents"
-PROFIT_SHARE_PATH = "/profit-share/{subscriber_id}"
 NATIVE_KYC_READINESS_PATH = "/kyc/native/readiness"
 NATIVE_KYC_ADMIN_REVIEW_PATH = "/admin/kyc/native/{subscriber_id}"
 PROMO_ADMIN_PATH = "/admin/pricing/promos"
@@ -45,7 +44,6 @@ def _route_exists(path: str) -> bool:
 
 
 def _ensure_promo_scope_columns() -> None:
-    """Idempotently extend legacy promo tables without rewriting existing data."""
     inspector = inspect(api_engine)
     if "promo_codes" not in inspector.get_table_names():
         return
@@ -63,6 +61,23 @@ def _ensure_promo_scope_columns() -> None:
     print("Promotion scope columns ready")
 
 
+def _ensure_activation_fee_state() -> None:
+    """Add durable one-time activation satisfaction state and backfill paid users."""
+    inspector = inspect(api_engine)
+    if "client_onboarding" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("client_onboarding")}
+    with api_engine.begin() as connection:
+        if "activation_fee_satisfied_at" not in columns:
+            connection.execute(text("ALTER TABLE client_onboarding ADD COLUMN activation_fee_satisfied_at TIMESTAMP"))
+            print("Activation fee satisfaction column ready")
+        connection.execute(text(
+            "UPDATE client_onboarding "
+            "SET activation_fee_satisfied_at = payment_confirmed_at "
+            "WHERE activation_fee_satisfied_at IS NULL AND payment_confirmed_at IS NOT NULL"
+        ))
+
+
 if not _route_exists(SNAPSHOT_PATH):
     app.include_router(mt5_ingest_router)
     print("MT5 Connector API Loaded (isolated Render entry point)")
@@ -74,7 +89,6 @@ if not _route_exists(BROADCAST_WORKER_CONFIG_PATH):
 if not _route_exists(PUBLIC_ASSISTANT_PATH):
     app.include_router(public_assistant_router)
     print("Bethel public website assistant loaded")
-
 
 VisitorReview.__table__.create(bind=api_engine, checkfirst=True)
 if not _route_exists(PUBLIC_REVIEWS_PATH):
@@ -92,6 +106,7 @@ app.router.routes[:] = [
 app.include_router(live_activation_router)
 print("Bethel Copier terminal activation fix loaded")
 
+_ensure_activation_fee_state()
 mount_payment_routes(app)
 
 try:
@@ -121,22 +136,27 @@ except Exception as error:
 try:
     from api.legal import models as legal_models
     from api.legal.routes import router as legal_consent_router
+    from api.legal.service import seed_legal_documents
 
+    legal_models.LegalDocument.__table__.create(bind=api_engine, checkfirst=True)
+    legal_models.LegalAcceptance.__table__.create(bind=api_engine, checkfirst=True)
+    db = SessionLocal()
+    try:
+        seed_legal_documents(db)
+        db.commit()
+        print("Global Legal v2 documents seeded")
+    finally:
+        db.close()
     if not _route_exists(LEGAL_DOCUMENTS_PATH):
         app.include_router(legal_consent_router)
         print("Legal API Loaded (isolated Render entry point)")
 except Exception as error:
     print("Legal isolated load error:", error)
 
-try:
-    from api.profit_share import models as profit_share_models
-    from api.profit_share.routes import router as profit_share_router
-
-    if not _route_exists(PROFIT_SHARE_PATH):
-        app.include_router(profit_share_router)
-        print("Profit Share API Loaded (isolated Render entry point)")
-except Exception as error:
-    print("Profit Share isolated load error:", error)
+# Historical profit-share models remain in the repository/database for audit
+# compatibility only. Profit-share routes are intentionally NOT mounted in
+# production under the subscription-first launch model.
+print("Profit Share API disabled - subscription-first commercial model")
 
 try:
     from api.kyc import native_models as native_kyc_models
