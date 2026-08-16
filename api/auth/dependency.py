@@ -5,6 +5,8 @@ from api.auth.services.jwt import decode_token
 from api.security import (
     ALGORITHM as SUBSCRIBER_ALGORITHM,
     SECRET_KEY as SUBSCRIBER_SECRET_KEY,
+    TOKEN_AUDIENCE as SUBSCRIBER_TOKEN_AUDIENCE,
+    TOKEN_ISSUER as SUBSCRIBER_TOKEN_ISSUER,
 )
 from jose import JWTError, jwt
 
@@ -72,11 +74,14 @@ def require_subscriber_or_admin(request: Request, subscriber_id: int):
             token,
             SUBSCRIBER_SECRET_KEY,
             algorithms=[SUBSCRIBER_ALGORITHM],
+            audience=SUBSCRIBER_TOKEN_AUDIENCE,
+            issuer=SUBSCRIBER_TOKEN_ISSUER,
+            options={"require": ["exp", "iat", "nbf", "jti", "iss", "aud"]},
         )
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    if subscriber_payload.get("token_type") != "subscriber":
+    if subscriber_payload.get("token_type") != "subscriber" or not subscriber_payload.get("jti"):
         raise HTTPException(status_code=401, detail="Invalid subscriber token")
 
     if subscriber_payload.get("subscriber_id") != subscriber_id:
