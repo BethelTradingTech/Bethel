@@ -19,16 +19,19 @@ from api.onboarding.service import (
 
 router = APIRouter(prefix="/onboarding", tags=["Client Onboarding"])
 
-ACTIVATION_FEE_USD = 100.0
+ACTIVATION_FEE_NAME = "Activation Fee"
 LAUNCH_PLANS = (
-    {"name": "Starter", "description": "Entry subscription for individual Bethel accounts.", "price": 49.0},
-    {"name": "Standard", "description": "Standard Bethel subscription for active individual accounts.", "price": 99.0},
-    {"name": "Professional", "description": "Advanced Bethel subscription with expanded service access.", "price": 199.0},
-    {"name": "Enterprise", "description": "Custom commercial plan. Contact Bethel for enterprise pricing.", "price": 0.0},
+    {"name": "Starter", "description": "Entry subscription for individual Bethel accounts.", "price": 49.0, "billing_interval": "MONTHLY"},
+    {"name": "Standard", "description": "Standard Bethel subscription for active individual accounts.", "price": 99.0, "billing_interval": "MONTHLY"},
+    {"name": "Professional", "description": "Advanced Bethel subscription with expanded service access.", "price": 199.0, "billing_interval": "MONTHLY"},
+    {"name": "Enterprise", "description": "Custom commercial plan. Contact Bethel for enterprise pricing.", "price": 0.0, "billing_interval": "MONTHLY"},
+    {"name": ACTIVATION_FEE_NAME, "description": "One-time Bethel account activation fee.", "price": 100.0, "billing_interval": "ONE_TIME"},
 )
 
 
 def _sync_launch_plans(db: Session):
+    """Seed missing commercial items without overwriting admin-managed prices."""
+    changed = False
     for item in LAUNCH_PLANS:
         plan = (
             db.query(SubscriptionPlan)
@@ -36,15 +39,29 @@ def _sync_launch_plans(db: Session):
             .first()
         )
         if plan is None:
-            plan = SubscriptionPlan(name=item["name"])
+            plan = SubscriptionPlan(
+                name=item["name"],
+                description=item["description"],
+                price=item["price"],
+                currency="USD",
+                billing_interval=item["billing_interval"],
+                allocation_percent=100.0,
+                active=True,
+            )
             db.add(plan)
-        plan.description = item["description"]
-        plan.price = item["price"]
-        plan.currency = "USD"
-        plan.billing_interval = "MONTHLY"
-        plan.allocation_percent = 100.0
-        plan.active = True
-    db.commit()
+            changed = True
+    if changed:
+        db.commit()
+
+
+def _activation_fee(db: Session) -> float:
+    _sync_launch_plans(db)
+    row = (
+        db.query(SubscriptionPlan)
+        .filter(SubscriptionPlan.name == ACTIVATION_FEE_NAME)
+        .first()
+    )
+    return round(float(row.price), 2) if row and row.active else 0.0
 
 
 class PlanCreate(BaseModel):
@@ -52,8 +69,19 @@ class PlanCreate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     price: float = Field(ge=0)
     currency: str = Field(default="USD", min_length=3, max_length=3)
-    billing_interval: Literal["MONTHLY", "QUARTERLY", "ANNUAL"] = "MONTHLY"
+    billing_interval: Literal["ONE_TIME", "MONTHLY", "QUARTERLY", "ANNUAL"] = "MONTHLY"
     allocation_percent: float = Field(default=100.0, gt=0, le=100)
+    active: bool = True
+
+
+class PlanUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+    price: float | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    billing_interval: Literal["ONE_TIME", "MONTHLY", "QUARTERLY", "ANNUAL"] | None = None
+    allocation_percent: float | None = Field(default=None, gt=0, le=100)
+    active: bool | None = None
 
 
 class PlanSelection(BaseModel):
@@ -74,7 +102,7 @@ class ApprovalDecision(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
 
 
-def _plan_dict(plan: SubscriptionPlan):
+def _plan_dict(plan: SubscriptionPlan, activation_fee_usd: float | None = None):
     return {
         "id": plan.id,
         "name": plan.name,
@@ -84,7 +112,7 @@ def _plan_dict(plan: SubscriptionPlan):
         "billing_interval": plan.billing_interval,
         "allocation_percent": plan.allocation_percent,
         "active": plan.active,
-        "activation_fee_usd": ACTIVATION_FEE_USD,
+        "activation_fee_usd": activation_fee_usd,
         "checkout_available": float(plan.price) > 0,
     }
 
@@ -92,7 +120,8 @@ def _plan_dict(plan: SubscriptionPlan):
 @router.get("/plans")
 def list_plans(db: Session = Depends(get_db)):
     _sync_launch_plans(db)
-    launch_names = [item["name"] for item in LAUNCH_PLANS]
+    activation_fee = _activation_fee(db)
+    launch_names = [item["name"] for item in LAUNCH_PLANS if item["name"] != ACTIVATION_FEE_NAME]
     plans = (
         db.query(SubscriptionPlan)
         .filter(
@@ -105,7 +134,17 @@ def list_plans(db: Session = Depends(get_db)):
         )
         .all()
     )
-    return [_plan_dict(plan) for plan in plans]
+    return [_plan_dict(plan, activation_fee) for plan in plans]
+
+
+@router.get("/plans/admin")
+def list_plans_admin(
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    _sync_launch_plans(db)
+    rows = db.query(SubscriptionPlan).order_by(SubscriptionPlan.id.asc()).all()
+    return {"status": "success", "plans": [_plan_dict(row) for row in rows]}
 
 
 @router.post("/plans", status_code=201)
@@ -129,8 +168,33 @@ def create_plan(
         currency=data.currency.upper(),
         billing_interval=data.billing_interval,
         allocation_percent=data.allocation_percent,
+        active=data.active,
     )
     db.add(plan)
+    db.commit()
+    db.refresh(plan)
+    return _plan_dict(plan)
+
+
+@router.patch("/plans/{plan_id}")
+def update_plan(
+    plan_id: int,
+    data: PlanUpdate,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Pricing item not found")
+    values = data.model_dump(exclude_unset=True)
+    if "name" in values and values["name"] != plan.name:
+        duplicate = db.query(SubscriptionPlan).filter(SubscriptionPlan.name == values["name"]).first()
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Pricing item name already exists")
+    for key, value in values.items():
+        if key == "currency" and value:
+            value = value.upper()
+        setattr(plan, key, value)
     db.commit()
     db.refresh(plan)
     return _plan_dict(plan)
@@ -163,7 +227,7 @@ def select_subscription(
         )
         .first()
     )
-    if plan is None:
+    if plan is None or plan.name == ACTIVATION_FEE_NAME:
         raise HTTPException(status_code=404, detail="Subscription plan not found")
     if float(plan.price) <= 0:
         raise HTTPException(
@@ -220,28 +284,6 @@ def review_kyc(
     return serialize_onboarding(db, onboarding)
 
 
-@router.post("/{subscriber_id}/payment/submit")
-def submit_payment(
-    subscriber_id: int,
-    data: PaymentConfirmation,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
-    onboarding = get_or_create_onboarding(db, subscriber_id)
-    if onboarding.plan_id is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Select a subscription plan before submitting payment",
-        )
-    onboarding.payment_reference = data.reference
-    onboarding.payment_status = "PENDING_VERIFICATION"
-    onboarding.payment_confirmed_at = None
-    onboarding.admin_approval = "PENDING"
-    recompute_activation(db, onboarding)
-    db.commit()
-    return serialize_onboarding(db, onboarding)
-
-
 @router.post("/{subscriber_id}/payment/confirm")
 def confirm_payment(
     subscriber_id: int,
@@ -250,67 +292,26 @@ def confirm_payment(
     _admin=Depends(require_admin),
 ):
     onboarding = get_or_create_onboarding(db, subscriber_id)
-    if onboarding.plan_id is None:
-        raise HTTPException(
-            status_code=409,
-            detail="Select a subscription plan before confirming payment",
-        )
     onboarding.payment_status = "PAID"
     onboarding.subscription_status = "ACTIVE"
     onboarding.payment_reference = data.reference
     onboarding.payment_confirmed_at = datetime.utcnow()
-    subscriber = get_subscriber(db, subscriber_id)
-    subscriber.payment_status = "PAID"
-    recompute_activation(db, onboarding)
-    db.commit()
-    return serialize_onboarding(db, onboarding)
-
-
-@router.post("/{subscriber_id}/broker/refresh")
-def confirm_broker(
-    subscriber_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
-    onboarding = get_or_create_onboarding(db, subscriber_id)
-    refresh_broker_status(db, onboarding)
     recompute_activation(db, onboarding)
     db.commit()
     return serialize_onboarding(db, onboarding)
 
 
 @router.post("/{subscriber_id}/approval")
-def decide_approval(
+def approve_subscriber(
     subscriber_id: int,
     data: ApprovalDecision,
     db: Session = Depends(get_db),
     _admin=Depends(require_admin),
 ):
     onboarding = get_or_create_onboarding(db, subscriber_id)
-    if data.decision == "APPROVED":
-        refresh_broker_status(db, onboarding)
-        missing = []
-        if onboarding.subscription_status != "ACTIVE":
-            missing.append("subscription")
-        if onboarding.kyc_status != "APPROVED":
-            missing.append("kyc")
-        if onboarding.payment_status != "PAID":
-            missing.append("payment")
-        if onboarding.broker_status != "CONNECTED":
-            missing.append("broker")
-        if missing:
-            raise HTTPException(
-                status_code=409,
-                detail={"message": "Onboarding requirements incomplete", "missing": missing},
-            )
-
     onboarding.admin_approval = data.decision
-    onboarding.approved_at = (
-        datetime.utcnow() if data.decision == "APPROVED" else None
-    )
-    onboarding.rejection_reason = (
-        data.reason if data.decision == "REJECTED" else None
-    )
+    onboarding.approved_at = datetime.utcnow() if data.decision == "APPROVED" else None
+    onboarding.rejection_reason = data.reason if data.decision == "REJECTED" else None
     recompute_activation(db, onboarding)
     db.commit()
     return serialize_onboarding(db, onboarding)
