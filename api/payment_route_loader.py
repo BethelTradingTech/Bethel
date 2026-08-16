@@ -28,6 +28,24 @@ def _mount(app, module_name: str, router_name: str, probe_path: str, method: str
         print(f"{label} routes unavailable: {exc}")
 
 
+def _ensure_promotion_tables() -> None:
+    """Create promo tables if an older production database predates this feature.
+
+    This is intentionally narrow and idempotent: it does not alter existing
+    rows or recreate unrelated tables. It only makes sure the two tables used
+    by the Super Admin promotions API exist before the routes are mounted.
+    """
+    try:
+        from api.database import engine
+        from api.payment_admin.models import PromoCode, PromoRedemption
+
+        PromoCode.__table__.create(bind=engine, checkfirst=True)
+        PromoRedemption.__table__.create(bind=engine, checkfirst=True)
+        print("Promotion tables ready")
+    except Exception as exc:
+        print(f"Promotion table initialization unavailable: {exc}")
+
+
 def mount_payment_routes(app) -> None:
     _mount(
         app,
@@ -53,6 +71,7 @@ def mount_payment_routes(app) -> None:
         "POST",
         "Binance Pay",
     )
+    _ensure_promotion_tables()
     _mount(
         app,
         "api.payments.routes",
