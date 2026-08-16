@@ -8,7 +8,7 @@ from api.auth.dependency import require_subscriber_or_admin
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.onboarding.models import ClientOnboarding, SubscriptionPlan
-from api.onboarding.service import get_or_create_onboarding, initial_charge, recompute_activation
+from api.onboarding.service import get_or_create_onboarding, initial_charge, recompute_activation, satisfy_activation_fee
 from api.stripe_payments.models import StripePayment
 from api.stripe_payments.stripe_api import create_checkout_session, verify_webhook
 
@@ -52,6 +52,7 @@ def reconcile_paid_checkout(
     onboarding.subscription_status = "ACTIVE"
     onboarding.payment_reference = f"STRIPE:{payment.checkout_session_id}"
     onboarding.payment_confirmed_at = now
+    satisfy_activation_fee(onboarding, now)
     subscriber.payment_status = "PAID"
     recompute_activation(db, onboarding)
     db.commit()
