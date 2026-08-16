@@ -11,7 +11,7 @@ from api.auth.dependency import require_subscriber_or_admin
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.onboarding.models import ClientOnboarding, SubscriptionPlan
-from api.onboarding.service import get_or_create_onboarding, initial_charge, recompute_activation
+from api.onboarding.service import get_or_create_onboarding, initial_charge, recompute_activation, satisfy_activation_fee
 
 
 router = APIRouter(tags=["PayPal and Wise Payments"])
@@ -62,6 +62,7 @@ def mark_paid(db: Session, payment: PayPalPayment, capture: dict):
     onboarding.subscription_status = "ACTIVE"
     onboarding.payment_reference = f"PAYPAL:{payment.order_id}"
     onboarding.payment_confirmed_at = now
+    satisfy_activation_fee(onboarding, now)
     subscriber.payment_status = "PAID"
     recompute_activation(db, onboarding)
     db.commit()
@@ -168,6 +169,5 @@ def wise_submit(subscriber_id: int, data: WiseReference, db: Session = Depends(g
     db.add(payment)
     onboarding.payment_status = "PENDING_VERIFICATION"
     onboarding.payment_reference = f"WISE:{reference}"
-    onboarding.payment_confirmed_at = None
     db.commit()
     return {"status": "PENDING_VERIFICATION", "reference": reference, **charge, "message": "Wise transfer submitted for administrator verification"}
