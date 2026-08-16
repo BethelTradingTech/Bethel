@@ -37,15 +37,21 @@ def get_or_create_onboarding(db: Session, subscriber_id: int):
     return onboarding
 
 
+def satisfy_activation_fee(onboarding: ClientOnboarding, when: datetime | None = None) -> None:
+    """Persist that the customer's one-time activation requirement has been satisfied."""
+    if onboarding.activation_fee_satisfied_at is None:
+        onboarding.activation_fee_satisfied_at = when or datetime.utcnow()
+
+
 def get_activation_fee(db: Session, onboarding: ClientOnboarding) -> tuple[float, str]:
-    """Return the current admin-managed one-time activation fee for an unpaid first charge."""
+    """Return the current admin-managed one-time activation fee while still due."""
     row = (
         db.query(SubscriptionPlan)
         .filter(SubscriptionPlan.name == ACTIVATION_FEE_NAME)
         .first()
     )
-    if not row or not row.active or onboarding.payment_confirmed_at is not None:
-        return 0.0, (row.currency if row else "USD")
+    if not row or not row.active or onboarding.activation_fee_satisfied_at is not None:
+        return 0.0, str(row.currency if row else "USD").upper()
     return round(float(row.price or 0.0), 2), str(row.currency or "USD").upper()
 
 
@@ -145,6 +151,11 @@ def serialize_onboarding(db: Session, onboarding: ClientOnboarding):
         "kyc_status": onboarding.kyc_status,
         "payment_status": onboarding.payment_status,
         "payment_reference": onboarding.payment_reference,
+        "activation_fee_satisfied_at": (
+            onboarding.activation_fee_satisfied_at.isoformat()
+            if onboarding.activation_fee_satisfied_at
+            else None
+        ),
         "broker_status": onboarding.broker_status,
         "broker_account": (
             {
