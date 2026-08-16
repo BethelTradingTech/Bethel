@@ -15,7 +15,7 @@ from api.auth.dependency import require_admin, require_subscriber_or_admin
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.onboarding.models import ClientOnboarding, SubscriptionPlan
-from api.onboarding.service import get_or_create_onboarding, initial_charge, recompute_activation
+from api.onboarding.service import get_or_create_onboarding, initial_charge, recompute_activation, satisfy_activation_fee
 from api.payment_admin.models import PromoCode, PromoRedemption
 from api.payments.binance_client import signed_post, verify_webhook
 from api.payments.models import BinancePayment
@@ -222,9 +222,11 @@ def redeem_promo_code(subscriber_id: int, data: PromoQuote, db: Session = Depend
     promo.uses_count += 1
     onboarding.payment_reference = f"PROMO:{promo.code}"
     if final == 0:
+        now = datetime.utcnow()
         onboarding.payment_status = "PAID"
         onboarding.subscription_status = "ACTIVE"
-        onboarding.payment_confirmed_at = datetime.utcnow()
+        onboarding.payment_confirmed_at = now
+        satisfy_activation_fee(onboarding, now)
         subscriber.payment_status = "PAID"
         recompute_activation(db, onboarding)
     else:
@@ -272,7 +274,6 @@ def create_binance_order(subscriber_id: int, request: Request, db: Session = Dep
     db.add(payment)
     onboarding.payment_status = "PENDING_VERIFICATION"
     onboarding.payment_reference = trade_no
-    onboarding.payment_confirmed_at = None
     onboarding.admin_approval = "PENDING"
     recompute_activation(db, onboarding)
     db.commit()
@@ -301,15 +302,17 @@ async def binance_webhook(request: Request, binancepay_timestamp: str = Header(d
     if payment is None:
         return {"returnCode": "FAIL", "returnMessage": "Order not found"}
     if payload.get("bizStatus") == "PAY_SUCCESS":
+        now = datetime.utcnow()
         payment.status = "PAID"
         payment.transaction_id = str(data.get("transactionId") or "")
-        payment.paid_at = datetime.utcnow()
+        payment.paid_at = now
         onboarding = db.query(ClientOnboarding).filter(ClientOnboarding.subscriber_id == payment.subscriber_id).first()
         if onboarding is not None:
             onboarding.payment_status = "PAID"
             onboarding.subscription_status = "ACTIVE"
             onboarding.payment_reference = payment.merchant_trade_no
-            onboarding.payment_confirmed_at = datetime.utcnow()
+            onboarding.payment_confirmed_at = now
+            satisfy_activation_fee(onboarding, now)
             subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == payment.subscriber_id).first()
             if subscriber is not None:
                 subscriber.payment_status = "PAID"
