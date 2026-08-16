@@ -447,7 +447,7 @@ async function loadLegalDocuments(){
    details.className="legal-document";
    const summary=window.document.createElement("summary");
    const accepted=statusById.get(Number(document.id))?.accepted;
-   summary.textContent=`${document.title} — ${document.version}${accepted?" ✓ Accepted":""}`;
+   summary.textContent=`${document.title}${accepted?" ✓ Accepted":""}`;
    const content=window.document.createElement("pre");
    content.textContent=document.content;
    details.append(summary,content);container.append(details);
