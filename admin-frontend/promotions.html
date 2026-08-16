@@ -3,63 +3,59 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bethel Promotion Codes</title>
+<title>Bethel Pricing & Promotions</title>
 <link rel="stylesheet" href="css/admin-control.css?v=20260802-copier1">
 <style>
-body{padding:24px;background:#07101f;color:#eef4ff}.promo-shell{max-width:1200px;margin:auto}.promo-header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}.promo-header a{color:#d6b45b}.promo-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:20px}.promo-form,.promo-list{background:#0d1a2d;border:1px solid #263a57;border-radius:16px;padding:20px}.promo-form label{display:block;margin:12px 0 6px}.promo-form input,.promo-form select,.promo-form textarea{width:100%;box-sizing:border-box;padding:11px;border-radius:9px;border:1px solid #38506f;background:#081423;color:#fff}.promo-form button,.promo-actions button{padding:10px 14px;border-radius:9px;border:0;cursor:pointer}.promo-form button{margin-top:16px;background:#d6b45b;color:#081423;font-weight:700}.promo-table{width:100%;border-collapse:collapse}.promo-table th,.promo-table td{padding:10px;border-bottom:1px solid #263a57;text-align:left;vertical-align:top}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#223753}.badge.active{background:#174b37}.badge.inactive{background:#5b2530}.muted{color:#9eb0c8}.notice{margin:12px 0;min-height:22px}.promo-actions{display:flex;gap:6px;flex-wrap:wrap}.promo-actions button{background:#263a57;color:#fff}@media(max-width:900px){.promo-grid{grid-template-columns:1fr}.promo-header{align-items:flex-start;flex-direction:column}.promo-table{font-size:13px}}
+body{padding:24px;background:#07101f;color:#eef4ff}.shell{max-width:1280px;margin:auto}.header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}.header a{color:#d6b45b}.grid{display:grid;grid-template-columns:1fr;gap:20px}.panel{background:#0d1a2d;border:1px solid #263a57;border-radius:16px;padding:20px}.form-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.form-grid .wide{grid-column:span 2}.panel label{display:block;margin:8px 0 6px}.panel input,.panel select,.panel textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:9px;border:1px solid #38506f;background:#081423;color:#fff}.panel button{padding:9px 12px;border-radius:9px;border:0;cursor:pointer;background:#263a57;color:#fff}.primary{background:#d6b45b!important;color:#081423!important;font-weight:700}.table-wrap{overflow:auto;margin-top:14px}.data-table{width:100%;border-collapse:collapse}.data-table th,.data-table td{padding:10px;border-bottom:1px solid #263a57;text-align:left;vertical-align:top}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#223753}.active{background:#174b37}.inactive{background:#5b2530}.muted{color:#9eb0c8}.actions{display:flex;gap:6px;flex-wrap:wrap}.notice{min-height:22px;margin-top:10px}@media(max-width:900px){.form-grid{grid-template-columns:1fr 1fr}.form-grid .wide{grid-column:span 2}}@media(max-width:600px){.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:span 1}.header{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
-<main class="promo-shell">
-<header class="promo-header">
-<div><p class="muted">Bethel Trading Technologies</p><h1>Promotion & Discount Codes</h1><p class="muted">Create controlled subscription discounts. Codes may be restricted to one subscriber email and reused until their configured usage limit is reached.</p></div>
-<div><a href="/admin-frontend/">← Return to Super Admin</a></div>
-</header>
-<section class="promo-grid">
-<form id="promo-form" class="promo-form" autocomplete="off">
+<main class="shell">
+<header class="header"><div><p class="muted">Bethel Trading Technologies</p><h1>Pricing, Fees, Promotions & Discounts</h1><p class="muted">Change commercial prices and discounts from Super Admin without changing application code.</p></div><a href="/admin-frontend/">← Return to Super Admin</a></header>
+<div class="grid">
+<section class="panel">
+<div class="header"><div><h2>Pricing controls</h2><p class="muted">Edit subscription prices, the activation fee, billing interval, currency and availability.</p></div><button id="refresh-pricing" type="button">Refresh</button></div>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Item</th><th>Price</th><th>Currency</th><th>Billing</th><th>Status</th><th>Action</th></tr></thead><tbody id="pricing-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
+<p id="pricing-message" class="notice muted" aria-live="polite"></p>
+</section>
+
+<section class="panel">
 <h2>Create promotion</h2>
-<label>Code</label><input name="code" required minlength="3" maxlength="40" value="BETHELPROMO" placeholder="BETHELPROMO">
-<label>Description</label><textarea name="description" maxlength="255" placeholder="Reusable owner subscription waiver">Reusable owner subscription waiver</textarea>
-<label>Discount type</label><select name="discount_type"><option value="FIXED">Fixed amount</option><option value="PERCENT">Percentage</option></select>
-<label>Discount value</label><input name="discount_value" type="number" min="0.01" step="0.01" required value="100">
-<label>Currency</label><input name="currency" value="USD" minlength="3" maxlength="3" required>
-<label>Restricted subscriber email (recommended)</label><input name="restricted_email" type="email" placeholder="your-subscriber-email@example.com">
-<label>Maximum uses (optional)</label><input name="max_uses" type="number" min="1" step="1" placeholder="Leave blank for unlimited reuse">
-<p class="muted">Leave Maximum uses blank to allow the assigned subscriber to reuse the code without a usage limit.</p>
-<label>Starts at (optional)</label><input name="starts_at" type="datetime-local">
-<label>Expires at (optional)</label><input name="expires_at" type="datetime-local">
-<label><input name="active" type="checkbox" checked style="width:auto"> Active immediately</label>
-<button type="submit">Create promo code</button>
+<form id="promo-form" autocomplete="off">
+<div class="form-grid">
+<div><label>Code</label><input name="code" required minlength="3" maxlength="40" placeholder="WELCOME20"></div>
+<div><label>Discount type</label><select name="discount_type"><option value="FIXED">Fixed amount</option><option value="PERCENT">Percentage</option></select></div>
+<div><label>Discount value</label><input name="discount_value" type="number" min="0.01" step="0.01" required></div>
+<div><label>Currency</label><input name="currency" value="USD" minlength="3" maxlength="3" required></div>
+<div class="wide"><label>Description</label><input name="description" maxlength="255" placeholder="Campaign description"></div>
+<div class="wide"><label>Restricted subscriber email (optional)</label><input name="restricted_email" type="email" placeholder="subscriber@example.com"></div>
+<div><label>Maximum uses</label><input name="max_uses" type="number" min="1" step="1" placeholder="Unlimited"></div>
+<div><label>Starts at</label><input name="starts_at" type="datetime-local"></div>
+<div><label>Expires at</label><input name="expires_at" type="datetime-local"></div>
+<div><label>Active</label><select name="active"><option value="true">Yes</option><option value="false">No</option></select></div>
+</div>
+<button class="primary" type="submit">Create promo code</button>
 <p id="promo-message" class="notice muted" aria-live="polite"></p>
 </form>
-<section class="promo-list">
-<div class="promo-header"><div><h2>Existing codes</h2><p class="muted">Deactivate a code immediately when it should no longer be accepted.</p></div><button id="refresh-promos" type="button">Refresh</button></div>
-<div style="overflow:auto"><table class="promo-table"><thead><tr><th>Code</th><th>Discount</th><th>Restriction</th><th>Usage</th><th>Status</th><th>Action</th></tr></thead><tbody id="promo-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
 </section>
+
+<section class="panel">
+<div class="header"><div><h2>Existing promotions</h2><p class="muted">Edit discount value, restriction, dates, usage limit or active status at any time.</p></div><button id="refresh-promos" type="button">Refresh</button></div>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Code</th><th>Discount</th><th>Restriction</th><th>Usage</th><th>Status</th><th>Action</th></tr></thead><tbody id="promo-table"><tr><td colspan="6">Loading…</td></tr></tbody></table></div>
 </section>
+</div>
 </main>
-<script src="js/api.js?v=20260805-promos1"></script>
+<script src="js/api.js?v=20260805-promos2"></script>
 <script>
-const PROMO_ENDPOINT="/payments/binance/payments/promos/admin";
-const escapeHtml=value=>String(value??"").replace(/[&<>\"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
-const isoOrNull=value=>value?new Date(value).toISOString():null;
-function discountText(row){return row.discount_type==="PERCENT"?`${row.discount_value}%`:`${row.currency} ${Number(row.discount_value).toFixed(2)}`}
-async function loadPromos(){
- const table=document.getElementById("promo-table");
- try{
-  const data=await apiGet(PROMO_ENDPOINT);
-  table.innerHTML=(data.promos||[]).map(row=>`<tr><td><strong>${escapeHtml(row.code)}</strong><br><small>${escapeHtml(row.description||"")}</small></td><td>${escapeHtml(discountText(row))}</td><td>${escapeHtml(row.restricted_email||"Any eligible subscriber")}</td><td>${row.uses_count}${row.max_uses?` / ${row.max_uses}`:" / unlimited"}</td><td><span class="badge ${row.active?"active":"inactive"}">${row.active?"ACTIVE":"INACTIVE"}</span><br><small>${row.expires_at?`Expires ${new Date(row.expires_at).toLocaleString()}`:`No expiry`}</small></td><td class="promo-actions"><button data-id="${row.id}" data-active="${row.active}">${row.active?"Deactivate":"Activate"}</button></td></tr>`).join("")||'<tr><td colspan="6">No promotion codes created.</td></tr>';
-  table.querySelectorAll("button[data-id]").forEach(button=>button.onclick=async()=>{button.disabled=true;try{await apiPatch(`${PROMO_ENDPOINT}/${button.dataset.id}`,{active:button.dataset.active!=="true"});await loadPromos()}catch(error){alert(error.message)}finally{button.disabled=false}});
- }catch(error){table.innerHTML=`<tr><td colspan="6">${escapeHtml(error.message)}</td></tr>`}
-}
-document.getElementById("promo-form").addEventListener("submit",async event=>{
- event.preventDefault();const form=new FormData(event.currentTarget);const message=document.getElementById("promo-message");
- const payload={code:form.get("code"),description:form.get("description")||null,discount_type:form.get("discount_type"),discount_value:Number(form.get("discount_value")),currency:String(form.get("currency")||"USD").toUpperCase(),restricted_email:form.get("restricted_email")||null,max_uses:form.get("max_uses")?Number(form.get("max_uses")):null,starts_at:isoOrNull(form.get("starts_at")),expires_at:isoOrNull(form.get("expires_at")),active:form.get("active")==="on"};
- message.textContent="Creating promo code…";
- try{const row=await apiPost(PROMO_ENDPOINT,payload);message.textContent=`Promo code ${row.code} created successfully.`;event.currentTarget.reset();event.currentTarget.elements.code.value="BETHELPROMO";event.currentTarget.elements.description.value="Reusable owner subscription waiver";event.currentTarget.elements.currency.value="USD";event.currentTarget.elements.discount_value.value="100";event.currentTarget.elements.max_uses.value="";event.currentTarget.elements.active.checked=true;await loadPromos()}catch(error){message.textContent=error.message}
-});
-document.getElementById("refresh-promos").addEventListener("click",loadPromos);
-if(!getToken()){location.href="/admin-frontend/login.html"}else{loadPromos()}
+const PROMO_ENDPOINT="/payments/promos/admin";
+const PRICING_ENDPOINT="/onboarding/plans/admin";
+const escapeHtml=v=>String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const isoOrNull=v=>v?new Date(v).toISOString():null;
+function discountText(r){return r.discount_type==="PERCENT"?`${r.discount_value}%`:`${r.currency} ${Number(r.discount_value).toFixed(2)}`}
+async function loadPricing(){const table=document.getElementById("pricing-table");try{const data=await apiGet(PRICING_ENDPOINT);table.innerHTML=(data.plans||[]).map(r=>`<tr><td><strong>${escapeHtml(r.name)}</strong><br><small>${escapeHtml(r.description||"")}</small></td><td><input data-price-id="${r.id}" type="number" min="0" step="0.01" value="${Number(r.price)}"></td><td><input data-currency-id="${r.id}" maxlength="3" value="${escapeHtml(r.currency)}"></td><td><select data-billing-id="${r.id}">${["ONE_TIME","MONTHLY","QUARTERLY","ANNUAL"].map(x=>`<option value="${x}" ${x===r.billing_interval?"selected":""}>${x}</option>`).join("")}</select></td><td><select data-active-id="${r.id}"><option value="true" ${r.active?"selected":""}>ACTIVE</option><option value="false" ${!r.active?"selected":""}>INACTIVE</option></select></td><td><button data-save-price="${r.id}" class="primary">Save</button></td></tr>`).join("");table.querySelectorAll("button[data-save-price]").forEach(btn=>btn.addEventListener("click",async()=>{const id=btn.dataset.savePrice;btn.disabled=true;try{await apiPatch(`/onboarding/plans/${id}`,{price:Number(document.querySelector(`[data-price-id='${id}']`).value),currency:document.querySelector(`[data-currency-id='${id}']`).value.toUpperCase(),billing_interval:document.querySelector(`[data-billing-id='${id}']`).value,active:document.querySelector(`[data-active-id='${id}']`).value==="true"});document.getElementById("pricing-message").textContent="Pricing updated successfully.";await loadPricing()}catch(e){document.getElementById("pricing-message").textContent=e.message}finally{btn.disabled=false}}))}catch(e){table.innerHTML=`<tr><td colspan="6">${escapeHtml(e.message)}</td></tr>`}}
+async function loadPromos(){const table=document.getElementById("promo-table");try{const data=await apiGet(PROMO_ENDPOINT);table.innerHTML=(data.promos||[]).map(r=>`<tr><td><strong>${escapeHtml(r.code)}</strong><br><small>${escapeHtml(r.description||"")}</small></td><td>${escapeHtml(discountText(r))}</td><td>${escapeHtml(r.restricted_email||"Any eligible subscriber")}</td><td>${r.uses_count}${r.max_uses?` / ${r.max_uses}`:" / unlimited"}</td><td><span class="badge ${r.active?"active":"inactive"}">${r.active?"ACTIVE":"INACTIVE"}</span></td><td class="actions"><button data-edit-promo="${r.id}">Edit</button><button data-toggle-promo="${r.id}" data-active="${r.active}">${r.active?"Deactivate":"Activate"}</button></td></tr>`).join("")||'<tr><td colspan="6">No promotion codes created.</td></tr>';table.querySelectorAll("button[data-toggle-promo]").forEach(b=>b.addEventListener("click",async()=>{await apiPatch(`${PROMO_ENDPOINT}/${b.dataset.togglePromo}`,{active:b.dataset.active!=="true"});await loadPromos()}));table.querySelectorAll("button[data-edit-promo]").forEach(b=>b.addEventListener("click",async()=>{const r=(data.promos||[]).find(x=>String(x.id)===String(b.dataset.editPromo));const value=prompt("New discount value",r.discount_value);if(value===null)return;const description=prompt("Description",r.description||"");if(description===null)return;await apiPatch(`${PROMO_ENDPOINT}/${r.id}`,{discount_value:Number(value),description});await loadPromos()}))}catch(e){table.innerHTML=`<tr><td colspan="6">${escapeHtml(e.message)}</td></tr>`}}
+document.getElementById("promo-form").addEventListener("submit",async e=>{e.preventDefault();const f=new FormData(e.currentTarget);const m=document.getElementById("promo-message");const p={code:f.get("code"),description:f.get("description")||null,discount_type:f.get("discount_type"),discount_value:Number(f.get("discount_value")),currency:String(f.get("currency")||"USD").toUpperCase(),restricted_email:f.get("restricted_email")||null,max_uses:f.get("max_uses")?Number(f.get("max_uses")):null,starts_at:isoOrNull(f.get("starts_at")),expires_at:isoOrNull(f.get("expires_at")),active:f.get("active")==="true"};try{const r=await apiPost(PROMO_ENDPOINT,p);m.textContent=`Promo code ${r.code} created successfully.`;e.currentTarget.reset();e.currentTarget.elements.currency.value="USD";await loadPromos()}catch(err){m.textContent=err.message}});
+document.getElementById("refresh-pricing").addEventListener("click",loadPricing);document.getElementById("refresh-promos").addEventListener("click",loadPromos);if(!getToken()){location.href="/admin-frontend/login.html"}else{loadPricing();loadPromos()}
 </script>
 </body>
 </html>
