@@ -7,9 +7,6 @@
     const LEGACY_API_ORIGIN = "https://bethel-api.onrender.com";
 
     // Normalize all browser API traffic to Bethel's canonical production API.
-    // If a device/network cannot reach the custom hostname, retry the same
-    // request once against Render's service hostname. Both resolve to the same
-    // production application and no credentials are persisted by this shim.
     const nativeFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
         const originalUrl = typeof input === "string" ? input : input instanceof Request ? input.url : "";
@@ -21,7 +18,6 @@
             : originalUrl.slice(LEGACY_API_ORIGIN.length);
         const canonicalUrl = PRODUCTION_API_ORIGIN + path;
         const fallbackUrl = LEGACY_API_ORIGIN + path;
-
         const buildInput = url => input instanceof Request ? new Request(url, input) : url;
         try {
             return await nativeFetch(buildInput(canonicalUrl), init);
@@ -30,6 +26,42 @@
             return nativeFetch(buildInput(fallbackUrl), init);
         }
     };
+
+    // Legal documents must actually load before a subscriber can accept them.
+    // onboarding.js starts before this compatibility layer, so retry the legal
+    // request after canonical API routing has been installed.
+    const legalButton = document.getElementById("accept-legal-documents");
+    const legalCheckbox = document.getElementById("legal-consent-checkbox");
+    if (legalButton) legalButton.disabled = true;
+    if (legalCheckbox) legalCheckbox.disabled = true;
+
+    async function repairLegalDocumentLoading() {
+        if (!subscriberToken() || !subscriberId() || typeof loadLegalDocuments !== "function") return;
+        const container = document.getElementById("legal-documents");
+        try {
+            if (container) container.textContent = "Loading current legal documents…";
+            await loadLegalDocuments();
+            const loadedDocuments = document.querySelectorAll("#legal-documents .legal-document");
+            if (!loadedDocuments.length) throw new Error("No current legal documents were returned by the server.");
+            if (legalCheckbox && !legalCheckbox.checked) legalCheckbox.disabled = false;
+            if (legalButton && legalButton.textContent !== "Legal documents accepted") legalButton.disabled = false;
+            setMessage("legal-consent-message", `Loaded ${loadedDocuments.length} current legal document${loadedDocuments.length === 1 ? "" : "s"}. Open and read each document before accepting.`, "success");
+        } catch (error) {
+            if (container) container.textContent = "Legal documents could not be loaded. Please retry or contact Bethel support.";
+            if (legalCheckbox) { legalCheckbox.checked = false; legalCheckbox.disabled = true; }
+            if (legalButton) legalButton.disabled = true;
+            setMessage("legal-consent-message", error.message || "Unable to load legal documents.", "error");
+        }
+    }
+
+    legalButton?.addEventListener("click", event => {
+        if (!document.querySelector("#legal-documents .legal-document")) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            setMessage("legal-consent-message", "Legal documents must load before they can be accepted.", "error");
+            repairLegalDocumentLoading();
+        }
+    }, true);
 
     const WORKFLOW_STEPS = [
         {step:3, displayStep:1, label:"Plan", description:"Select service plan", target:"registration-step-3"},
@@ -73,6 +105,7 @@
         panel.dataset.visibleRegistrationStep = String(definition.displayStep);
         sessionStorage.setItem("bethel_registration_step", String(requested));
         window.markProgressStep(requested);
+        if (requested === 6) repairLegalDocumentLoading();
         const reviewTitle = document.getElementById("review-activation-title");
         const reviewKicker = document.getElementById("review-activation-kicker");
         const reviewDescription = document.getElementById("review-activation-description");
@@ -167,5 +200,6 @@
     if (subscriberToken() && subscriberId()) {
         window.initializeRegistrationNavigation();
         window.openRegistrationStep(safeStep, false);
+        repairLegalDocumentLoading();
     }
 })();
