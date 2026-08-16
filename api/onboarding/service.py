@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 from api.broker_accounts.models import BrokerAccount
 from api.copytrading.models import CopySubscriber
 from api.legal.service import all_current_accepted
-from api.onboarding.models import ClientOnboarding
+from api.onboarding.models import ClientOnboarding, SubscriptionPlan
+
+
+ACTIVATION_FEE_NAME = "Activation Fee"
 
 
 def get_subscriber(db: Session, subscriber_id: int):
@@ -32,6 +35,33 @@ def get_or_create_onboarding(db: Session, subscriber_id: int):
         db.add(onboarding)
         db.flush()
     return onboarding
+
+
+def get_activation_fee(db: Session, onboarding: ClientOnboarding) -> tuple[float, str]:
+    """Return the current admin-managed one-time activation fee for an unpaid first charge."""
+    row = (
+        db.query(SubscriptionPlan)
+        .filter(SubscriptionPlan.name == ACTIVATION_FEE_NAME)
+        .first()
+    )
+    if not row or not row.active or onboarding.payment_confirmed_at is not None:
+        return 0.0, (row.currency if row else "USD")
+    return round(float(row.price or 0.0), 2), str(row.currency or "USD").upper()
+
+
+def initial_charge(db: Session, onboarding: ClientOnboarding, plan: SubscriptionPlan) -> dict:
+    """Single source of truth for subscription + one-time activation billing."""
+    plan_amount = round(float(plan.price or 0.0), 2)
+    plan_currency = str(plan.currency or "USD").upper()
+    activation_fee, activation_currency = get_activation_fee(db, onboarding)
+    if activation_fee > 0 and activation_currency != plan_currency:
+        raise HTTPException(status_code=409, detail="Activation fee currency must match the selected subscription currency")
+    return {
+        "subscription_amount": plan_amount,
+        "activation_fee": activation_fee,
+        "total_amount": round(plan_amount + activation_fee, 2),
+        "currency": plan_currency,
+    }
 
 
 def refresh_broker_status(db: Session, onboarding: ClientOnboarding):
