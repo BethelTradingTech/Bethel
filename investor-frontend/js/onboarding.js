@@ -92,7 +92,7 @@ async function loadPlans(){
             const option=document.createElement("option");
             option.value=plan.id??plan.plan_id;
             const price=plan.price??plan.monthly_price??plan.amount;
-            const priceText=price!==undefined&&price!==null?` Ã¢â‚¬â€ $${Number(price).toLocaleString("en-US")}`:"";
+            const priceText=price!==undefined&&price!==null?` — $${Number(price).toLocaleString("en-US")}`:"";
             option.textContent=`${plan.name||plan.plan_name||`Plan ${option.value}`}${priceText}`;
             select.appendChild(option);
         }
@@ -447,7 +447,7 @@ async function loadLegalDocuments(){
    details.className="legal-document";
    const summary=window.document.createElement("summary");
    const accepted=statusById.get(Number(document.id))?.accepted;
-   summary.textContent=`${document.title} â€” ${document.version}${accepted?" âœ“ Accepted":""}`;
+   summary.textContent=`${document.title} — ${document.version}${accepted?" ✓ Accepted":""}`;
    const content=window.document.createElement("pre");
    content.textContent=document.content;
    details.append(summary,content);container.append(details);
