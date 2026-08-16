@@ -190,6 +190,11 @@
     document.getElementById("copier-refresh-status")?.addEventListener("click", refreshStatus);
     document.getElementById("copier-continue-payment")?.addEventListener("click", () => window.openRegistrationStep(10));
 
+    const feesPackagesScript = document.createElement("script");
+    feesPackagesScript.src = "js/fees-packages.js?v=1";
+    feesPackagesScript.defer = true;
+    document.head.appendChild(feesPackagesScript);
+
     const nativeKycScript = document.createElement("script");
     nativeKycScript.src = "js/native-kyc.js?v=1";
     nativeKycScript.defer = true;
