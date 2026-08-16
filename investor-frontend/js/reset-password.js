@@ -1,3 +1,12 @@
+const RESET_PASSWORD_API =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1" ||
+  window.location.hostname.startsWith("192.168.")
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : window.location.hostname === "api.betheltradingtechnologies.com"
+      ? window.location.origin
+      : "https://api.betheltradingtechnologies.com";
+
 document.getElementById("reset-password-form").addEventListener("submit",async event=>{
   event.preventDefault();
   const message=document.getElementById("message");
@@ -9,7 +18,7 @@ document.getElementById("reset-password-form").addEventListener("submit",async e
   if(!token){message.textContent="Reset token is missing.";return}
   button.disabled=true;message.textContent="Resetting password…";
   try{
-    const response=await fetch("/copytrading/auth/reset-password",{
+    const response=await fetch(RESET_PASSWORD_API+"/copytrading/auth/reset-password",{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({token,password})
     });
