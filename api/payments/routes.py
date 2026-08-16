@@ -23,6 +23,8 @@ from api.payments.models import BinancePayment
 
 router = APIRouter(prefix="/payments/binance", tags=["Binance Pay USDT"])
 promo_router = APIRouter(prefix="/payments/promos", tags=["Promotion Codes"])
+PromoScope = Literal["ANY_SUBSCRIPTION", "ACTIVATION_FEE", "PLAN"]
+ACTIVATION_FEE_NAME = "Activation Fee"
 
 
 class PromoCreate(BaseModel):
@@ -31,6 +33,8 @@ class PromoCreate(BaseModel):
     discount_type: Literal["FIXED", "PERCENT"] = "FIXED"
     discount_value: float = Field(gt=0)
     currency: str = Field(default="USD", min_length=3, max_length=3)
+    scope: PromoScope = "ANY_SUBSCRIPTION"
+    target_plan_id: int | None = Field(default=None, ge=1)
     restricted_email: EmailStr | None = None
     max_uses: int | None = Field(default=None, ge=1)
     starts_at: datetime | None = None
@@ -43,6 +47,8 @@ class PromoUpdate(BaseModel):
     discount_type: Literal["FIXED", "PERCENT"] | None = None
     discount_value: float | None = Field(default=None, gt=0)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
+    scope: PromoScope | None = None
+    target_plan_id: int | None = Field(default=None, ge=1)
     restricted_email: EmailStr | None = None
     max_uses: int | None = Field(default=None, ge=1)
     starts_at: datetime | None = None
@@ -61,7 +67,46 @@ def _normalize_code(value: str) -> str:
     return code
 
 
-def _promo_dict(row: PromoCode):
+def _promo_targets(db: Session):
+    plans = (
+        db.query(SubscriptionPlan)
+        .filter(SubscriptionPlan.active.is_(True))
+        .order_by(SubscriptionPlan.price.asc(), SubscriptionPlan.name.asc())
+        .all()
+    )
+    return [
+        {"scope": "ACTIVATION_FEE", "label": "Activation Fee", "plan_id": None},
+        {"scope": "ANY_SUBSCRIPTION", "label": "Any Subscription Plan", "plan_id": None},
+        *[
+            {"scope": "PLAN", "label": plan.name, "plan_id": plan.id}
+            for plan in plans
+            if plan.name != ACTIVATION_FEE_NAME
+        ],
+    ]
+
+
+def _validate_scope(db: Session, scope: str, target_plan_id: int | None) -> int | None:
+    if scope == "PLAN":
+        if not target_plan_id:
+            raise HTTPException(status_code=422, detail="Select a subscription plan for this promo code")
+        plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == target_plan_id).first()
+        if plan is None or plan.name == ACTIVATION_FEE_NAME:
+            raise HTTPException(status_code=422, detail="Selected subscription plan is invalid")
+        return plan.id
+    return None
+
+
+def _scope_label(row: PromoCode, db: Session) -> str:
+    scope = row.scope or "ANY_SUBSCRIPTION"
+    if scope == "ACTIVATION_FEE":
+        return "Activation Fee"
+    if scope == "PLAN" and row.target_plan_id:
+        plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == row.target_plan_id).first()
+        return plan.name if plan else f"Plan #{row.target_plan_id}"
+    return "Any Subscription Plan"
+
+
+def _promo_dict(row: PromoCode, db: Session):
     return {
         "id": row.id,
         "code": row.code,
@@ -69,6 +114,9 @@ def _promo_dict(row: PromoCode):
         "discount_type": row.discount_type,
         "discount_value": row.discount_value,
         "currency": row.currency,
+        "scope": row.scope or "ANY_SUBSCRIPTION",
+        "scope_label": _scope_label(row, db),
+        "target_plan_id": row.target_plan_id,
         "restricted_email": row.restricted_email,
         "max_uses": row.max_uses,
         "uses_count": row.uses_count,
@@ -104,6 +152,11 @@ def _validate_promo(db: Session, subscriber_id: int, code: str):
         raise HTTPException(status_code=409, detail="Promo code usage limit has been reached")
     if promo.restricted_email and promo.restricted_email.lower() != subscriber.email.lower():
         raise HTTPException(status_code=403, detail="Promo code is not assigned to this subscriber")
+    scope = promo.scope or "ANY_SUBSCRIPTION"
+    if scope == "ACTIVATION_FEE":
+        raise HTTPException(status_code=409, detail="This promo applies only to the activation fee")
+    if scope == "PLAN" and promo.target_plan_id != plan.id:
+        raise HTTPException(status_code=409, detail=f"This promo applies only to {_scope_label(promo, db)}")
     if promo.discount_type == "PERCENT" and promo.discount_value > 100:
         raise HTTPException(status_code=409, detail="Promo percentage is invalid")
     if promo.discount_type == "FIXED" and promo.currency.upper() != plan.currency.upper():
@@ -121,7 +174,11 @@ def _validate_promo(db: Session, subscriber_id: int, code: str):
 @promo_router.get("/admin")
 def list_promo_codes(db: Session = Depends(get_db), _admin=Depends(require_admin)):
     rows = db.query(PromoCode).order_by(PromoCode.id.desc()).all()
-    return {"status": "success", "promos": [_promo_dict(row) for row in rows]}
+    return {
+        "status": "success",
+        "promos": [_promo_dict(row, db) for row in rows],
+        "targets": _promo_targets(db),
+    }
 
 
 @promo_router.post("/admin", status_code=201)
@@ -135,12 +192,15 @@ def create_promo_code(
         raise HTTPException(status_code=422, detail="Percentage discount cannot exceed 100")
     if data.starts_at and data.expires_at and data.expires_at <= data.starts_at:
         raise HTTPException(status_code=422, detail="Expiry must be after the start date")
+    target_plan_id = _validate_scope(db, data.scope, data.target_plan_id)
     row = PromoCode(
         code=code,
         description=data.description,
         discount_type=data.discount_type,
         discount_value=float(data.discount_value),
         currency=data.currency.upper(),
+        scope=data.scope,
+        target_plan_id=target_plan_id,
         restricted_email=str(data.restricted_email).lower() if data.restricted_email else None,
         max_uses=data.max_uses,
         active=data.active,
@@ -155,7 +215,7 @@ def create_promo_code(
         db.rollback()
         raise HTTPException(status_code=409, detail="Promo code already exists") from exc
     db.refresh(row)
-    return _promo_dict(row)
+    return _promo_dict(row, db)
 
 
 @promo_router.patch("/admin/{promo_id}")
@@ -171,6 +231,10 @@ def update_promo_code(
     values = data.model_dump(exclude_unset=True)
     if values.get("discount_type", row.discount_type) == "PERCENT" and values.get("discount_value", row.discount_value) > 100:
         raise HTTPException(status_code=422, detail="Percentage discount cannot exceed 100")
+    scope = values.get("scope", row.scope or "ANY_SUBSCRIPTION")
+    target_plan_id = values.get("target_plan_id", row.target_plan_id)
+    values["scope"] = scope
+    values["target_plan_id"] = _validate_scope(db, scope, target_plan_id)
     for key, value in values.items():
         if key == "currency" and value:
             value = value.upper()
@@ -181,7 +245,7 @@ def update_promo_code(
         raise HTTPException(status_code=422, detail="Expiry must be after the start date")
     db.commit()
     db.refresh(row)
-    return _promo_dict(row)
+    return _promo_dict(row, db)
 
 
 @promo_router.post("/{subscriber_id}/quote")
@@ -195,6 +259,8 @@ def quote_promo_code(
     return {
         "status": "valid",
         "promo_code": promo.code,
+        "scope": promo.scope or "ANY_SUBSCRIPTION",
+        "scope_label": _scope_label(promo, db),
         "plan_id": plan.id,
         "original_amount": original,
         "discount_amount": discount,
@@ -237,6 +303,8 @@ def redeem_promo_code(
     return {
         "status": redemption.status,
         "promo_code": promo.code,
+        "scope": promo.scope or "ANY_SUBSCRIPTION",
+        "scope_label": _scope_label(promo, db),
         "original_amount": original,
         "discount_amount": discount,
         "final_amount": final,
