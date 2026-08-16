@@ -36,6 +36,7 @@ class ClientOnboarding(Base):
     kyc_submitted_at = Column(DateTime, nullable=True)
     kyc_reviewed_at = Column(DateTime, nullable=True)
     payment_confirmed_at = Column(DateTime, nullable=True)
+    activation_fee_satisfied_at = Column(DateTime, nullable=True, index=True)
     approved_at = Column(DateTime, nullable=True)
     activated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
