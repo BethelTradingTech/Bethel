@@ -7,6 +7,7 @@ from api.legal.models import LegalAcceptance, LegalDocument
 
 
 DOCUMENT_SET_VERSION = "2026-08-16-global-v2"
+LEGACY_DOCUMENT_SET_VERSION = "2026-07-26-v1"
 
 DOCUMENTS = [
     {
@@ -94,6 +95,13 @@ def content_hash(content: str) -> str:
 
 def seed_legal_documents(db: Session):
     now = datetime.utcnow()
+    # Retire the complete legacy launch set, including the old COPY_TRADING
+    # document whose code was replaced by ACCOUNT_CONNECTIVITY in Global v2.
+    db.query(LegalDocument).filter(
+        LegalDocument.version == LEGACY_DOCUMENT_SET_VERSION,
+        LegalDocument.active.is_(True),
+    ).update({"active": False}, synchronize_session=False)
+
     for item in DOCUMENTS:
         exists = (
             db.query(LegalDocument)
@@ -101,6 +109,8 @@ def seed_legal_documents(db: Session):
             .first()
         )
         if exists:
+            if not exists.active:
+                exists.active = True
             continue
         db.query(LegalDocument).filter(
             LegalDocument.code == item["code"], LegalDocument.active.is_(True)
@@ -123,23 +133,12 @@ def current_documents(db: Session):
 
 def acceptance_status(db: Session, subscriber_id: int):
     documents = current_documents(db)
-    accepted = {
-        row.document_id: row
-        for row in db.query(LegalAcceptance).filter(LegalAcceptance.subscriber_id == subscriber_id).all()
-    }
+    accepted = {row.document_id: row for row in db.query(LegalAcceptance).filter(LegalAcceptance.subscriber_id == subscriber_id).all()}
     rows = []
     for document in documents:
         evidence = accepted.get(document.id)
         valid = bool(evidence and evidence.document_version == document.version and evidence.content_hash == document.content_hash)
-        rows.append({
-            "document_id": document.id,
-            "code": document.code,
-            "title": document.title,
-            "version": document.version,
-            "content_hash": document.content_hash,
-            "accepted": valid,
-            "accepted_at": evidence.accepted_at.isoformat() if valid else None,
-        })
+        rows.append({"document_id": document.id, "code": document.code, "title": document.title, "version": document.version, "content_hash": document.content_hash, "accepted": valid, "accepted_at": evidence.accepted_at.isoformat() if valid else None})
     return rows
 
 
