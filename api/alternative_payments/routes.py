@@ -11,7 +11,7 @@ from api.auth.dependency import require_subscriber_or_admin
 from api.copytrading.models import CopySubscriber
 from api.database import get_db
 from api.onboarding.models import ClientOnboarding, SubscriptionPlan
-from api.onboarding.service import get_or_create_onboarding, recompute_activation
+from api.onboarding.service import get_or_create_onboarding, initial_charge, recompute_activation
 
 
 router = APIRouter(tags=["PayPal and Wise Payments"])
@@ -22,24 +22,13 @@ class WiseReference(BaseModel):
 
 
 def subscriber_and_plan(db: Session, subscriber_id: int):
-    subscriber = (
-        db.query(CopySubscriber)
-        .filter(CopySubscriber.id == subscriber_id)
-        .first()
-    )
+    subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == subscriber_id).first()
     if subscriber is None:
         raise HTTPException(status_code=404, detail="Subscriber not found")
     onboarding = get_or_create_onboarding(db, subscriber_id)
     if onboarding.plan_id is None:
         raise HTTPException(status_code=409, detail="Select a subscription plan first")
-    plan = (
-        db.query(SubscriptionPlan)
-        .filter(
-            SubscriptionPlan.id == onboarding.plan_id,
-            SubscriptionPlan.active.is_(True),
-        )
-        .first()
-    )
+    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == onboarding.plan_id, SubscriptionPlan.active.is_(True)).first()
     if plan is None:
         raise HTTPException(status_code=409, detail="Subscription plan is unavailable")
     return subscriber, onboarding, plan
@@ -58,18 +47,10 @@ def mark_paid(db: Session, payment: PayPalPayment, capture: dict):
     if abs(captured_amount - payment.amount) > 0.005:
         raise HTTPException(status_code=409, detail="PayPal amount mismatch")
 
-    onboarding = (
-        db.query(ClientOnboarding)
-        .filter(ClientOnboarding.subscriber_id == payment.subscriber_id)
-        .first()
-    )
+    onboarding = db.query(ClientOnboarding).filter(ClientOnboarding.subscriber_id == payment.subscriber_id).first()
     if onboarding is None or onboarding.plan_id != payment.plan_id:
         raise HTTPException(status_code=409, detail="Subscription selection changed")
-    subscriber = (
-        db.query(CopySubscriber)
-        .filter(CopySubscriber.id == payment.subscriber_id)
-        .first()
-    )
+    subscriber = db.query(CopySubscriber).filter(CopySubscriber.id == payment.subscriber_id).first()
     if subscriber is None:
         raise HTTPException(status_code=404, detail="Subscriber not found")
 
@@ -87,97 +68,51 @@ def mark_paid(db: Session, payment: PayPalPayment, capture: dict):
 
 
 @router.post("/payments/paypal/{subscriber_id}/order")
-def paypal_order(
-    subscriber_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
-    subscriber, _onboarding, plan = subscriber_and_plan(db, subscriber_id)
-    currency = (plan.currency or "USD").upper()
-    amount = f"{float(plan.price):.2f}"
+def paypal_order(subscriber_id: int, request: Request, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
+    subscriber, onboarding, plan = subscriber_and_plan(db, subscriber_id)
+    charge = initial_charge(db, onboarding, plan)
+    if charge["subscription_amount"] <= 0:
+        raise HTTPException(status_code=409, detail="Invalid subscription price")
+    amount = f"{charge['total_amount']:.2f}"
+    currency = charge["currency"]
     base = str(request.base_url).rstrip("/")
-    result = create_order(
-        {
-            "intent": "CAPTURE",
-            "purchase_units": [
-                {
-                    "reference_id": f"subscriber-{subscriber_id}-plan-{plan.id}",
-                    "description": f"Bethel {plan.name} subscription",
-                    "custom_id": f"{subscriber_id}:{plan.id}",
-                    "amount": {"currency_code": currency, "value": amount},
-                }
-            ],
-            "payment_source": {
-                "paypal": {
-                    "experience_context": {
-                        "brand_name": "Bethel Trading Technologies",
-                        "user_action": "PAY_NOW",
-                        "return_url": (
-                            f"{base}/investor-frontend/onboarding.html"
-                            "?payment=paypal-success"
-                        ),
-                        "cancel_url": (
-                            f"{base}/investor-frontend/onboarding.html"
-                            "?payment=paypal-cancelled"
-                        ),
-                    }
-                }
-            },
-        }
-    )
+    description = f"Bethel {plan.name} subscription"
+    if charge["activation_fee"] > 0:
+        description += f" + one-time activation fee {currency} {charge['activation_fee']:.2f}"
+    result = create_order({
+        "intent": "CAPTURE",
+        "purchase_units": [{
+            "reference_id": f"subscriber-{subscriber_id}-plan-{plan.id}",
+            "description": description,
+            "custom_id": f"{subscriber_id}:{plan.id}",
+            "amount": {"currency_code": currency, "value": amount},
+        }],
+        "payment_source": {"paypal": {"experience_context": {
+            "brand_name": "Bethel Trading Technologies",
+            "user_action": "PAY_NOW",
+            "return_url": f"{base}/investor-frontend/onboarding.html?payment=paypal-success",
+            "cancel_url": f"{base}/investor-frontend/onboarding.html?payment=paypal-cancelled",
+        }}},
+    })
     order_id = result.get("id")
-    approval_url = next(
-        (link.get("href") for link in result.get("links", []) if link.get("rel") == "payer-action"),
-        None,
-    )
+    approval_url = next((link.get("href") for link in result.get("links", []) if link.get("rel") == "payer-action"), None)
     if not order_id or not approval_url:
         raise HTTPException(status_code=502, detail="PayPal returned an invalid order")
-    payment = PayPalPayment(
-        subscriber_id=subscriber_id,
-        plan_id=plan.id,
-        order_id=order_id,
-        amount=float(plan.price),
-        currency=currency,
-        status="CREATED",
-        approval_url=approval_url,
-    )
+    payment = PayPalPayment(subscriber_id=subscriber_id, plan_id=plan.id, order_id=order_id, amount=charge["total_amount"], currency=currency, status="CREATED", approval_url=approval_url)
     db.add(payment)
     db.commit()
-    return {
-        "status": payment.status,
-        "order_id": order_id,
-        "approval_url": approval_url,
-        "amount": payment.amount,
-        "currency": payment.currency,
-    }
+    return {"status": payment.status, "order_id": order_id, "approval_url": approval_url, **charge}
 
 
 @router.post("/payments/paypal/{subscriber_id}/capture/{order_id}")
-def paypal_capture(
-    subscriber_id: int,
-    order_id: str,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
-    payment = (
-        db.query(PayPalPayment)
-        .filter(
-            PayPalPayment.subscriber_id == subscriber_id,
-            PayPalPayment.order_id == order_id,
-        )
-        .first()
-    )
+def paypal_capture(subscriber_id: int, order_id: str, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
+    payment = db.query(PayPalPayment).filter(PayPalPayment.subscriber_id == subscriber_id, PayPalPayment.order_id == order_id).first()
     if payment is None:
         raise HTTPException(status_code=404, detail="PayPal order not found")
     if payment.status == "PAID":
         return {"status": "PAID", "order_id": order_id}
     result = capture_order(order_id)
-    captures = (
-        result.get("purchase_units", [{}])[0]
-        .get("payments", {})
-        .get("captures", [])
-    )
+    captures = result.get("purchase_units", [{}])[0].get("payments", {}).get("captures", [])
     if not captures:
         raise HTTPException(status_code=409, detail="PayPal returned no completed capture")
     mark_paid(db, payment, captures[0])
@@ -185,26 +120,11 @@ def paypal_capture(
 
 
 @router.get("/payments/paypal/{subscriber_id}/latest")
-def paypal_latest(
-    subscriber_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
-    payment = (
-        db.query(PayPalPayment)
-        .filter(PayPalPayment.subscriber_id == subscriber_id)
-        .order_by(PayPalPayment.id.desc())
-        .first()
-    )
+def paypal_latest(subscriber_id: int, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
+    payment = db.query(PayPalPayment).filter(PayPalPayment.subscriber_id == subscriber_id).order_by(PayPalPayment.id.desc()).first()
     if payment is None:
         return {"status": "not_found"}
-    return {
-        "status": payment.status,
-        "order_id": payment.order_id,
-        "amount": payment.amount,
-        "currency": payment.currency,
-        "paid_at": payment.paid_at,
-    }
+    return {"status": payment.status, "order_id": payment.order_id, "amount": payment.amount, "currency": payment.currency, "paid_at": payment.paid_at}
 
 
 def wise_settings():
@@ -217,65 +137,37 @@ def wise_settings():
         "currency": os.getenv("WISE_CURRENCY", "USD"),
     }
     if not settings["recipient_name"] or not settings["bank_name"]:
-        raise HTTPException(
-            status_code=503,
-            detail="Wise Business recipient details are not configured",
-        )
+        raise HTTPException(status_code=503, detail="Wise Business recipient details are not configured")
     if not settings["account_number"] and not settings["iban"]:
-        raise HTTPException(
-            status_code=503,
-            detail="Wise Business account details are not configured",
-        )
+        raise HTTPException(status_code=503, detail="Wise Business account details are not configured")
     return settings
 
 
 @router.get("/payments/wise/{subscriber_id}/instructions")
-def wise_instructions(
-    subscriber_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
-    _subscriber, _onboarding, plan = subscriber_and_plan(db, subscriber_id)
+def wise_instructions(subscriber_id: int, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
+    _subscriber, onboarding, plan = subscriber_and_plan(db, subscriber_id)
     settings = wise_settings()
-    return {
-        **settings,
-        "amount": float(plan.price),
-        "plan_currency": (plan.currency or "USD").upper(),
-        "message": "Transfer the exact amount and submit your Wise reference",
-    }
+    charge = initial_charge(db, onboarding, plan)
+    if settings["currency"].upper() != charge["currency"]:
+        raise HTTPException(status_code=409, detail="Wise settlement currency does not match the selected Bethel pricing currency")
+    return {**settings, **charge, "amount": charge["total_amount"], "plan_currency": charge["currency"], "message": "Transfer the exact total shown, including any one-time activation fee, and submit your Wise reference"}
 
 
 @router.post("/payments/wise/{subscriber_id}/submit")
-def wise_submit(
-    subscriber_id: int,
-    data: WiseReference,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
+def wise_submit(subscriber_id: int, data: WiseReference, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
     _subscriber, onboarding, plan = subscriber_and_plan(db, subscriber_id)
     settings = wise_settings()
+    charge = initial_charge(db, onboarding, plan)
+    if settings["currency"].upper() != charge["currency"]:
+        raise HTTPException(status_code=409, detail="Wise settlement currency does not match the selected Bethel pricing currency")
     reference = data.reference.strip()
-    duplicate = (
-        db.query(WisePayment)
-        .filter(WisePayment.reference == reference)
-        .first()
-    )
+    duplicate = db.query(WisePayment).filter(WisePayment.reference == reference).first()
     if duplicate:
         raise HTTPException(status_code=409, detail="Wise reference already submitted")
-    payment = WisePayment(
-        subscriber_id=subscriber_id,
-        plan_id=plan.id,
-        reference=reference,
-        amount=float(plan.price),
-        currency=settings["currency"].upper(),
-    )
+    payment = WisePayment(subscriber_id=subscriber_id, plan_id=plan.id, reference=reference, amount=charge["total_amount"], currency=charge["currency"])
     db.add(payment)
     onboarding.payment_status = "PENDING_VERIFICATION"
     onboarding.payment_reference = f"WISE:{reference}"
     onboarding.payment_confirmed_at = None
     db.commit()
-    return {
-        "status": "PENDING_VERIFICATION",
-        "reference": reference,
-        "message": "Wise transfer submitted for administrator verification",
-    }
+    return {"status": "PENDING_VERIFICATION", "reference": reference, **charge, "message": "Wise transfer submitted for administrator verification"}
