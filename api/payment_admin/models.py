@@ -29,6 +29,8 @@ class PromoCode(Base):
     discount_type = Column(String(20), nullable=False, default="FIXED")
     discount_value = Column(Float, nullable=False)
     currency = Column(String(3), nullable=False, default="USD")
+    scope = Column(String(30), nullable=False, default="ANY_SUBSCRIPTION", index=True)
+    target_plan_id = Column(Integer, nullable=True, index=True)
     restricted_email = Column(String(255), nullable=True, index=True)
     max_uses = Column(Integer, nullable=True)
     uses_count = Column(Integer, nullable=False, default=0)
