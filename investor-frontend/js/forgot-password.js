@@ -3,10 +3,9 @@ const FORGOT_PASSWORD_API =
   window.location.hostname === "127.0.0.1" ||
   window.location.hostname.startsWith("192.168.")
     ? `${window.location.protocol}//${window.location.hostname}:8000`
-    : window.location.hostname === "bethel-api.onrender.com" ||
-      window.location.hostname === "api.betheltradingtechnologies.com"
+    : window.location.hostname === "api.betheltradingtechnologies.com"
       ? window.location.origin
-      : "https://bethel-api.onrender.com";
+      : "https://api.betheltradingtechnologies.com";
 
 document.getElementById("forgot-password-form").addEventListener("submit",async event=>{
   event.preventDefault();
