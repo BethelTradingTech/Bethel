@@ -3,6 +3,30 @@
 
     const COPIER_DOWNLOAD_URL = "https://github.com/BethelTradingTech/Bethel/releases/download/copier-v1.0.1/BethelCopierSetup.exe";
     const COPIER_DOWNLOAD_KEY = "bethel_copier_downloaded_v1_0_1";
+    const PRODUCTION_API_ORIGIN = "https://api.betheltradingtechnologies.com";
+    const LEGACY_API_ORIGIN = "https://bethel-api.onrender.com";
+
+    // The onboarding bundle historically pointed browser requests at the raw
+    // Render hostname. In production all subscriber traffic must use Bethel's
+    // canonical API hostname so Cloudflare/TLS/CORS are consistent. This shim
+    // runs after onboarding.js is loaded but before any user-triggered login,
+    // registration, KYC, payment, or onboarding request is made.
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+        if (typeof input === "string") {
+            const url = input.startsWith(LEGACY_API_ORIGIN)
+                ? PRODUCTION_API_ORIGIN + input.slice(LEGACY_API_ORIGIN.length)
+                : input;
+            return nativeFetch(url, init);
+        }
+
+        if (input instanceof Request && input.url.startsWith(LEGACY_API_ORIGIN)) {
+            const url = PRODUCTION_API_ORIGIN + input.url.slice(LEGACY_API_ORIGIN.length);
+            return nativeFetch(new Request(url, input), init);
+        }
+
+        return nativeFetch(input, init);
+    };
 
     const WORKFLOW_STEPS = [
         {step:3, displayStep:1, label:"Plan", description:"Select service plan", target:"registration-step-3"},
