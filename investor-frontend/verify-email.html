@@ -21,7 +21,8 @@
     const continueLink=document.getElementById("continue-link");
     const token=new URLSearchParams(window.location.search).get("token");
     const local=["localhost","127.0.0.1"].includes(window.location.hostname)||window.location.hostname.startsWith("192.168.");
-    const apiBase=local?`${window.location.protocol}//${window.location.hostname}:8000`:"https://bethel-api.onrender.com";
+    const apiBase=local?`${window.location.protocol}//${window.location.hostname}:8000`:
+        (window.location.hostname==="api.betheltradingtechnologies.com"?window.location.origin:"https://api.betheltradingtechnologies.com");
     if(!token){
         message.textContent="This verification link is incomplete. Return to registration and request another email.";
         continueLink.hidden=false;
