@@ -6,26 +6,29 @@
     const PRODUCTION_API_ORIGIN = "https://api.betheltradingtechnologies.com";
     const LEGACY_API_ORIGIN = "https://bethel-api.onrender.com";
 
-    // The onboarding bundle historically pointed browser requests at the raw
-    // Render hostname. In production all subscriber traffic must use Bethel's
-    // canonical API hostname so Cloudflare/TLS/CORS are consistent. This shim
-    // runs after onboarding.js is loaded but before any user-triggered login,
-    // registration, KYC, payment, or onboarding request is made.
+    // Normalize all browser API traffic to Bethel's canonical production API.
+    // If a device/network cannot reach the custom hostname, retry the same
+    // request once against Render's service hostname. Both resolve to the same
+    // production application and no credentials are persisted by this shim.
     const nativeFetch = window.fetch.bind(window);
-    window.fetch = (input, init) => {
-        if (typeof input === "string") {
-            const url = input.startsWith(LEGACY_API_ORIGIN)
-                ? PRODUCTION_API_ORIGIN + input.slice(LEGACY_API_ORIGIN.length)
-                : input;
-            return nativeFetch(url, init);
-        }
+    window.fetch = async (input, init) => {
+        const originalUrl = typeof input === "string" ? input : input instanceof Request ? input.url : "";
+        const isBethelApi = originalUrl.startsWith(PRODUCTION_API_ORIGIN) || originalUrl.startsWith(LEGACY_API_ORIGIN);
+        if (!isBethelApi) return nativeFetch(input, init);
 
-        if (input instanceof Request && input.url.startsWith(LEGACY_API_ORIGIN)) {
-            const url = PRODUCTION_API_ORIGIN + input.url.slice(LEGACY_API_ORIGIN.length);
-            return nativeFetch(new Request(url, input), init);
-        }
+        const path = originalUrl.startsWith(PRODUCTION_API_ORIGIN)
+            ? originalUrl.slice(PRODUCTION_API_ORIGIN.length)
+            : originalUrl.slice(LEGACY_API_ORIGIN.length);
+        const canonicalUrl = PRODUCTION_API_ORIGIN + path;
+        const fallbackUrl = LEGACY_API_ORIGIN + path;
 
-        return nativeFetch(input, init);
+        const buildInput = url => input instanceof Request ? new Request(url, input) : url;
+        try {
+            return await nativeFetch(buildInput(canonicalUrl), init);
+        } catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+            return nativeFetch(buildInput(fallbackUrl), init);
+        }
     };
 
     const WORKFLOW_STEPS = [
@@ -33,7 +36,7 @@
         {step:4, displayStep:2, label:"Identity", description:"Complete KYC verification", target:"registration-step-4"},
         {step:5, displayStep:3, label:"Broker", description:"Link your MT5 account", target:"registration-step-5"},
         {step:6, displayStep:4, label:"Legal", description:"Accept legal agreements", target:"legal-consent-panel"},
-        {step:7, displayStep:5, label:"Fees", description:"Accept performance-fee terms", target:"profit-share-panel"},
+        {step:7, displayStep:5, label:"Fees", description:"Review activation fee", target:"profit-share-panel"},
         {step:8, displayStep:6, label:"Download", description:"Download Bethel Copier", target:"copier-download-panel"},
         {step:9, displayStep:7, label:"Activate", description:"Activate Bethel Copier", target:"copier-activation-panel"},
         {step:10, displayStep:8, label:"Payment", description:"Complete subscription payment", target:"registration-step-10"},
@@ -44,9 +47,7 @@
     const statusIs = (value, accepted) => accepted.includes(String(value || "").toUpperCase());
     const getStatus = (source, names, fallback = "PENDING") => {
         for (const name of names) {
-            if (source && source[name] !== undefined && source[name] !== null) {
-                return String(source[name]).toUpperCase();
-            }
+            if (source && source[name] !== undefined && source[name] !== null) return String(source[name]).toUpperCase();
         }
         return fallback;
     };
@@ -65,16 +66,13 @@
         const requested = Math.min(12, Math.max(3, Number(step) || 3));
         const definition = WORKFLOW_STEPS.find(item => item.step === requested);
         if (!definition?.target || !subscriberToken()) return;
-
         document.querySelectorAll(".registration-step-panel").forEach(panel => panel.hidden = true);
         const panel = document.getElementById(definition.target);
         if (!panel) return;
-
         panel.hidden = false;
         panel.dataset.visibleRegistrationStep = String(definition.displayStep);
         sessionStorage.setItem("bethel_registration_step", String(requested));
         window.markProgressStep(requested);
-
         const reviewTitle = document.getElementById("review-activation-title");
         const reviewKicker = document.getElementById("review-activation-kicker");
         const reviewDescription = document.getElementById("review-activation-description");
@@ -89,7 +87,6 @@
                 reviewDescription.textContent = "Payment is complete. Bethel performs the final activation review before dashboard access is enabled.";
             }
         }
-
         document.querySelectorAll(".registration-step-button").forEach(button => {
             const active = Number(button.dataset.step) === requested;
             button.classList.toggle("active", active);
@@ -103,24 +100,16 @@
         const menu = document.getElementById("registration-step-menu");
         if (!menu) return;
         menu.replaceChildren();
-
         if (!subscriberToken()) {
             createNavigationButton(menu, {number:"⌂", label:"Home", description:"Return to the public website", onClick:() => {window.location.href = "https://betheltradingtechnologies.com/";}});
             createNavigationButton(menu, {number:"1", label:"Register", description:"Create a new Bethel account", active:!document.getElementById("registration-panel").hidden, onClick:showRegistration});
             createNavigationButton(menu, {number:"→", label:"Subscriber login", description:"Access an existing account", active:!document.getElementById("login-panel").hidden, onClick:showLogin});
             return;
         }
-
         WORKFLOW_STEPS.forEach(item => {
-            const button = createNavigationButton(menu, {
-                number:String(item.displayStep),
-                label:item.label,
-                description:item.description,
-                onClick:() => window.openRegistrationStep(item.step)
-            });
+            const button = createNavigationButton(menu, {number:String(item.displayStep), label:item.label, description:item.description, onClick:() => window.openRegistrationStep(item.step)});
             button.dataset.step = String(item.step);
         });
-
         document.querySelectorAll(".progress-item").forEach((item, index) => {
             const definition = WORKFLOW_STEPS[index];
             if (!definition) return;
@@ -128,10 +117,7 @@
             item.setAttribute("role", "button");
             item.onclick = () => window.openRegistrationStep(definition.step);
             item.onkeydown = event => {
-                if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    window.openRegistrationStep(definition.step);
-                }
+                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); window.openRegistrationStep(definition.step); }
             };
         });
     };
@@ -149,16 +135,11 @@
             11: statusIs(getStatus(source, ["admin_status", "admin_approval", "approval_status"]), ["APPROVED", "COMPLETE", "ACTIVE"]),
             12: statusIs(activation, ["ACTIVE", "ACTIVATED", "COMPLETE", "APPROVED"])
         };
-
-        document.querySelectorAll(".registration-step-button").forEach(button => {
-            button.classList.toggle("complete", Boolean(complete[Number(button.dataset.step)]));
-        });
-
+        document.querySelectorAll(".registration-step-button").forEach(button => button.classList.toggle("complete", Boolean(complete[Number(button.dataset.step)])));
         document.querySelectorAll(".progress-item").forEach((item, index) => {
             const definition = WORKFLOW_STEPS[index];
             item.classList.toggle("complete", Boolean(definition && complete[definition.step]));
         });
-
         const copierStatus = document.getElementById("copier-activation-status");
         if (copierStatus) copierStatus.textContent = complete[9] ? "CONNECTED" : copier;
     };
@@ -172,7 +153,6 @@
             window.initializeRegistrationNavigation();
         });
     }
-
     document.getElementById("copier-continue-activation")?.addEventListener("click", () => window.openRegistrationStep(9));
     document.getElementById("copier-refresh-status")?.addEventListener("click", refreshStatus);
     document.getElementById("copier-continue-payment")?.addEventListener("click", () => window.openRegistrationStep(10));
