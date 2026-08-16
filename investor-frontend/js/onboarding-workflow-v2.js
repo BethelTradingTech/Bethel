@@ -68,7 +68,7 @@
         {step:4, displayStep:2, label:"Identity", description:"Complete KYC verification", target:"registration-step-4"},
         {step:5, displayStep:3, label:"Broker", description:"Link your MT5 account", target:"registration-step-5"},
         {step:6, displayStep:4, label:"Legal", description:"Accept legal agreements", target:"legal-consent-panel"},
-        {step:7, displayStep:5, label:"Fees", description:"Review activation fee", target:"profit-share-panel"},
+        {step:7, displayStep:5, label:"Fees", description:"Review activation fee", target:"activation-fee-panel"},
         {step:8, displayStep:6, label:"Download", description:"Download Bethel Copier", target:"copier-download-panel"},
         {step:9, displayStep:7, label:"Activate", description:"Activate Bethel Copier", target:"copier-activation-panel"},
         {step:10, displayStep:8, label:"Payment", description:"Complete subscription payment", target:"registration-step-10"},
@@ -123,7 +123,7 @@
         document.querySelectorAll(".registration-step-button").forEach(button => {
             const active = Number(button.dataset.step) === requested;
             button.classList.toggle("active", active);
-            button.setAttribute("aria-current", active ? "step" : "false");
+            button.setAttribute("aria-current", active ? "step":"false");
         });
         closeRegistrationSettings();
         if (scroll) panel.scrollIntoView({behavior:"smooth", block:"start"});
