@@ -13,6 +13,7 @@ from api.onboarding.service import (
     get_subscriber,
     recompute_activation,
     refresh_broker_status,
+    satisfy_activation_fee,
     serialize_onboarding,
 )
 
@@ -33,22 +34,9 @@ def _sync_launch_plans(db: Session):
     """Seed missing commercial items without overwriting admin-managed prices."""
     changed = False
     for item in LAUNCH_PLANS:
-        plan = (
-            db.query(SubscriptionPlan)
-            .filter(SubscriptionPlan.name == item["name"])
-            .first()
-        )
+        plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.name == item["name"]).first()
         if plan is None:
-            plan = SubscriptionPlan(
-                name=item["name"],
-                description=item["description"],
-                price=item["price"],
-                currency="USD",
-                billing_interval=item["billing_interval"],
-                allocation_percent=100.0,
-                active=True,
-            )
-            db.add(plan)
+            db.add(SubscriptionPlan(name=item["name"], description=item["description"], price=item["price"], currency="USD", billing_interval=item["billing_interval"], allocation_percent=100.0, active=True))
             changed = True
     if changed:
         db.commit()
@@ -56,11 +44,7 @@ def _sync_launch_plans(db: Session):
 
 def _activation_fee(db: Session) -> float:
     _sync_launch_plans(db)
-    row = (
-        db.query(SubscriptionPlan)
-        .filter(SubscriptionPlan.name == ACTIVATION_FEE_NAME)
-        .first()
-    )
+    row = db.query(SubscriptionPlan).filter(SubscriptionPlan.name == ACTIVATION_FEE_NAME).first()
     return round(float(row.price), 2) if row and row.active else 0.0
 
 
@@ -103,18 +87,7 @@ class ApprovalDecision(BaseModel):
 
 
 def _plan_dict(plan: SubscriptionPlan, activation_fee_usd: float | None = None):
-    return {
-        "id": plan.id,
-        "name": plan.name,
-        "description": plan.description,
-        "price": plan.price,
-        "currency": plan.currency,
-        "billing_interval": plan.billing_interval,
-        "allocation_percent": plan.allocation_percent,
-        "active": plan.active,
-        "activation_fee_usd": activation_fee_usd,
-        "checkout_available": float(plan.price) > 0,
-    }
+    return {"id": plan.id, "name": plan.name, "description": plan.description, "price": plan.price, "currency": plan.currency, "billing_interval": plan.billing_interval, "allocation_percent": plan.allocation_percent, "active": plan.active, "activation_fee_usd": activation_fee_usd, "checkout_available": float(plan.price) > 0}
 
 
 @router.get("/plans")
@@ -122,54 +95,23 @@ def list_plans(db: Session = Depends(get_db)):
     _sync_launch_plans(db)
     activation_fee = _activation_fee(db)
     launch_names = [item["name"] for item in LAUNCH_PLANS if item["name"] != ACTIVATION_FEE_NAME]
-    plans = (
-        db.query(SubscriptionPlan)
-        .filter(
-            SubscriptionPlan.active.is_(True),
-            SubscriptionPlan.name.in_(launch_names),
-        )
-        .order_by(
-            SubscriptionPlan.price == 0,
-            SubscriptionPlan.price,
-        )
-        .all()
-    )
+    plans = db.query(SubscriptionPlan).filter(SubscriptionPlan.active.is_(True), SubscriptionPlan.name.in_(launch_names)).order_by(SubscriptionPlan.price == 0, SubscriptionPlan.price).all()
     return [_plan_dict(plan, activation_fee) for plan in plans]
 
 
 @router.get("/plans/admin")
-def list_plans_admin(
-    db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
-):
+def list_plans_admin(db: Session = Depends(get_db), _admin=Depends(require_admin)):
     _sync_launch_plans(db)
     rows = db.query(SubscriptionPlan).order_by(SubscriptionPlan.id.asc()).all()
     return {"status": "success", "plans": [_plan_dict(row) for row in rows]}
 
 
 @router.post("/plans", status_code=201)
-def create_plan(
-    data: PlanCreate,
-    db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
-):
-    existing = (
-        db.query(SubscriptionPlan)
-        .filter(SubscriptionPlan.name == data.name)
-        .first()
-    )
+def create_plan(data: PlanCreate, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    existing = db.query(SubscriptionPlan).filter(SubscriptionPlan.name == data.name).first()
     if existing:
         raise HTTPException(status_code=409, detail="Plan name already exists")
-
-    plan = SubscriptionPlan(
-        name=data.name,
-        description=data.description,
-        price=data.price,
-        currency=data.currency.upper(),
-        billing_interval=data.billing_interval,
-        allocation_percent=data.allocation_percent,
-        active=data.active,
-    )
+    plan = SubscriptionPlan(name=data.name, description=data.description, price=data.price, currency=data.currency.upper(), billing_interval=data.billing_interval, allocation_percent=data.allocation_percent, active=data.active)
     db.add(plan)
     db.commit()
     db.refresh(plan)
@@ -177,12 +119,7 @@ def create_plan(
 
 
 @router.patch("/plans/{plan_id}")
-def update_plan(
-    plan_id: int,
-    data: PlanUpdate,
-    db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
-):
+def update_plan(plan_id: int, data: PlanUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
     if plan is None:
         raise HTTPException(status_code=404, detail="Pricing item not found")
@@ -201,11 +138,7 @@ def update_plan(
 
 
 @router.get("/{subscriber_id}")
-def get_status(
-    subscriber_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
+def get_status(subscriber_id: int, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
     onboarding = get_or_create_onboarding(db, subscriber_id)
     result = serialize_onboarding(db, onboarding)
     db.commit()
@@ -213,28 +146,12 @@ def get_status(
 
 
 @router.post("/{subscriber_id}/subscription")
-def select_subscription(
-    subscriber_id: int,
-    data: PlanSelection,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
-    plan = (
-        db.query(SubscriptionPlan)
-        .filter(
-            SubscriptionPlan.id == data.plan_id,
-            SubscriptionPlan.active.is_(True),
-        )
-        .first()
-    )
+def select_subscription(subscriber_id: int, data: PlanSelection, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
+    plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == data.plan_id, SubscriptionPlan.active.is_(True)).first()
     if plan is None or plan.name == ACTIVATION_FEE_NAME:
         raise HTTPException(status_code=404, detail="Subscription plan not found")
     if float(plan.price) <= 0:
-        raise HTTPException(
-            status_code=409,
-            detail="Enterprise pricing requires a custom commercial agreement",
-        )
-
+        raise HTTPException(status_code=409, detail="Enterprise pricing requires a custom commercial agreement")
     subscriber = get_subscriber(db, subscriber_id)
     onboarding = get_or_create_onboarding(db, subscriber_id)
     onboarding.plan_id = plan.id
@@ -249,11 +166,7 @@ def select_subscription(
 
 
 @router.post("/{subscriber_id}/kyc/submit")
-def submit_kyc(
-    subscriber_id: int,
-    db: Session = Depends(get_db),
-    _actor=Depends(require_subscriber_or_admin),
-):
+def submit_kyc(subscriber_id: int, db: Session = Depends(get_db), _actor=Depends(require_subscriber_or_admin)):
     onboarding = get_or_create_onboarding(db, subscriber_id)
     onboarding.kyc_status = "PENDING"
     onboarding.kyc_submitted_at = datetime.utcnow()
@@ -265,49 +178,34 @@ def submit_kyc(
 
 
 @router.post("/{subscriber_id}/kyc/review")
-def review_kyc(
-    subscriber_id: int,
-    data: KycReview,
-    db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
-):
+def review_kyc(subscriber_id: int, data: KycReview, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     onboarding = get_or_create_onboarding(db, subscriber_id)
     if onboarding.kyc_status != "PENDING":
         raise HTTPException(status_code=409, detail="KYC is not pending review")
     onboarding.kyc_status = data.decision
     onboarding.kyc_reviewed_at = datetime.utcnow()
-    onboarding.rejection_reason = (
-        data.reason if data.decision == "REJECTED" else None
-    )
+    onboarding.rejection_reason = data.reason if data.decision == "REJECTED" else None
     recompute_activation(db, onboarding)
     db.commit()
     return serialize_onboarding(db, onboarding)
 
 
 @router.post("/{subscriber_id}/payment/confirm")
-def confirm_payment(
-    subscriber_id: int,
-    data: PaymentConfirmation,
-    db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
-):
+def confirm_payment(subscriber_id: int, data: PaymentConfirmation, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     onboarding = get_or_create_onboarding(db, subscriber_id)
+    now = datetime.utcnow()
     onboarding.payment_status = "PAID"
     onboarding.subscription_status = "ACTIVE"
     onboarding.payment_reference = data.reference
-    onboarding.payment_confirmed_at = datetime.utcnow()
+    onboarding.payment_confirmed_at = now
+    satisfy_activation_fee(onboarding, now)
     recompute_activation(db, onboarding)
     db.commit()
     return serialize_onboarding(db, onboarding)
 
 
 @router.post("/{subscriber_id}/approval")
-def approve_subscriber(
-    subscriber_id: int,
-    data: ApprovalDecision,
-    db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
-):
+def approve_subscriber(subscriber_id: int, data: ApprovalDecision, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     onboarding = get_or_create_onboarding(db, subscriber_id)
     onboarding.admin_approval = data.decision
     onboarding.approved_at = datetime.utcnow() if data.decision == "APPROVED" else None
