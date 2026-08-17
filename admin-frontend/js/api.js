@@ -130,6 +130,21 @@ async function refreshCompletePerformance(){
 
 window.apiGet=apiGet;
 
+// Pricing & Promotions is a standalone admin page, not an in-shell view.
+// admin-control.js attaches showView() to every .nav-item and used to overwrite
+// the inline navigation handler, leaving the workspace blank. Capture the click
+// before that handler and route directly to the pricing page.
+document.addEventListener("click",event=>{
+ const target=event.target.closest?.(".nav-item");
+ if(!target)return;
+ const label=(target.textContent||"").trim();
+ if(label.includes("Pricing & Promotions")){
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  window.location.assign("/admin-frontend/promotions.html");
+ }
+},true);
+
 window.addEventListener("DOMContentLoaded",()=>{
  document.querySelector('[data-view="analytics"]')?.addEventListener("click",()=>setTimeout(refreshCompletePerformance,50));
  document.querySelector('#refresh-button')?.addEventListener("click",()=>setTimeout(refreshCompletePerformance,50));
