@@ -10,33 +10,6 @@ from api.mt5_ingest.models import ConnectorDeal
 
 
 router = APIRouter(prefix="/media", tags=["Verified performance media"])
-MAX_VIDEO_TRADES = 5
-
-
-def _safe_recent_trades(deals):
-    """Return only fields that are safe to render in authenticated media.
-
-    Never expose connector identifiers, broker credentials, tokens, database IDs,
-    order IDs, position IDs, or deal tickets through the media payload.
-    """
-    recent = sorted(deals, key=lambda deal: deal.closed_at, reverse=True)[:MAX_VIDEO_TRADES]
-    return [
-        {
-            "symbol": deal.symbol,
-            "direction": deal.deal_type,
-            "volume": round(float(deal.volume or 0), 2),
-            "price": round(float(deal.price or 0), 8),
-            "net_profit": round(
-                float(deal.profit or 0)
-                + float(deal.commission or 0)
-                + float(deal.swap or 0)
-                + float(deal.fee or 0),
-                2,
-            ),
-            "closed_at": deal.closed_at.isoformat() + "Z",
-        }
-        for deal in recent
-    ]
 
 
 @router.get("/weekly-report")
@@ -75,7 +48,6 @@ def weekly_report(days: int = Query(7, ge=1, le=31), _admin=Depends(require_admi
             "realized_net_profit": round(sum(trade_results.values()), 2),
             "win_rate_percent": round((wins / len(trade_results) * 100) if trade_results else 0, 2),
             "maximum_drawdown_percent": round(max_dd, 2),
-            "recent_trades": _safe_recent_trades(deals),
             "profitable": pnl > 0,
             "disclosure": "Past performance does not guarantee future results.",
         }
