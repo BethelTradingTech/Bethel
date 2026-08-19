@@ -72,54 +72,35 @@ def centered(draw, text, y, width, face, fill=WHITE):
     draw.text(((width - (box[2] - box[0])) / 2, y), text, font=face, fill=fill)
 
 
-def trade_line(trade):
-    symbol = str(trade.get("symbol", "")).upper()[:16]
-    direction = str(trade.get("direction", "")).upper()
-    volume = float(trade.get("volume", 0) or 0)
-    profit = float(trade.get("net_profit", 0) or 0)
-    sign = "+" if profit > 0 else ""
-    return f"{symbol}  {direction}  {volume:g} lot  {sign}{profit:,.2f}"
-
-
 def frame(report, size, progress):
     width, height = size
     image = Image.new("RGB", size, NAVY)
     draw = ImageDraw.Draw(image)
     draw.ellipse((int(width*.55), -int(width*.3), int(width*1.25), int(width*.4)), fill="#0b3470")
-    draw.rounded_rectangle((int(width*.08), int(height*.14), int(width*.92), int(height*.84)), radius=40, fill="#0b2144", outline=BLUE, width=4)
+    draw.rounded_rectangle((int(width*.08), int(height*.16), int(width*.92), int(height*.82)), radius=40, fill="#0b2144", outline=BLUE, width=4)
     mode = report["account_mode"]
-    centered(draw, "BETHEL", int(height*.04), width, font(max(36, int(width*.055)), True), CYAN)
-    centered(draw, f"VERIFIED {mode} WEEKLY REPORT", int(height*.09), width, font(max(22, int(width*.026)), True), MUTED)
+    centered(draw, "BETHEL", int(height*.045), width, font(max(36, int(width*.055)), True), CYAN)
+    centered(draw, f"VERIFIED {mode} WEEKLY REPORT", int(height*.105), width, font(max(22, int(width*.026)), True), MUTED)
     pnl = float(report["weekly_pnl"])
     label = "WEEKLY PROFIT" if pnl > 0 else "WEEKLY RESULT"
-    centered(draw, label, int(height*.19), width, font(max(25, int(width*.032)), True), MUTED)
+    centered(draw, label, int(height*.23), width, font(max(25, int(width*.032)), True), MUTED)
     amount = f"{'+' if pnl > 0 else ''}{pnl:,.2f}"
     amount_color = "#3ee6a8" if pnl > 0 else "#ff8b8b"
-    centered(draw, amount, int(height*.245), width, font(max(58, int(width*.092)), True), amount_color)
-    centered(draw, f"Return  {report['weekly_return_percent']:+.2f}%", int(height*.35), width, font(max(30, int(width*.045)), True))
+    centered(draw, amount, int(height*.29), width, font(max(58, int(width*.092)), True), amount_color)
+    centered(draw, f"Return  {report['weekly_return_percent']:+.2f}%", int(height*.41), width, font(max(30, int(width*.045)), True))
     metrics = [
         f"Closed trades   {report['closed_trades']}",
         f"Win rate        {report['win_rate_percent']:.2f}%",
         f"Max drawdown    {report['maximum_drawdown_percent']:.2f}%",
     ]
     for index, text in enumerate(metrics):
-        centered(draw, text, int(height*(.43 + index*.052)), width, font(max(23, int(width*.03))), MUTED)
-
-    trades = report.get("recent_trades") or []
-    if trades:
-        centered(draw, "RECENT VERIFIED TRADE", int(height*.615), width, font(max(20, int(width*.025)), True), CYAN)
-        trade_index = min(int(progress * len(trades)), len(trades) - 1)
-        current = trades[trade_index]
-        profit = float(current.get("net_profit", 0) or 0)
-        trade_color = "#3ee6a8" if profit > 0 else ("#ff8b8b" if profit < 0 else WHITE)
-        centered(draw, trade_line(current), int(height*.66), width, font(max(22, int(width*.029)), True), trade_color)
-
-    bar_x1, bar_x2, bar_y = int(width*.16), int(width*.84), int(height*.76)
+        centered(draw, text, int(height*(.50 + index*.065)), width, font(max(23, int(width*.03))), MUTED)
+    bar_x1, bar_x2, bar_y = int(width*.16), int(width*.84), int(height*.73)
     draw.rounded_rectangle((bar_x1, bar_y, bar_x2, bar_y+14), radius=7, fill="#16335f")
     draw.rounded_rectangle((bar_x1, bar_y, bar_x1+int((bar_x2-bar_x1)*progress), bar_y+14), radius=7, fill=CYAN)
     disclosure = f"{mode} account • Past performance does not guarantee future results."
-    centered(draw, disclosure, int(height*.88), width, font(max(16, int(width*.018))), MUTED)
-    centered(draw, "betheltradingtechnologies.com", int(height*.93), width, font(max(18, int(width*.022)), True), WHITE)
+    centered(draw, disclosure, int(height*.87), width, font(max(16, int(width*.018))), MUTED)
+    centered(draw, "betheltradingtechnologies.com", int(height*.92), width, font(max(18, int(width*.022)), True), WHITE)
     return image
 
 
