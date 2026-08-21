@@ -1,0 +1,76 @@
+name: Bethel Admin Health CI
+
+on:
+  push:
+    branches: [main, "fix/**"]
+    paths:
+      - "main.py"
+      - "api/admin/**"
+      - "api/auth/**"
+      - "api/operations/**"
+      - "api/notifications/**"
+      - "api/legal/**"
+      - "api/subscription_lifecycle/**"
+      - "api/payment_admin/**"
+      - "api/mt5_ingest/**"
+      - "api/broadcast/**"
+      - "admin-frontend/**"
+      - "scripts/check_admin_contract.py"
+      - ".github/workflows/admin-health-ci.yml"
+  pull_request:
+    paths:
+      - "main.py"
+      - "api/admin/**"
+      - "api/auth/**"
+      - "api/operations/**"
+      - "api/notifications/**"
+      - "api/legal/**"
+      - "api/subscription_lifecycle/**"
+      - "api/payment_admin/**"
+      - "api/mt5_ingest/**"
+      - "api/broadcast/**"
+      - "admin-frontend/**"
+      - "scripts/check_admin_contract.py"
+      - ".github/workflows/admin-health-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  admin-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile critical Python modules
+        run: |
+          python -m py_compile \
+            main.py \
+            api/admin/router.py \
+            api/auth/dependency.py \
+            api/operations/routes.py \
+            api/notifications/routes.py \
+            api/legal/routes.py \
+            api/subscription_lifecycle/routes.py \
+            api/payment_admin/routes.py \
+            api/mt5_ingest/routes.py \
+            api/broadcast/routes.py
+
+      - name: Validate Super Admin and read-only contracts
+        run: python scripts/check_admin_contract.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check admin JavaScript syntax
+        run: |
+          node --check admin-frontend/js/auth.js
+          node --check admin-frontend/js/login.js
+          node --check admin-frontend/js/api.js
+          node --check admin-frontend/js/admin-control.js
+          node --check admin-frontend/js/admin-kyc-review.js
