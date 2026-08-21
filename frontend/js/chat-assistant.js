@@ -14,6 +14,12 @@
     });
   }
 
+  // Public-facing title for the read-only MT5 connector session.
+  if(publicMt5){
+    const heading=publicMt5.querySelector(".section-header h2");
+    if(heading)heading.textContent="LIVE TRADE BROADCAST FROM BETHEL TERMINAL 1";
+  }
+
   const API="https://api.betheltradingtechnologies.com/public/assistant/chat";
   const SUPPORT="info@betheltradingtechnologies.com";
   const launcher=document.createElement("button");
