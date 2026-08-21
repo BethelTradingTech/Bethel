@@ -2,13 +2,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
-from api.auth.services.jwt import decode_token
+from fastapi import APIRouter, Depends, Request
+
+from api.auth.dependency import require_admin
 
 router = APIRouter(prefix="/admin/control", tags=["Admin Control"])
-security = HTTPBearer(auto_error=True)
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 SETTINGS_FILE = DATA_DIR / "admin_control_settings.json"
@@ -44,15 +42,6 @@ DEFAULT_SETTINGS = {
         "subscriber_registration_enabled": True
     }
 }
-
-def require_admin(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict[str, Any]:
-    try:
-        payload = decode_token(credentials.credentials)
-    except JWTError as exc:
-        raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
-    if str(payload.get("role", "")).lower() != "admin":
-        raise HTTPException(status_code=403, detail="Administrator role required")
-    return payload
 
 def read_settings() -> dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
