@@ -43,6 +43,24 @@ DEFAULT_SETTINGS = {
     }
 }
 
+CRITICAL_ADMIN_ROUTES = {
+    "/admin/control/settings",
+    "/admin/control/routes",
+    "/admin/investors",
+    "/admin/operations/backups",
+    "/admin/operations/security-events",
+    "/admin/notifications",
+    "/admin/legal/acceptances",
+    "/admin/subscriptions",
+    "/admin/payments",
+    "/copytrading/subscribers",
+    "/connector/v1/status",
+    "/connector/v1/admin/public-display",
+    "/broadcast/v1/admin/control",
+    "/performance/analytics",
+}
+
+
 def read_settings() -> dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not SETTINGS_FILE.exists():
@@ -57,15 +75,18 @@ def read_settings() -> dict[str, Any]:
         merged[section].update(saved.get(section, {}))
     return merged
 
+
 def write_settings(settings: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     temp = SETTINGS_FILE.with_suffix(".tmp")
     temp.write_text(json.dumps(settings, indent=2), encoding="utf-8")
     temp.replace(SETTINGS_FILE)
 
+
 @router.get("/settings")
 def get_settings(_: dict = Depends(require_admin)):
     return read_settings()
+
 
 @router.put("/settings/website")
 def update_website(payload: dict[str, Any], _: dict = Depends(require_admin)):
@@ -73,6 +94,7 @@ def update_website(payload: dict[str, Any], _: dict = Depends(require_admin)):
     settings["website"].update(payload)
     write_settings(settings)
     return {"status": "success", "website": settings["website"]}
+
 
 @router.put("/settings/system")
 def update_system(payload: dict[str, Any], _: dict = Depends(require_admin)):
@@ -82,6 +104,7 @@ def update_system(payload: dict[str, Any], _: dict = Depends(require_admin)):
     write_settings(settings)
     return {"status": "success", "system": settings["system"]}
 
+
 @router.get("/routes")
 def list_routes(request: Request, _: dict = Depends(require_admin)):
     rows = []
@@ -89,6 +112,22 @@ def list_routes(request: Request, _: dict = Depends(require_admin)):
         methods = sorted(m for m in getattr(route, "methods", []) if m not in {"HEAD", "OPTIONS"})
         rows.append({"path": getattr(route, "path", ""), "name": getattr(route, "name", ""), "methods": methods})
     return {"status": "success", "total": len(rows), "routes": sorted(rows, key=lambda x: x["path"])}
+
+
+@router.get("/health")
+def admin_health(request: Request, admin: dict = Depends(require_admin)):
+    mounted_paths = {getattr(route, "path", "") for route in request.app.routes}
+    missing = sorted(path for path in CRITICAL_ADMIN_ROUTES if path not in mounted_paths)
+    return {
+        "status": "healthy" if not missing else "degraded",
+        "administrator_role": admin.get("role"),
+        "critical_routes_expected": len(CRITICAL_ADMIN_ROUTES),
+        "critical_routes_mounted": len(CRITICAL_ADMIN_ROUTES) - len(missing),
+        "missing_routes": missing,
+        "read_only_trading": True,
+        "execution_owner": "METATRADER_EA",
+    }
+
 
 @router.get("/public-settings")
 def public_settings():
