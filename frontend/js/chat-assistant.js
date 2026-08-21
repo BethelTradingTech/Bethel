@@ -1,4 +1,19 @@
 (function(){
+  // Keep Bethel's live public trading visibility immediately below the main hero.
+  // The existing broadcaster/MT5 scripts still control whether live data is available.
+  const hero=document.querySelector(".hero");
+  const publicBroadcast=document.getElementById("public-broadcast");
+  const publicMt5=document.getElementById("public-live-mt5");
+  if(hero){
+    let priorityAnchor=hero;
+    [publicBroadcast,publicMt5].forEach((section)=>{
+      if(section){
+        priorityAnchor.insertAdjacentElement("afterend",section);
+        priorityAnchor=section;
+      }
+    });
+  }
+
   const API="https://api.betheltradingtechnologies.com/public/assistant/chat";
   const SUPPORT="info@betheltradingtechnologies.com";
   const launcher=document.createElement("button");
