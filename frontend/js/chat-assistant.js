@@ -1,6 +1,5 @@
 (function(){
   // Keep Bethel's live public trading visibility immediately below the main hero.
-  // The existing broadcaster/MT5 scripts still control whether live data is available.
   const hero=document.querySelector(".hero");
   const publicBroadcast=document.getElementById("public-broadcast");
   const publicMt5=document.getElementById("public-live-mt5");
@@ -14,46 +13,110 @@
     });
   }
 
-  // Public-facing title for the read-only MT5 connector session.
   if(publicMt5){
     const heading=publicMt5.querySelector(".section-header h2");
     if(heading)heading.textContent="LIVE TRADE BROADCAST FROM BETHEL TERMINAL 1";
-  }
 
-  // Add clear performance context so visitors can interpret the live figures.
-  if(publicMt5){
-    const grid=publicMt5.querySelector(".live-mt5-grid");
-    if(grid){
-      const metrics=[
-        ["public-mt5-full-account","Account Number"],
-        ["public-mt5-trading-days","Trading Days"],
-        ["public-mt5-starting-balance","Starting Balance / Initial Capital"]
-      ];
-      metrics.forEach(([id,label])=>{
-        if(document.getElementById(id))return;
-        const card=document.createElement("div");
-        card.className="live-mt5-metric";
-        const small=document.createElement("small");small.textContent=label;
-        const strong=document.createElement("strong");strong.id=id;strong.textContent="—";
-        card.appendChild(small);card.appendChild(strong);grid.insertBefore(card,grid.firstChild);
-      });
-      const note=publicMt5.querySelector(".live-mt5-note");
-      if(note&&!document.getElementById("public-mt5-performance-note")){
-        const p=document.createElement("p");p.id="public-mt5-performance-note";p.className="live-mt5-note";p.textContent="Performance context is derived from Bethel's recorded master-account history. Starting balance represents the audited starting capital and trading days reflect recorded performance history.";
-        note.parentNode.insertBefore(p,note);
-      }
+    if(!document.getElementById("bethel-performance-showcase-style")){
+      const style=document.createElement("style");
+      style.id="bethel-performance-showcase-style";
+      style.textContent=`
+        .bethel-performance-showcase{margin:0 0 1.5rem;padding:1.4rem;border:1px solid rgba(16,185,129,.25);border-radius:18px;background:linear-gradient(180deg,rgba(16,185,129,.07),rgba(17,24,39,.88))}
+        .bethel-performance-kicker{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:#10b981;font-weight:700;margin-bottom:.35rem}
+        .bethel-performance-title{font-size:1.35rem;font-weight:700;margin-bottom:.35rem}
+        .bethel-performance-subtitle{color:var(--text-secondary);font-size:.9rem;margin-bottom:1.2rem}
+        .bethel-performance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:.8rem}
+        .bethel-performance-card{padding:1rem;border-radius:13px;border:1px solid var(--border-color);background:rgba(255,255,255,.025)}
+        .bethel-performance-card small{display:block;color:var(--text-secondary);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.35rem}
+        .bethel-performance-card strong{font-size:1.08rem;word-break:break-word}
+        .bethel-performance-card.primary strong{color:#10b981;font-size:1.2rem}
+        .bethel-history{margin-top:1.2rem;padding:1rem;border:1px solid var(--border-color);border-radius:14px;background:rgba(0,0,0,.12)}
+        .bethel-history-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap}
+        .bethel-history-head strong{font-size:.95rem}.bethel-history-legend{font-size:.76rem;color:var(--text-secondary)}
+        .bethel-history svg{display:block;width:100%;height:220px;overflow:visible}
+        .bethel-history-empty{color:var(--text-secondary);font-size:.9rem;padding:2rem 0;text-align:center}
+        .bethel-performance-method{margin:.9rem 0 0;color:var(--text-secondary);font-size:.76rem;line-height:1.5}
+      `;
+      document.head.appendChild(style);
     }
+
+    const shell=publicMt5.querySelector(".live-mt5-shell");
+    if(shell&&!document.getElementById("bethel-performance-showcase")){
+      const showcase=document.createElement("div");
+      showcase.id="bethel-performance-showcase";
+      showcase.className="bethel-performance-showcase";
+      showcase.innerHTML=`
+        <div class="bethel-performance-kicker">Public Performance Record</div>
+        <div class="bethel-performance-title">Verified Trading Performance Overview</div>
+        <div class="bethel-performance-subtitle">Read-only metrics derived from Bethel's active master-account history.</div>
+        <div class="bethel-performance-grid">
+          <div class="bethel-performance-card"><small>Account Number</small><strong id="perf-account">—</strong></div>
+          <div class="bethel-performance-card"><small>Starting Capital</small><strong id="perf-starting">—</strong></div>
+          <div class="bethel-performance-card"><small>Current Balance</small><strong id="perf-balance">—</strong></div>
+          <div class="bethel-performance-card"><small>Current Equity</small><strong id="perf-equity">—</strong></div>
+          <div class="bethel-performance-card primary"><small>Total Return</small><strong id="perf-return">—</strong></div>
+          <div class="bethel-performance-card"><small>Trading Days</small><strong id="perf-days">—</strong></div>
+          <div class="bethel-performance-card"><small>Total Trades</small><strong id="perf-trades">—</strong></div>
+          <div class="bethel-performance-card"><small>Win Rate</small><strong id="perf-win">—</strong></div>
+          <div class="bethel-performance-card"><small>Maximum Drawdown</small><strong id="perf-dd">—</strong></div>
+          <div class="bethel-performance-card"><small>Profit Factor</small><strong id="perf-pf">—</strong></div>
+        </div>
+        <div class="bethel-history">
+          <div class="bethel-history-head"><strong>Balance & Equity History</strong><span class="bethel-history-legend">Balance — Equity</span></div>
+          <div id="bethel-history-chart" class="bethel-history-empty">Loading recorded performance history…</div>
+        </div>
+        <p id="bethel-performance-method" class="bethel-performance-method">Performance information is read-only. Past performance does not guarantee future results.</p>
+      `;
+      const liveHeading=shell.querySelector(".live-mt5-heading");
+      if(liveHeading)liveHeading.insertAdjacentElement("afterend",showcase);else shell.prepend(showcase);
+    }
+
+    const perfSet=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value==null?"—":String(value)};
+    const perfMoney=(value,currency)=>{
+      if(value==null)return "—";
+      try{return new Intl.NumberFormat(undefined,{style:"currency",currency:currency||"USD",maximumFractionDigits:2}).format(Number(value))}
+      catch(_){return Number(value).toFixed(2)+" "+(currency||"USD")}
+    };
+    const pct=(value)=>value==null?"—":`${Number(value).toFixed(2)}%`;
+
+    function drawHistory(points){
+      const target=document.getElementById("bethel-history-chart");if(!target)return;
+      const clean=(points||[]).filter(p=>Number.isFinite(Number(p.balance))&&Number.isFinite(Number(p.equity)));
+      if(clean.length<2){target.className="bethel-history-empty";target.textContent="Historical chart will appear as recorded performance data accumulates.";return}
+      const W=900,H=220,pad=18;
+      const values=clean.flatMap(p=>[Number(p.balance),Number(p.equity)]);
+      let min=Math.min(...values),max=Math.max(...values);if(max===min){max+=1;min-=1}
+      const x=i=>pad+(i/(clean.length-1))*(W-pad*2);
+      const y=v=>H-pad-((v-min)/(max-min))*(H-pad*2);
+      const balance=clean.map((p,i)=>`${x(i).toFixed(1)},${y(Number(p.balance)).toFixed(1)}`).join(" ");
+      const equity=clean.map((p,i)=>`${x(i).toFixed(1)},${y(Number(p.equity)).toFixed(1)}`).join(" ");
+      target.className="";
+      target.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Balance and equity history"><line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="rgba(156,163,175,.25)"/><polyline points="${balance}" fill="none" stroke="#10b981" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${equity}" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/></svg>`;
+    }
+
     const loadPerformanceContext=async()=>{
       try{
-        const r=await fetch("https://api.betheltradingtechnologies.com/performance/public-summary?ts="+Date.now(),{cache:"no-store",headers:{Accept:"application/json"}});
-        if(!r.ok)throw new Error();
-        const d=await r.json();if(!d.available)return;
-        const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value==null?"—":String(value)};
-        set("public-mt5-full-account",d.account_number||"—");
-        set("public-mt5-trading-days",d.trading_days||0);
-        let initial="—";
-        if(d.starting_balance!=null){try{initial=new Intl.NumberFormat(undefined,{style:"currency",currency:d.currency||"USD",maximumFractionDigits:2}).format(Number(d.starting_balance))}catch(_){initial=Number(d.starting_balance).toFixed(2)+" "+(d.currency||"USD")}}
-        set("public-mt5-starting-balance",initial);
+        const [summaryResponse,historyResponse]=await Promise.all([
+          fetch("https://api.betheltradingtechnologies.com/performance/public-summary?ts="+Date.now(),{cache:"no-store",headers:{Accept:"application/json"}}),
+          fetch("https://api.betheltradingtechnologies.com/performance/public-history?ts="+Date.now(),{cache:"no-store",headers:{Accept:"application/json"}})
+        ]);
+        if(summaryResponse.ok){
+          const d=await summaryResponse.json();
+          if(d.available){
+            perfSet("perf-account",d.account_number||"—");
+            perfSet("perf-starting",perfMoney(d.starting_balance,d.currency));
+            perfSet("perf-balance",perfMoney(d.current_balance,d.currency));
+            perfSet("perf-equity",perfMoney(d.current_equity,d.currency));
+            perfSet("perf-return",pct(d.total_return_percent));
+            perfSet("perf-days",d.trading_days||0);
+            perfSet("perf-trades",d.total_trades||0);
+            perfSet("perf-win",pct(d.win_rate));
+            perfSet("perf-dd",pct(d.maximum_drawdown_percent));
+            perfSet("perf-pf",d.profit_factor==null?"—":Number(d.profit_factor).toFixed(2));
+            const method=document.getElementById("bethel-performance-method");if(method&&d.methodology)method.textContent=d.methodology+" Past performance does not guarantee future results.";
+          }
+        }
+        if(historyResponse.ok){const h=await historyResponse.json();if(h.available)drawHistory(h.points)}
       }catch(_){}
     };
     loadPerformanceContext();window.setInterval(loadPerformanceContext,60000);
