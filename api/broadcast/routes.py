@@ -115,20 +115,40 @@ def worker_config(_=Depends(worker_auth)):
     db=SessionLocal()
     try:return dump(ctl(db))
     finally:db.close()
+
+def _source_payload(db,reg,st,broadcast_enabled,selection):
+    pos=db.query(ConnectorPosition).filter(ConnectorPosition.connector_id==reg.connector_id).order_by(ConnectorPosition.observed_at.desc()).limit(8).all()
+    deals=db.query(ConnectorDeal).filter(ConnectorDeal.connector_id==reg.connector_id).order_by(ConnectorDeal.closed_at.desc()).limit(8).all()
+    age=max(0,int((now()-st.received_at).total_seconds()))
+    return {"enabled":bool(broadcast_enabled),"available":True,"read_only":True,"execution_owner":"METATRADER_EA","source_selection":selection,"terminal_registry_id":reg.id,"terminal_label":reg.label,"account_mode":st.mode,"currency":st.currency,"connection_status":"ONLINE" if age<=150 else "STALE","telemetry_age_seconds":age,"balance":st.balance,"equity":st.equity,"floating_profit":st.floating_profit,"open_position_count":len(pos),"positions":[{"symbol":p.symbol,"direction":p.direction,"volume":p.volume,"profit":p.profit} for p in pos],"recent_deals":[{"symbol":d.symbol,"direction":d.deal_type,"volume":d.volume,"profit":d.profit,"closed_at":d.closed_at.isoformat()+"Z" if d.closed_at else None} for d in deals]}
+
 @router.get('/worker/source')
 def worker_source(_=Depends(worker_auth)):
     db=SessionLocal()
     try:
         x=ctl(db)
-        if not x.enabled or not x.terminal_registry_id:return {"enabled":False,"read_only":True}
-        reg=db.query(MasterTerminalRegistry).filter(MasterTerminalRegistry.id==x.terminal_registry_id,MasterTerminalRegistry.active.is_(True),MasterTerminalRegistry.subscriber_id.is_(None)).first()
-        if reg is None: raise HTTPException(409,"Broadcast source unavailable")
-        st=db.query(ConnectorStatus).filter(ConnectorStatus.connector_id==reg.connector_id).first()
-        if st is None:return {"enabled":True,"available":False,"read_only":True}
-        pos=db.query(ConnectorPosition).filter(ConnectorPosition.connector_id==reg.connector_id).order_by(ConnectorPosition.observed_at.desc()).limit(8).all()
-        deals=db.query(ConnectorDeal).filter(ConnectorDeal.connector_id==reg.connector_id).order_by(ConnectorDeal.closed_at.desc()).limit(8).all()
-        age=max(0,int((now()-st.received_at).total_seconds()))
-        return {"enabled":True,"available":True,"read_only":True,"execution_owner":"METATRADER_EA","terminal_label":reg.label,"account_mode":st.mode,"currency":st.currency,"connection_status":"ONLINE" if age<=150 else "STALE","balance":st.balance,"equity":st.equity,"floating_profit":st.floating_profit,"open_position_count":len(pos),"positions":[{"symbol":p.symbol,"direction":p.direction,"volume":p.volume,"profit":p.profit} for p in pos],"recent_deals":[{"symbol":d.symbol,"direction":d.deal_type,"volume":d.volume,"profit":d.profit,"closed_at":d.closed_at.isoformat()+"Z" if d.closed_at else None} for d in deals]}
+        # Prefer the explicitly selected owner/master terminal, but do not require
+        # the public Broadcast Engine to be ON for private weekly media generation.
+        if x.terminal_registry_id:
+            reg=db.query(MasterTerminalRegistry).filter(MasterTerminalRegistry.id==x.terminal_registry_id,MasterTerminalRegistry.active.is_(True),MasterTerminalRegistry.subscriber_id.is_(None)).first()
+            if reg is not None:
+                st=db.query(ConnectorStatus).filter(ConnectorStatus.connector_id==reg.connector_id).first()
+                if st is not None:
+                    return _source_payload(db,reg,st,x.enabled,"CONFIGURED_OWNER_MASTER")
+
+        # If no configured source is usable, automatically use the freshest active
+        # owner/master terminal that has signed connector telemetry. Subscriber
+        # terminals remain excluded from all media generation.
+        regs=db.query(MasterTerminalRegistry).filter(MasterTerminalRegistry.active.is_(True),MasterTerminalRegistry.subscriber_id.is_(None)).all()
+        candidates=[]
+        for reg in regs:
+            st=db.query(ConnectorStatus).filter(ConnectorStatus.connector_id==reg.connector_id).first()
+            if st is not None and st.received_at is not None:
+                candidates.append((st.received_at,reg,st))
+        if not candidates:
+            return {"enabled":bool(x.enabled),"available":False,"read_only":True,"reason":"NO_OWNER_MASTER_TELEMETRY"}
+        _,reg,st=max(candidates,key=lambda item:item[0])
+        return _source_payload(db,reg,st,x.enabled,"AUTO_FRESHEST_OWNER_MASTER")
     finally:db.close()
 @router.post('/worker/heartbeat')
 def heartbeat(data:Heartbeat,_=Depends(worker_auth)):
