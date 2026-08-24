@@ -182,6 +182,26 @@ def _dashboard_values(data: dict) -> dict:
     return {key: data[key] for key in visible if key in data and data[key] is not None}
 
 
+@router.get("/public-summary")
+def public_performance_summary():
+    """Minimal read-only context for the public website live MT5 display."""
+    data = get_performance_analytics()
+    if not isinstance(data, dict) or data.get("status") != "success":
+        return {"available": False, "read_only": True}
+    account = str(data.get("master_account") or "").strip()
+    if not account:
+        return {"available": False, "read_only": True}
+    return {
+        "available": True,
+        "read_only": True,
+        "account_number": account,
+        "starting_balance": _round_metric(data.get("starting_capital")),
+        "trading_days": int(data.get("history_days") or 0),
+        "currency": data.get("currency") or "USD",
+        "methodology": "Starting balance is the audited starting capital; trading days reflect recorded performance history.",
+    }
+
+
 @router.get("/equity-history")
 def equity_history(request: Request, _admin=Depends(require_admin)):
     db = SessionLocal()
