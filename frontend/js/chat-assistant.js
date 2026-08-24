@@ -35,6 +35,13 @@
         .bethel-history-head strong{font-size:.95rem}.bethel-history-legend{font-size:.76rem;color:var(--text-secondary)}
         .bethel-history svg{display:block;width:100%;height:220px;overflow:visible}
         .bethel-history-empty{color:var(--text-secondary);font-size:.9rem;padding:2rem 0;text-align:center}
+        .bethel-monthly{margin-top:1.2rem;padding:1rem;border:1px solid var(--border-color);border-radius:14px;background:rgba(0,0,0,.12)}
+        .bethel-monthly-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;margin-bottom:.85rem;flex-wrap:wrap}
+        .bethel-monthly-head strong{font-size:.95rem}.bethel-monthly-head span{font-size:.76rem;color:var(--text-secondary)}
+        .bethel-monthly-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:.65rem}
+        .bethel-month-card{padding:.8rem;border-radius:11px;border:1px solid var(--border-color);background:rgba(255,255,255,.025);text-align:center}
+        .bethel-month-card small{display:block;color:var(--text-secondary);font-size:.72rem;margin-bottom:.25rem}
+        .bethel-month-card strong{font-size:1rem}.bethel-month-card.positive strong{color:#10b981}.bethel-month-card.negative strong{color:#f87171}.bethel-month-card.flat strong{color:#d1d5db}
         .bethel-performance-method{margin:.9rem 0 0;color:var(--text-secondary);font-size:.76rem;line-height:1.5}
       `;
       document.head.appendChild(style);
@@ -65,6 +72,10 @@
           <div class="bethel-history-head"><strong>Balance & Equity History</strong><span class="bethel-history-legend">Balance — Equity</span></div>
           <div id="bethel-history-chart" class="bethel-history-empty">Loading recorded performance history…</div>
         </div>
+        <div class="bethel-monthly">
+          <div class="bethel-monthly-head"><strong>Monthly Returns</strong><span>Recorded equity return by month</span></div>
+          <div id="bethel-monthly-grid" class="bethel-monthly-grid"><div class="bethel-history-empty">Loading monthly returns…</div></div>
+        </div>
         <p id="bethel-performance-method" class="bethel-performance-method">Performance information is read-only. Past performance does not guarantee future results.</p>
       `;
       const liveHeading=shell.querySelector(".live-mt5-heading");
@@ -94,6 +105,27 @@
       target.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Balance and equity history"><line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="rgba(156,163,175,.25)"/><polyline points="${balance}" fill="none" stroke="#10b981" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${equity}" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/></svg>`;
     }
 
+    function renderMonthlyReturns(points){
+      const target=document.getElementById("bethel-monthly-grid");if(!target)return;
+      const clean=(points||[]).filter(p=>p.timestamp&&Number.isFinite(Number(p.equity))).sort((a,b)=>new Date(a.timestamp)-new Date(b.timestamp));
+      if(clean.length<2){target.innerHTML='<div class="bethel-history-empty">Monthly returns will appear as recorded performance history accumulates.</div>';return}
+      const months=new Map();
+      clean.forEach(p=>{
+        const d=new Date(p.timestamp);if(Number.isNaN(d.getTime()))return;
+        const key=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`;
+        const existing=months.get(key);const equity=Number(p.equity);
+        if(!existing)months.set(key,{first:equity,last:equity});else existing.last=equity;
+      });
+      const rows=[...months.entries()].map(([month,v])=>({month,returnPercent:v.first?((v.last-v.first)/v.first)*100:null})).filter(r=>r.returnPercent!=null);
+      if(!rows.length){target.innerHTML='<div class="bethel-history-empty">Monthly returns are not yet available.</div>';return}
+      target.innerHTML=rows.map(r=>{
+        const [year,month]=r.month.split("-");
+        const label=new Date(Date.UTC(Number(year),Number(month)-1,1)).toLocaleDateString(undefined,{month:"short",year:"numeric",timeZone:"UTC"});
+        const n=Number(r.returnPercent);const cls=n>0?"positive":n<0?"negative":"flat";const sign=n>0?"+":"";
+        return `<div class="bethel-month-card ${cls}"><small>${label}</small><strong>${sign}${n.toFixed(2)}%</strong></div>`;
+      }).join("");
+    }
+
     const loadPerformanceContext=async()=>{
       try{
         const [summaryResponse,historyResponse]=await Promise.all([
@@ -116,7 +148,7 @@
             const method=document.getElementById("bethel-performance-method");if(method&&d.methodology)method.textContent=d.methodology+" Past performance does not guarantee future results.";
           }
         }
-        if(historyResponse.ok){const h=await historyResponse.json();if(h.available)drawHistory(h.points)}
+        if(historyResponse.ok){const h=await historyResponse.json();if(h.available){drawHistory(h.points);renderMonthlyReturns(h.points)}}
       }catch(_){}
     };
     loadPerformanceContext();window.setInterval(loadPerformanceContext,60000);
