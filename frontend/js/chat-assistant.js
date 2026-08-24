@@ -20,6 +20,45 @@
     if(heading)heading.textContent="LIVE TRADE BROADCAST FROM BETHEL TERMINAL 1";
   }
 
+  // Add clear performance context so visitors can interpret the live figures.
+  if(publicMt5){
+    const grid=publicMt5.querySelector(".live-mt5-grid");
+    if(grid){
+      const metrics=[
+        ["public-mt5-full-account","Account Number"],
+        ["public-mt5-trading-days","Trading Days"],
+        ["public-mt5-starting-balance","Starting Balance / Initial Capital"]
+      ];
+      metrics.forEach(([id,label])=>{
+        if(document.getElementById(id))return;
+        const card=document.createElement("div");
+        card.className="live-mt5-metric";
+        const small=document.createElement("small");small.textContent=label;
+        const strong=document.createElement("strong");strong.id=id;strong.textContent="—";
+        card.appendChild(small);card.appendChild(strong);grid.insertBefore(card,grid.firstChild);
+      });
+      const note=publicMt5.querySelector(".live-mt5-note");
+      if(note&&!document.getElementById("public-mt5-performance-note")){
+        const p=document.createElement("p");p.id="public-mt5-performance-note";p.className="live-mt5-note";p.textContent="Performance context is derived from Bethel's recorded master-account history. Starting balance represents the audited starting capital and trading days reflect recorded performance history.";
+        note.parentNode.insertBefore(p,note);
+      }
+    }
+    const loadPerformanceContext=async()=>{
+      try{
+        const r=await fetch("https://api.betheltradingtechnologies.com/performance/public-summary?ts="+Date.now(),{cache:"no-store",headers:{Accept:"application/json"}});
+        if(!r.ok)throw new Error();
+        const d=await r.json();if(!d.available)return;
+        const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value==null?"—":String(value)};
+        set("public-mt5-full-account",d.account_number||"—");
+        set("public-mt5-trading-days",d.trading_days||0);
+        let initial="—";
+        if(d.starting_balance!=null){try{initial=new Intl.NumberFormat(undefined,{style:"currency",currency:d.currency||"USD",maximumFractionDigits:2}).format(Number(d.starting_balance))}catch(_){initial=Number(d.starting_balance).toFixed(2)+" "+(d.currency||"USD")}}
+        set("public-mt5-starting-balance",initial);
+      }catch(_){}
+    };
+    loadPerformanceContext();window.setInterval(loadPerformanceContext,60000);
+  }
+
   const API="https://api.betheltradingtechnologies.com/public/assistant/chat";
   const SUPPORT="info@betheltradingtechnologies.com";
   const launcher=document.createElement("button");
