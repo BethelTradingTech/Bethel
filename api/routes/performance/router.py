@@ -37,6 +37,11 @@ def _round_metric(value, digits: int = 2):
         return None
 
 
+def _mask_account(value: str) -> str:
+    value = str(value or "")
+    return ("•" * max(0, len(value) - 4)) + value[-4:]
+
+
 def _apply_fxblue_total_return(data: dict) -> dict:
     if data.get("status") != "success":
         return data
@@ -184,8 +189,9 @@ def _dashboard_values(data: dict) -> dict:
 
 @router.get("/public-summary")
 def public_performance_summary():
-    """Minimal read-only context for the public website live MT5 display."""
-    data = get_performance_analytics()
+    """Sanitized read-only performance context for the public website."""
+    data = _apply_fxblue_total_return(get_performance_analytics())
+    data = _apply_account_risk_profile(data)
     if not isinstance(data, dict) or data.get("status") != "success":
         return {"available": False, "read_only": True}
     account = str(data.get("master_account") or "").strip()
@@ -194,12 +200,50 @@ def public_performance_summary():
     return {
         "available": True,
         "read_only": True,
-        "account_number": account,
+        "account_number": _mask_account(account),
         "starting_balance": _round_metric(data.get("starting_capital")),
+        "current_balance": _round_metric(data.get("current_balance")),
+        "current_equity": _round_metric(data.get("current_equity")),
+        "total_return_percent": _round_metric(data.get("total_return_percent")),
         "trading_days": int(data.get("history_days") or 0),
+        "total_trades": int(data.get("total_trades") or 0),
+        "win_rate": _round_metric(data.get("win_rate")),
+        "maximum_drawdown_percent": _round_metric(data.get("maximum_drawdown_percent")),
+        "profit_factor": _round_metric(data.get("profit_factor")),
         "currency": data.get("currency") or "USD",
-        "methodology": "Starting balance is the audited starting capital; trading days reflect recorded performance history.",
+        "methodology": "Read-only performance values are derived from Bethel's recorded active-master history and analytics engine.",
     }
+
+
+@router.get("/public-history")
+def public_performance_history():
+    """Sanitized active-master balance/equity history for the public chart."""
+    account = _active_master_account()
+    if not account:
+        return {"available": False, "read_only": True, "points": []}
+    db = SessionLocal()
+    try:
+        rows = db.query(EquitySnapshot).filter(
+            EquitySnapshot.account_number == account
+        ).order_by(EquitySnapshot.timestamp.asc()).all()
+        if not rows:
+            return {"available": False, "read_only": True, "points": []}
+        max_points = 120
+        step = max(1, len(rows) // max_points)
+        sampled = rows[::step]
+        if sampled[-1].id != rows[-1].id:
+            sampled.append(rows[-1])
+        points = [
+            {
+                "timestamp": row.timestamp.isoformat() + "Z" if row.timestamp else None,
+                "balance": _round_metric(row.balance),
+                "equity": _round_metric(row.equity),
+            }
+            for row in sampled[-max_points:]
+        ]
+        return {"available": True, "read_only": True, "points": points}
+    finally:
+        db.close()
 
 
 @router.get("/equity-history")
