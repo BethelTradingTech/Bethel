@@ -25,15 +25,6 @@
     if (!Number.isFinite(n)) return "—";
     return `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`;
   };
-  const fmtMoney = (value, currency) => {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return "—";
-    try {
-      return new Intl.NumberFormat(undefined, {style:"currency", currency: currency || "USD", maximumFractionDigits:2}).format(n);
-    } catch (_) {
-      return `${n.toFixed(2)} ${currency || "USD"}`;
-    }
-  };
   const fmtDate = (value) => {
     if (!value) return "—";
     const d = new Date(`${value}T00:00:00Z`);
@@ -72,19 +63,9 @@
             <div class="track-card"><small>All-time high return</small><strong id="track-ath">—</strong><span class="track-sub" id="track-ath-date">—</span></div>
             <div class="track-card"><small>History</small><strong id="track-history-days">—</strong><span class="track-sub" id="track-history-range">—</span></div>
           </div>
-          <div class="track-panel">
-            <h3>Balance & Equity History</h3>
-            <div id="track-chart-container" class="track-chart-empty">Loading history…</div>
-          </div>
-          <div class="track-panel">
-            <h3>Monthly Returns</h3>
-            <div id="track-monthly" class="track-table-wrap"><span class="track-history-label">Awaiting reconciled monthly history…</span></div>
-          </div>
-          <div class="track-panel track-method">
-            <strong>Methodology & provenance</strong><br>
-            <span id="track-methodology">—</span><br><br>
-            Account credentials, broker secrets, order tickets and execution controls are never published. Past performance does not guarantee future results.
-          </div>
+          <div class="track-panel"><h3>Balance & Equity History</h3><div id="track-chart-container" class="track-chart-empty">Loading history…</div></div>
+          <div class="track-panel"><h3>Monthly Returns</h3><div id="track-monthly" class="track-table-wrap"><span class="track-history-label">Awaiting reconciled monthly history…</span></div></div>
+          <div class="track-panel track-method"><strong>Methodology & provenance</strong><br><span id="track-methodology">—</span><br><br>Account credentials, broker secrets, order tickets and execution controls are never published. Past performance does not guarantee future results.</div>
         </div>
       </div>`;
   }
@@ -153,6 +134,8 @@
 
   function attachLiveStrip(data) {
     if (!liveSection || !data || !data.available) return;
+    const legacyShowcase = document.getElementById("bethel-performance-showcase");
+    if (legacyShowcase) legacyShowcase.remove();
     let strip = document.getElementById("public-track-live-strip");
     if (!strip) {
       strip = document.createElement("div");
@@ -162,12 +145,7 @@
       if (shell) shell.appendChild(strip);
     }
     if (!strip) return;
-    strip.innerHTML = `
-      <div class="track-live-item"><small>Track Return</small><strong>${fmtSignedPercent(data.total_return_percent)}</strong></div>
-      <div class="track-live-item"><small>Max Drawdown</small><strong>${fmtPercent(data.maximum_drawdown_percent)}</strong></div>
-      <div class="track-live-item"><small>Sharpe</small><strong>${fmtNumber(data.sharpe_ratio)}</strong></div>
-      <div class="track-live-item"><small>Sortino</small><strong>${fmtNumber(data.sortino_ratio)}</strong></div>
-      <div class="track-live-item"><small>Ledger Status</small><strong>${String(data.verification_status || "READ ONLY")}</strong></div>`;
+    strip.innerHTML = `<div class="track-live-item"><small>Track Return</small><strong>${fmtSignedPercent(data.total_return_percent)}</strong></div><div class="track-live-item"><small>Max Drawdown</small><strong>${fmtPercent(data.maximum_drawdown_percent)}</strong></div><div class="track-live-item"><small>Sharpe</small><strong>${fmtNumber(data.sharpe_ratio)}</strong></div><div class="track-live-item"><small>Sortino</small><strong>${fmtNumber(data.sortino_ratio)}</strong></div><div class="track-live-item"><small>Ledger Status</small><strong>${String(data.verification_status || "READ ONLY")}</strong></div>`;
   }
 
   async function load() {
@@ -214,6 +192,8 @@
     }
   }
 
-  load();
-  window.setInterval(load, 60000);
+  window.addEventListener("load", function () {
+    load();
+    window.setInterval(load, 60000);
+  }, {once:true});
 })();
