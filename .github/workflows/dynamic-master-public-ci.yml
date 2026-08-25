@@ -1,0 +1,37 @@
+name: Dynamic Master Public CI
+
+on:
+  pull_request:
+    paths:
+      - "api/services/master_account.py"
+      - "frontend/js/verified-track-record.js"
+      - "scripts/dynamic_master_public_gate.py"
+      - ".github/workflows/dynamic-master-public-ci.yml"
+  push:
+    branches: [main, "fix/**"]
+    paths:
+      - "api/services/master_account.py"
+      - "frontend/js/verified-track-record.js"
+      - "scripts/dynamic_master_public_gate.py"
+      - ".github/workflows/dynamic-master-public-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dynamic-master-public:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate dynamic master contract
+        run: python scripts/dynamic_master_public_gate.py
+      - name: Compile master resolver
+        run: python -m py_compile api/services/master_account.py
+      - name: Check public track-record JavaScript syntax
+        run: node --check frontend/js/verified-track-record.js
