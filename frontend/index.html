@@ -617,19 +617,11 @@
 
     <section id="performance">
         <div class="section-header">
-            <h2>Verified Performance</h2>
-            <p>Complete mathematical transparency. Track our active results live on third-party verification hubs.</p>
+            <h2>Verified Track Record</h2>
+            <p>Read-only performance from Bethel's active-master records, with reconciled risk analytics derived from signed trading history.</p>
         </div>
         <div class="performance-box">
-            <p>Performance reporting is independently verified through premium third-party tracking portals.</p>
-            <div class="platforms-container">
-                <a href="https://www.myfxbook.com" target="_blank" class="platform-link">
-                    <i class="fa-solid fa-chart-line"></i> Verify via Myfxbook <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.8rem;"></i>
-                </a>
-                <a href="https://www.fxblue.com" target="_blank" class="platform-link">
-                    <i class="fa-solid fa-shield-halved"></i> Verify via FX Blue <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.8rem;"></i>
-                </a>
-            </div>
+            <p>Loading Bethel's reconciled read-only performance record…</p>
         </div>
     </section>
 
@@ -748,6 +740,7 @@
 <script>
 (function(){const API="https://api.betheltradingtechnologies.com",section=document.getElementById("public-broadcast"),video=document.getElementById("public-broadcast-video");if(!section||!video)return;let hls=null,current=null;function stop(){section.style.display="none";video.pause();video.removeAttribute("src");video.load();if(hls){hls.destroy();hls=null}current=null}function play(url){if(!url)return stop();section.style.display="block";if(current===url)return;current=url;if(hls){hls.destroy();hls=null}if(video.canPlayType("application/vnd.apple.mpegurl")){video.src=url;video.play().catch(()=>{})}else if(window.Hls&&Hls.isSupported()){hls=new Hls({liveSyncDurationCount:3});hls.loadSource(url);hls.attachMedia(video);hls.on(Hls.Events.MANIFEST_PARSED,()=>video.play().catch(()=>{}));hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal)stop()})}else stop()}async function refresh(){try{const r=await fetch(API+"/broadcast/v1/public/status?ts="+Date.now(),{cache:"no-store",headers:{Accept:"application/json"}});if(!r.ok)throw new Error();const d=await r.json();if(d.enabled&&d.hls_url)play(d.hls_url);else stop()}catch(_){stop()}}refresh();setInterval(refresh,5000)})();
 </script>
+    <script src="js/verified-track-record.js?v=1" defer></script>
     <script src="js/chat-assistant.js?v=1" defer></script>
 </body>
 </html>
