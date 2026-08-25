@@ -189,7 +189,7 @@ def _dashboard_values(data: dict) -> dict:
 
 @router.get("/public-summary")
 def public_performance_summary():
-    """Sanitized read-only performance context for the public website."""
+    """Sanitized read-only track record for the public website and live display."""
     data = _apply_fxblue_total_return(get_performance_analytics())
     data = _apply_account_risk_profile(data)
     if not isinstance(data, dict) or data.get("status") != "success":
@@ -197,21 +197,50 @@ def public_performance_summary():
     account = str(data.get("master_account") or "").strip()
     if not account:
         return {"available": False, "read_only": True}
+
+    try:
+        profile = get_account_risk_profile(account)
+    except Exception:
+        profile = {"status": "not_available"}
+    profile_available = profile.get("status") == "available"
+
     return {
         "available": True,
         "read_only": True,
+        "verification_status": "RECONCILED" if profile_available else "PERFORMANCE DATA AVAILABLE",
+        "verification_scope": "Bethel signed active-master ledger" if profile_available else "Bethel recorded active-master history",
         "account_number": _mask_account(account),
         "starting_balance": _round_metric(data.get("starting_capital")),
         "current_balance": _round_metric(data.get("current_balance")),
         "current_equity": _round_metric(data.get("current_equity")),
         "total_return_percent": _round_metric(data.get("total_return_percent")),
-        "trading_days": int(data.get("history_days") or 0),
+        "annualized_return_percent": _round_metric(profile.get("annualized_return_percent")) if profile_available else None,
+        "trading_days": int(profile.get("trading_days") or data.get("history_days") or 0),
+        "history_weekdays": int(profile.get("history_weekdays") or 0) if profile_available else None,
+        "history_start": profile.get("history_start") if profile_available else None,
+        "history_end": profile.get("history_end") if profile_available else None,
         "total_trades": int(data.get("total_trades") or 0),
+        "closed_deals": int(profile.get("closed_deals") or 0) if profile_available else None,
         "win_rate": _round_metric(data.get("win_rate")),
         "maximum_drawdown_percent": _round_metric(data.get("maximum_drawdown_percent")),
+        "current_drawdown_percent": _round_metric(profile.get("current_drawdown_percent")) if profile_available else None,
         "profit_factor": _round_metric(data.get("profit_factor")),
+        "annualized_volatility_percent": _round_metric(profile.get("annualized_volatility_percent")) if profile_available else _round_metric(data.get("volatility")),
+        "sharpe_ratio": _round_metric(profile.get("sharpe_ratio")) if profile_available else _round_metric(data.get("sharpe_ratio")),
+        "sortino_ratio": _round_metric(profile.get("sortino_ratio")) if profile_available else _round_metric(data.get("sortino_ratio")),
+        "consistency_score": _round_metric(profile.get("consistency_score")) if profile_available else _round_metric(data.get("consistency_score")),
+        "risk_level": profile.get("risk_level") if profile_available else data.get("risk_level"),
+        "performance_grade": profile.get("performance_grade") if profile_available else data.get("performance_grade"),
+        "all_time_high_return_percent": _round_metric(profile.get("all_time_high_return_percent")) if profile_available else None,
+        "all_time_high_date": profile.get("all_time_high_date") if profile_available else None,
+        "days_since_all_time_high": int(profile.get("days_since_all_time_high") or 0) if profile_available else None,
+        "worst_day_percent": _round_metric(profile.get("worst_day_percent")) if profile_available else None,
+        "worst_week_percent": _round_metric(profile.get("worst_week_percent")) if profile_available else None,
+        "worst_month_percent": _round_metric(profile.get("worst_month_percent")) if profile_available else None,
+        "monthly_returns": profile.get("monthly_returns", []) if profile_available else [],
+        "yearly_returns": profile.get("yearly_returns", []) if profile_available else [],
         "currency": data.get("currency") or "USD",
-        "methodology": "Read-only performance values are derived from Bethel's recorded active-master history and analytics engine.",
+        "methodology": "Cash-flow-neutral risk statistics are reconstructed from signed active-master deals and cash flows and are published read-only only after ledger reconciliation. Total return may incorporate the configured FX Blue banked-return reconciliation when available.",
     }
 
 
