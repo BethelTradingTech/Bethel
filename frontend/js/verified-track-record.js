@@ -11,6 +11,7 @@
 
   const style = document.createElement("style");
   style.textContent = `
+    #public-broadcast,#public-live-mt5{display:none!important}
     .unified-live-shell{display:grid;gap:1.1rem}
     .unified-live-title{text-align:center;margin-bottom:1rem}
     .unified-live-title h2{font-size:2.25rem;margin-bottom:.5rem}
@@ -50,8 +51,9 @@
   };
   const fmtDate = (value) => {
     if (!value) return "—";
-    const d = new Date(`${value}T00:00:00Z`);
-    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"});
+    const raw = String(value);
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00Z` : raw);
+    return Number.isNaN(d.getTime()) ? raw : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"});
   };
   function setText(id, value) {
     const el = document.getElementById(id);
@@ -110,7 +112,7 @@
     const clean = (Array.isArray(points) ? points : []).filter(p => Number.isFinite(Number(p.equity)) && Number.isFinite(Number(p.balance)));
     if (clean.length < 2) {
       container.className = "track-chart-empty";
-      container.textContent = "Not enough history to draw the chart yet.";
+      container.textContent = clean.length === 1 ? "One verified history point is available; a chart requires at least two points." : "Verified balance/equity history is not yet available.";
       return;
     }
     const width = 1000, height = 220, pad = 16;
@@ -169,13 +171,20 @@
     return data;
   }
 
+  async function fetchHistory() {
+    const response = await fetch(`${API}/performance/public-history?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}});
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data && Array.isArray(data.points) ? data.points : [];
+  }
+
   async function load() {
     if (loading) return;
     loading = true;
     try {
-      const data = await fetchSummary();
+      const [data, history] = await Promise.all([fetchSummary(), fetchHistory()]);
       setText("track-verification", `${String(data.verification_status || "VERIFIED").toUpperCase()} RECORD`);
-      setText("track-account", `Bethel Terminal 1 · ${data.account_mask || "masked"}`);
+      setText("track-account", `Bethel Terminal 1 · ${data.account_number || "masked"}`);
       setText("track-total-return", fmtSignedPercent(data.total_return_percent));
       setText("track-annualized-return", fmtSignedPercent(data.annualized_return_percent));
       setText("track-max-dd", fmtPercent(data.maximum_drawdown_percent));
@@ -183,17 +192,17 @@
       setText("track-sharpe", fmtNumber(data.sharpe_ratio));
       setText("track-sortino", fmtNumber(data.sortino_ratio));
       setText("track-volatility", fmtPercent(data.annualized_volatility_percent));
-      setText("track-winrate", fmtPercent(data.win_rate_percent));
-      setText("track-trades", `${Number(data.closed_trades || 0)} closed trades`);
+      setText("track-winrate", fmtPercent(data.win_rate));
+      setText("track-trades", `${Number(data.closed_deals ?? data.total_trades ?? 0)} closed trades`);
       setText("track-profit-factor", fmtNumber(data.profit_factor));
       setText("track-grade", data.performance_grade || "—");
       setText("track-risk", `Risk ${data.risk_level || "—"}`);
       setText("track-ath", fmtSignedPercent(data.all_time_high_return_percent));
       setText("track-ath-date", fmtDate(data.all_time_high_date));
-      setText("track-history-days", `${Number(data.history_days || 0)} days`);
+      setText("track-history-days", `${Number(data.trading_days ?? data.history_weekdays ?? 0)} days`);
       setText("track-history-range", `${fmtDate(data.history_start)} — ${fmtDate(data.history_end)}`);
       setText("track-methodology", data.methodology || "Read-only signed active-master snapshots and reconciled closed-trade history.");
-      renderChart(data.history || []);
+      renderChart(history);
       renderMonthly(data.monthly_returns || []);
       const loadingEl = document.getElementById("track-loading");
       const contentEl = document.getElementById("track-content");
