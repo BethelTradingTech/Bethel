@@ -72,6 +72,80 @@ def _group_compounded(daily: list[DailyReturn], key_fn) -> list[float]:
     return [_compound(grouped[key]) for key in sorted(grouped)]
 
 
+def _labeled_period_returns(daily: list[DailyReturn], key_fn, label_fn) -> list[dict]:
+    """Return chronologically labelled cash-flow-neutral compounded periods."""
+    grouped: dict[object, list[float]] = defaultdict(list)
+    for row in daily:
+        grouped[key_fn(row.day)].append(row.value)
+    return [
+        {
+            "period": label_fn(key),
+            "return_percent": round(_compound(grouped[key]) * 100.0, 4),
+        }
+        for key in sorted(grouped)
+    ]
+
+
+def _track_record_stats(daily: list[DailyReturn]) -> dict:
+    """Derived public track-record statistics from the reconciled daily series."""
+    if not daily:
+        return {
+            "annualized_return_percent": 0.0,
+            "all_time_high_return_percent": 0.0,
+            "all_time_high_date": None,
+            "days_since_all_time_high": 0,
+            "current_drawdown_percent": 0.0,
+            "monthly_returns": [],
+            "yearly_returns": [],
+        }
+
+    values = np.asarray([row.value for row in daily], dtype=float)
+    if len(values) == 0 or not np.all(np.isfinite(values)) or np.any(values <= -1.0):
+        return {
+            "annualized_return_percent": 0.0,
+            "all_time_high_return_percent": 0.0,
+            "all_time_high_date": None,
+            "days_since_all_time_high": 0,
+            "current_drawdown_percent": 0.0,
+            "monthly_returns": [],
+            "yearly_returns": [],
+        }
+
+    curve = np.cumprod(1.0 + values)
+    peak_curve = np.maximum.accumulate(curve)
+    peak_index = int(np.argmax(curve))
+    total_factor = float(curve[-1])
+    annualized_factor = total_factor ** (TRADING_DAYS_PER_YEAR / len(values))
+    annualized_return = (annualized_factor - 1.0) * 100.0
+    current_drawdown = (
+        ((float(curve[-1]) / float(peak_curve[-1])) - 1.0) * 100.0
+        if float(peak_curve[-1]) > 0
+        else 0.0
+    )
+    ath_date = daily[peak_index].day
+
+    monthly_returns = _labeled_period_returns(
+        daily,
+        lambda d: (d.year, d.month),
+        lambda key: f"{key[0]:04d}-{key[1]:02d}",
+    )
+    yearly_returns = _labeled_period_returns(
+        daily,
+        lambda d: d.year,
+        lambda key: str(key),
+    )
+
+    return {
+        "annualized_return_percent": round(annualized_return, 4),
+        "all_time_high_return_percent": round((float(curve[peak_index]) - 1.0) * 100.0, 4),
+        "all_time_high_date": ath_date.isoformat(),
+        "days_since_all_time_high": max(0, int((daily[-1].day - ath_date).days)),
+        "current_drawdown_percent": round(current_drawdown, 4),
+        "monthly_returns": monthly_returns,
+        "yearly_returns": yearly_returns,
+    }
+
+
 def _weekday_range(start_day, end_day):
     day = start_day
     while day <= end_day:
@@ -250,6 +324,7 @@ def get_account_risk_profile(account_number: str) -> dict:
         worst_month = float(min(monthly)) * 100.0 if monthly else worst_week
         trade_days = sum(1 for row in daily if daily_trade_count[row.day] > 0)
         consistency_score = _profit_distribution_consistency(values)
+        track_record = _track_record_stats(daily)
 
         tail_5 = abs(float(np.percentile(values, 5))) * 100.0
         raw_pressure = (
@@ -288,11 +363,18 @@ def get_account_risk_profile(account_number: str) -> dict:
             "reconciliation_gap": round(reconciliation_gap, 6),
             "reconciliation_tolerance": round(tolerance, 6),
             "total_realized_return_percent": round(total_return, 4),
+            "annualized_return_percent": track_record["annualized_return_percent"],
             "annualized_volatility_percent": round(annualized_volatility, 4),
             "risk_reward_ratio": round(sharpe, 4),
             "sharpe_ratio": round(sharpe, 4),
             "sortino_ratio": round(sortino, 4),
             "deepest_valley_percent": round(deepest_valley, 4),
+            "current_drawdown_percent": track_record["current_drawdown_percent"],
+            "all_time_high_return_percent": track_record["all_time_high_return_percent"],
+            "all_time_high_date": track_record["all_time_high_date"],
+            "days_since_all_time_high": track_record["days_since_all_time_high"],
+            "monthly_returns": track_record["monthly_returns"],
+            "yearly_returns": track_record["yearly_returns"],
             "worst_day_percent": round(worst_day, 4),
             "worst_week_percent": round(worst_week, 4),
             "worst_month_percent": round(worst_month, 4),
