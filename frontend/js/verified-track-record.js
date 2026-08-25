@@ -8,6 +8,7 @@
   if (!performanceSection) return;
 
   let loading = false;
+  let visibilityLoading = false;
 
   const style = document.createElement("style");
   style.textContent = `
@@ -31,6 +32,7 @@
     .unified-live-panel .public-broadcast-shell,.unified-live-panel .live-mt5-shell{max-width:none;margin:0;width:100%}
     .unified-live-panel .public-broadcast-shell{border:1px solid rgba(16,185,129,.35);box-shadow:none}
     .unified-live-panel .live-mt5-shell{padding:1rem}
+    #broadcast-slot[hidden],#telemetry-slot[hidden]{display:none!important}
     @media(max-width:600px){.track-card strong{font-size:1.02rem}.track-chart{height:180px}}
   `;
   document.head.appendChild(style);
@@ -68,8 +70,8 @@
         <p>One verified display combining the original live Bethel Terminal 1 broadcast, read-only MT5 telemetry and reconciled performance analytics for the same active master account.</p>
       </div>
       <div id="unified-live-panel" class="unified-live-panel">
-        <div id="broadcast-slot"></div>
-        <div id="telemetry-slot"></div>
+        <div id="broadcast-slot" hidden></div>
+        <div id="telemetry-slot" hidden></div>
         <div class="track-topbar">
           <span id="track-verification" class="track-verified"><span class="track-dot"></span> CHECKING RECORD</span>
           <span id="track-account" class="track-account">Active master · masked</span>
@@ -102,6 +104,41 @@
     if (liveShell && telemetrySlot) telemetrySlot.appendChild(liveShell);
     if (broadcastSection) broadcastSection.style.display = "none";
     if (liveSection) liveSection.style.display = "none";
+  }
+
+  async function refreshSuperAdminVisibility() {
+    if (visibilityLoading) return;
+    visibilityLoading = true;
+    const broadcastSlot = document.getElementById("broadcast-slot");
+    const telemetrySlot = document.getElementById("telemetry-slot");
+    if (!broadcastSlot || !telemetrySlot) { visibilityLoading = false; return; }
+
+    // Fail closed: public video/telemetry remain hidden unless the public endpoints
+    // explicitly confirm that Super Admin has enabled them.
+    broadcastSlot.hidden = true;
+    telemetrySlot.hidden = true;
+
+    try {
+      const [broadcastResult, telemetryResult] = await Promise.allSettled([
+        fetch(`${API}/broadcast/v1/public/status?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}}),
+        fetch(`${API}/connector/v1/public/live?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}})
+      ]);
+
+      if (broadcastResult.status === "fulfilled" && broadcastResult.value.ok) {
+        const config = await broadcastResult.value.json();
+        broadcastSlot.hidden = config.enabled !== true;
+      }
+
+      if (telemetryResult.status === "fulfilled" && telemetryResult.value.ok) {
+        const config = await telemetryResult.value.json();
+        telemetrySlot.hidden = config.enabled !== true;
+      }
+    } catch (_) {
+      broadcastSlot.hidden = true;
+      telemetrySlot.hidden = true;
+    } finally {
+      visibilityLoading = false;
+    }
   }
 
   function renderChart(points) {
@@ -208,6 +245,8 @@
   }
 
   buildUnifiedDisplay();
+  refreshSuperAdminVisibility();
   load();
+  setInterval(refreshSuperAdminVisibility, 3000);
   setInterval(load, 60000);
 })();
