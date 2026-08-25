@@ -5,8 +5,18 @@ from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
 from api.database import Base
 
 
+# These models are imported by both the main application loader and the isolated
+# Render payment-route loader. In some startup paths Python can re-execute this
+# module after a partially failed optional integration import. SQLAlchemy would
+# otherwise raise "Table ... is already defined for this MetaData instance" and
+# prevent Binance Pay and promotion routes from mounting. extend_existing keeps
+# the declarations idempotent while preserving the same shared metadata/tables.
+_IDEMPOTENT_TABLE = {"extend_existing": True}
+
+
 class PaymentAudit(Base):
     __tablename__ = "payment_audit"
+    __table_args__ = _IDEMPOTENT_TABLE
 
     id = Column(Integer, primary_key=True, index=True)
     method = Column(String(20), nullable=False, index=True)
@@ -22,6 +32,7 @@ class PaymentAudit(Base):
 
 class PromoCode(Base):
     __tablename__ = "promo_codes"
+    __table_args__ = _IDEMPOTENT_TABLE
 
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(40), nullable=False, unique=True, index=True)
@@ -49,6 +60,7 @@ class PromoCode(Base):
 
 class PromoRedemption(Base):
     __tablename__ = "promo_redemptions"
+    __table_args__ = _IDEMPOTENT_TABLE
 
     id = Column(Integer, primary_key=True, index=True)
     promo_code_id = Column(Integer, nullable=False, index=True)
