@@ -11,7 +11,7 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    #public-broadcast,#public-live-mt5{display:none!important}
+    #public-broadcast,#public-live-mt5{display:none!important;padding:0!important;margin:0!important;height:0!important;min-height:0!important;overflow:hidden!important}
     .unified-live-shell{display:grid;gap:1.1rem}
     .unified-live-title{text-align:center;margin-bottom:1rem}
     .unified-live-title h2{font-size:2.25rem;margin-bottom:.5rem}
@@ -32,6 +32,7 @@
     .unified-live-panel .public-broadcast-shell,.unified-live-panel .live-mt5-shell{max-width:none;margin:0;width:100%}
     .unified-live-panel .public-broadcast-shell{border:1px solid rgba(16,185,129,.35);box-shadow:none}
     .unified-live-panel .live-mt5-shell{padding:1rem}
+    #broadcast-slot[hidden],#telemetry-slot[hidden]{display:none!important}
     @media(max-width:600px){.track-card strong{font-size:1.02rem}.track-chart{height:180px}}
   `;
   document.head.appendChild(style);
@@ -70,8 +71,8 @@
         <p>One verified display combining the original live Bethel Terminal 1 broadcast, read-only MT5 telemetry and reconciled performance analytics for the same active master account.</p>
       </div>
       <div id="unified-live-panel" class="unified-live-panel">
-        <div id="broadcast-slot"></div>
-        <div id="telemetry-slot"></div>
+        <div id="broadcast-slot" hidden></div>
+        <div id="telemetry-slot" hidden></div>
         <div class="track-topbar">
           <span id="track-verification" class="track-verified"><span class="track-dot"></span> CHECKING RECORD</span>
           <span id="track-account" class="track-account">Active master · masked</span>
@@ -102,8 +103,11 @@
     const telemetrySlot = document.getElementById("telemetry-slot");
     if (broadcastShell && broadcastSlot) broadcastSlot.appendChild(broadcastShell);
     if (liveShell && telemetrySlot) telemetrySlot.appendChild(liveShell);
-    if (broadcastSection) broadcastSection.style.display = "none";
-    if (liveSection) liveSection.style.display = "none";
+
+    // The old wrappers contain only legacy headings after their working shells are moved.
+    // Remove those wrappers entirely so their polling scripts cannot create duplicate page sections.
+    if (broadcastSection && broadcastSection.isConnected) broadcastSection.remove();
+    if (liveSection && liveSection.isConnected) liveSection.remove();
   }
 
   function renderChart(points) {
@@ -178,6 +182,25 @@
     return data && Array.isArray(data.points) ? data.points : [];
   }
 
+  async function syncPublicVisibility() {
+    const broadcastSlot = document.getElementById("broadcast-slot");
+    const telemetrySlot = document.getElementById("telemetry-slot");
+    try {
+      const [broadcastResponse, telemetryResponse] = await Promise.all([
+        fetch(`${API}/broadcast/v1/public/status?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}}),
+        fetch(`${API}/connector/v1/public/live?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}})
+      ]);
+      const broadcast = broadcastResponse.ok ? await broadcastResponse.json() : null;
+      const telemetry = telemetryResponse.ok ? await telemetryResponse.json() : null;
+      if (broadcastSlot) broadcastSlot.hidden = !(broadcast && broadcast.enabled && broadcast.hls_url);
+      if (telemetrySlot) telemetrySlot.hidden = !(telemetry && telemetry.enabled);
+    } catch (_) {
+      // Fail closed: public video/telemetry stay hidden when their control state cannot be verified.
+      if (broadcastSlot) broadcastSlot.hidden = true;
+      if (telemetrySlot) telemetrySlot.hidden = true;
+    }
+  }
+
   async function load() {
     if (loading) return;
     loading = true;
@@ -217,6 +240,8 @@
   }
 
   buildUnifiedDisplay();
+  syncPublicVisibility();
   load();
+  setInterval(syncPublicVisibility, 5000);
   setInterval(load, 60000);
 })();
