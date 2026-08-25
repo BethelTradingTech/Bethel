@@ -8,19 +8,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Bethel Investor">
-    <title>Bethel Trading | Investor & Partner Portal</title>
-    <meta name="description" content="Explore Bethel Trading Technologies' sanitized read-only active-master performance. Authenticated investors retain access to their private assigned-account dashboards.">
+    <title>Bethel Trading | Institutional Dashboard</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/app-icon.svg">
     <link rel="stylesheet" href="css/investor.css?v=7">
-    <style>
-        .public-explorer-notice{margin:0 auto 1.5rem;max-width:1200px;padding:1rem 1.25rem;border:1px solid rgba(16,185,129,.35);border-radius:12px;background:rgba(16,185,129,.08);color:#d1fae5;line-height:1.55}.public-explorer-notice strong{color:#a7f3d0}.public-explorer-notice a{color:#a7f3d0;font-weight:700}.chart-container svg{min-height:220px}.chart-container p{color:#9ca3af}.public-access-links{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.8rem}.public-access-links a{display:inline-flex;padding:.55rem .8rem;border-radius:8px;text-decoration:none;background:#10b981;color:#03140f;font-weight:700}.public-access-links a.secondary{background:transparent;color:#a7f3d0;border:1px solid rgba(16,185,129,.4)}
-    </style>
 </head>
 <body>
 
 <div class="dashboard-wrapper">
+    <!-- Top Nav / Header -->
     <header class="top-nav">
         <div class="brand">
             <img class="portal-logo" src="https://betheltradingtechnologies.com/assets/images/bethel-logo.png?v=20260730" alt="Bethel Trading Technologies logo">
@@ -29,27 +26,20 @@
         <div class="system-status">
             <span>Status:</span> <strong id="status">CONNECTING...</strong>
             <button id="install-app-button" type="button" hidden>Install app</button>
-            <button id="logout-button" type="button">Investor Sign In</button>
+            <button id="logout-button" type="button">Log out</button>
         </div>
     </header>
 
     <main class="container">
-        <section class="public-explorer-notice" aria-label="Public explorer information">
-            <strong>Public Investor & Partner Explorer</strong><br>
-            Visitors may explore Bethel's sanitized, read-only active-master performance without creating an account. Private investor portfolios, personal information, credentials, payment information, KYC records, broker secrets, order controls and administration remain protected and require authorization.
-            <div class="public-access-links">
-                <a href="onboarding.html">Create Investor Account</a>
-                <a class="secondary" href="https://betheltradingtechnologies.com/">Public Website</a>
-            </div>
-        </section>
-
+        
+        <!-- TOP KPI ROW -->
         <section class="kpi-grid">
             <div class="card highlight">
                 <h3>Current Equity</h3>
-                <p id="currentEquity">--</p>
+                <p id="currentEquity">$0.00</p>
             </div>
             <div class="card">
-                <h3>Return / P&amp;L</h3>
+                <h3>Floating P/L</h3>
                 <p id="profit" class="text-up">--</p>
             </div>
             <div class="card">
@@ -58,22 +48,23 @@
             </div>
         </section>
 
+        <!-- PRIMARY ANALYTICS GRID -->
         <div class="main-grid">
             <div class="left-col">
                 <section class="panel">
                     <h2>Equity Growth Curve</h2>
                     <div class="chart-container">
-                        <p>Loading sanitized read-only active-master history…</p>
+                        <p>Your private portfolio summary is shown from your assigned account.</p>
                     </div>
                 </section>
-
+                
                 <section class="panel">
                     <h2>Trade History</h2>
                     <table id="historyTable">
                         <thead>
                             <tr><th>Symbol</th><th>Dir</th><th>Vol</th><th>Profit</th><th>Date</th></tr>
                         </thead>
-                        <tbody><tr><td colspan="5">Investor-specific trade history is available only after authorized sign-in.</td></tr></tbody>
+                        <tbody><!-- JS populated --></tbody>
                     </table>
                 </section>
             </div>
@@ -82,25 +73,25 @@
                 <section class="panel">
                     <h2>Account Details</h2>
                     <div class="profile-list">
-                        <div><span>View</span><strong id="investorName">Public Investor &amp; Partner View</strong></div>
-                        <div><span>Portfolio</span><strong id="portfolioName">Bethel Active Master · Read Only</strong></div>
+                        <div><span>Investor</span><strong id="investorName">--</strong></div>
+                        <div><span>Portfolio</span><strong id="portfolioName">--</strong></div>
                         <div><span>Balance</span><strong id="balance">--</strong></div>
                     </div>
                 </section>
-
+                
                 <section class="panel">
                     <h2>Risk Metrics</h2>
                     <table>
                         <tr><td>Sharpe Ratio</td><td id="sharpe">--</td></tr>
                         <tr><td>Profit Factor</td><td id="profitfactor">--</td></tr>
-                        <tr><td>Volatility</td><td id="volatility">--</td></tr>
+                        <tr><td>Volatilty</td><td id="volatility">--</td></tr>
                     </table>
                 </section>
                 <section class="panel copier-download">
                     <h2>Bethel Copier for Windows</h2>
-                    <p>The copier is for authorized investor accounts and requires a one-time activation code issued after approval.</p>
+                    <p>Connect your authorized MT5 account with the one-time activation code provided after approval.</p>
                     <a class="copier-download-button" href="https://github.com/BethelTradingTech/Bethel/releases/download/copier-v1.0.1/BethelCopierSetup.exe" rel="noopener">Download Bethel Copier</a>
-                    <small>64-bit Windows 10/11 · MetaTrader 5 required · activation required</small>
+                    <small>Public test · 64-bit Windows 10/11 · MetaTrader 5 required</small>
                 </section>
             </aside>
         </div>
@@ -109,7 +100,7 @@
 </div>
 
 <script src="js/auth.js?v=3"></script>
-<script src="js/investor.js?v=20260825-public-explorer" defer></script>
-<script src="js/pwa.js?v=2" defer></script>
+<script src="js/investor.js?v=3"></script>
+<script src="js/pwa.js?v=2"></script>
 </body>
 </html>
