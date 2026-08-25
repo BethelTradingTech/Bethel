@@ -40,7 +40,8 @@ require(
 )
 require(
     "frontend/js/chat-assistant.js",
-    'https://api.betheltradingtechnologies.com/public/assistant/chat',
+    'https://api.betheltradingtechnologies.com',
+    '/public/assistant/chat',
     'mailto:',
     'info@betheltradingtechnologies.com',
 )
