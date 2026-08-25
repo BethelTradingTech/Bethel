@@ -12,7 +12,8 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    .unified-live-shell{display:grid;gap:1.1rem}
+    #performance[hidden]{display:none!important}
+    #broadcast-slot[hidden],#telemetry-slot[hidden]{display:none!important}
     .unified-live-title{text-align:center;margin-bottom:1rem}
     .unified-live-title h2{font-size:2.25rem;margin-bottom:.5rem}
     .unified-live-title p{color:var(--text-secondary);max-width:760px;margin:0 auto}
@@ -23,16 +24,23 @@
     .track-account{color:var(--text-secondary);font-size:.88rem}
     .track-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:.9rem}
     .track-card{background:rgba(255,255,255,.025);border:1px solid var(--border-color);border-radius:12px;padding:1rem;text-align:left}
-    .track-card small{display:block;color:var(--text-secondary);margin-bottom:.3rem;font-size:.75rem}.track-card strong{font-size:1.15rem}.track-sub{display:block;color:var(--text-secondary);font-size:.72rem;margin-top:.25rem}
-    .track-panel{background:rgba(255,255,255,.018);border:1px solid var(--border-color);border-radius:12px;padding:1rem;overflow:hidden}.track-panel h3{font-size:1rem;margin-bottom:.75rem;text-align:left}
-    .track-chart{width:100%;height:220px;display:block}.track-chart-empty{height:180px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:.9rem}
-    .track-table-wrap{overflow:auto}.track-table{width:100%;border-collapse:collapse;min-width:720px;font-size:.8rem}.track-table th,.track-table td{padding:.55rem .6rem;border-bottom:1px solid var(--border-color);text-align:center;white-space:nowrap}.track-table th:first-child,.track-table td:first-child{text-align:left;font-weight:700}
-    .track-positive{color:#34d399}.track-negative{color:#fb7185}.track-neutral{color:var(--text-secondary)}.track-method{color:var(--text-secondary);font-size:.78rem;line-height:1.55;text-align:left}.track-method strong{color:var(--text-primary)}
+    .track-card small{display:block;color:var(--text-secondary);margin-bottom:.3rem;font-size:.75rem}
+    .track-card strong{font-size:1.15rem}
+    .track-sub{display:block;color:var(--text-secondary);font-size:.72rem;margin-top:.25rem}
+    .track-panel{background:rgba(255,255,255,.018);border:1px solid var(--border-color);border-radius:12px;padding:1rem;overflow:hidden}
+    .track-panel h3{font-size:1rem;margin-bottom:.75rem;text-align:left}
+    .track-chart{width:100%;height:220px;display:block}
+    .track-chart-empty{height:180px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:.9rem}
+    .track-table-wrap{overflow:auto}
+    .track-table{width:100%;border-collapse:collapse;min-width:720px;font-size:.8rem}
+    .track-table th,.track-table td{padding:.55rem .6rem;border-bottom:1px solid var(--border-color);text-align:center;white-space:nowrap}
+    .track-table th:first-child,.track-table td:first-child{text-align:left;font-weight:700}
+    .track-positive{color:#34d399}.track-negative{color:#fb7185}.track-neutral{color:var(--text-secondary)}
+    .track-method{color:var(--text-secondary);font-size:.78rem;line-height:1.55;text-align:left}.track-method strong{color:var(--text-primary)}
     .track-loading{color:var(--text-secondary);padding:1rem 0}.track-error{color:#fca5a5;padding:1rem 0}.track-history-label{color:var(--text-secondary);font-size:.78rem}
     .unified-live-panel .public-broadcast-shell,.unified-live-panel .live-mt5-shell{max-width:none;margin:0;width:100%}
     .unified-live-panel .public-broadcast-shell{border:1px solid rgba(16,185,129,.35);box-shadow:none}
     .unified-live-panel .live-mt5-shell{padding:1rem}
-    #broadcast-slot[hidden],#telemetry-slot[hidden]{display:none!important}
     @media(max-width:600px){.track-card strong{font-size:1.02rem}.track-chart{height:180px}}
   `;
   document.head.appendChild(style);
@@ -50,31 +58,32 @@
     if (!Number.isFinite(n)) return "—";
     return `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`;
   };
-  const fmtDate = (value) => {
+  const fmtDate = value => {
     if (!value) return "—";
     const d = new Date(`${value}T00:00:00Z`);
     return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"});
   };
-  function setText(id, value) {
+  const setText = (id, value) => {
     const el = document.getElementById(id);
     if (el) el.textContent = value == null ? "—" : String(value);
-  }
+  };
 
   function buildUnifiedDisplay() {
     const broadcastShell = broadcastSection ? broadcastSection.querySelector(".public-broadcast-shell") : null;
     const liveShell = liveSection ? liveSection.querySelector(".live-mt5-shell") : null;
 
+    performanceSection.hidden = true;
     performanceSection.innerHTML = `
       <div class="unified-live-title">
         <h2>LIVE TRADE BROADCAST FROM BETHEL TERMINAL 1</h2>
-        <p>One verified display combining the original live Bethel Terminal 1 broadcast, read-only MT5 telemetry and reconciled performance analytics for the same active master account.</p>
+        <p>Live video, read-only MT5 telemetry and verified performance for the same owner/master terminal.</p>
       </div>
       <div id="unified-live-panel" class="unified-live-panel">
         <div id="broadcast-slot" hidden></div>
         <div id="telemetry-slot" hidden></div>
         <div class="track-topbar">
           <span id="track-verification" class="track-verified"><span class="track-dot"></span> CHECKING RECORD</span>
-          <span id="track-account" class="track-account">Active master · masked</span>
+          <span id="track-account" class="track-account">Bethel Terminal 1 · masked</span>
         </div>
         <div id="track-loading" class="track-loading">Loading verified performance…</div>
         <div id="track-content" hidden>
@@ -102,8 +111,18 @@
     const telemetrySlot = document.getElementById("telemetry-slot");
     if (broadcastShell && broadcastSlot) broadcastSlot.appendChild(broadcastShell);
     if (liveShell && telemetrySlot) telemetrySlot.appendChild(liveShell);
-    if (broadcastSection) broadcastSection.style.display = "none";
-    if (liveSection) liveSection.style.display = "none";
+
+    // Permanently remove the legacy public section wrappers. Their inline timers may
+    // retain references, but detached wrappers can no longer create duplicate headings
+    // or reserve vertical space. The actual video/telemetry shells remain live above.
+    if (broadcastSection) broadcastSection.remove();
+    if (liveSection) liveSection.remove();
+
+    // Keep one canonical location: immediately below the hero and before About Us.
+    const hero = document.querySelector("section.hero");
+    if (hero && hero.nextElementSibling !== performanceSection) {
+      hero.insertAdjacentElement("afterend", performanceSection);
+    }
   }
 
   async function refreshSuperAdminVisibility() {
@@ -113,11 +132,14 @@
     const telemetrySlot = document.getElementById("telemetry-slot");
     if (!broadcastSlot || !telemetrySlot) { visibilityLoading = false; return; }
 
-    // Fail closed: public video/telemetry remain hidden unless the public endpoints
-    // explicitly confirm that Super Admin has enabled them.
+    // Fail closed on every refresh. Nothing is shown unless the authoritative
+    // public endpoints explicitly confirm Super Admin publication is enabled.
     broadcastSlot.hidden = true;
     telemetrySlot.hidden = true;
+    performanceSection.hidden = true;
 
+    let videoEnabled = false;
+    let telemetryEnabled = false;
     try {
       const [broadcastResult, telemetryResult] = await Promise.allSettled([
         fetch(`${API}/broadcast/v1/public/status?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}}),
@@ -126,19 +148,21 @@
 
       if (broadcastResult.status === "fulfilled" && broadcastResult.value.ok) {
         const config = await broadcastResult.value.json();
-        broadcastSlot.hidden = config.enabled !== true;
+        videoEnabled = config.enabled === true;
       }
-
       if (telemetryResult.status === "fulfilled" && telemetryResult.value.ok) {
         const config = await telemetryResult.value.json();
-        telemetrySlot.hidden = config.enabled !== true;
+        telemetryEnabled = config.enabled === true;
       }
     } catch (_) {
-      broadcastSlot.hidden = true;
-      telemetrySlot.hidden = true;
-    } finally {
-      visibilityLoading = false;
+      videoEnabled = false;
+      telemetryEnabled = false;
     }
+
+    broadcastSlot.hidden = !videoEnabled;
+    telemetrySlot.hidden = !telemetryEnabled;
+    performanceSection.hidden = !(videoEnabled || telemetryEnabled);
+    visibilityLoading = false;
   }
 
   function renderChart(points) {
@@ -150,103 +174,87 @@
       container.textContent = "Not enough history to draw the chart yet.";
       return;
     }
-    const width = 1000, height = 220, pad = 16;
-    const values = clean.flatMap(p => [Number(p.balance), Number(p.equity)]);
-    let min = Math.min(...values), max = Math.max(...values);
-    if (max === min) { max += 1; min -= 1; }
-    const x = i => pad + (i * (width - pad * 2) / (clean.length - 1));
-    const y = v => height - pad - ((v - min) * (height - pad * 2) / (max - min));
-    const line = key => clean.map((p,i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(Number(p[key])).toFixed(1)}`).join(" ");
-    container.className = "";
-    container.innerHTML = `<svg class="track-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Balance and equity history"><path d="${line("balance")}" fill="none" stroke="#22d3ee" stroke-width="3" vector-effect="non-scaling-stroke"/><path d="${line("equity")}" fill="none" stroke="#10b981" stroke-width="3" vector-effect="non-scaling-stroke"/></svg><div class="track-history-label">Balance <span style="color:#22d3ee">●</span> &nbsp; Equity <span style="color:#10b981">●</span> · ${clean.length} sampled read-only points</div>`;
+    const width=1000,height=220,pad=16;
+    const values=clean.flatMap(p=>[Number(p.balance),Number(p.equity)]);
+    let min=Math.min(...values),max=Math.max(...values);
+    if(max===min){max+=1;min-=1;}
+    const x=i=>pad+(i*(width-pad*2)/(clean.length-1));
+    const y=v=>height-pad-((v-min)*(height-pad*2)/(max-min));
+    const line=key=>clean.map((p,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(Number(p[key])).toFixed(1)}`).join(" ");
+    container.className="";
+    container.innerHTML=`<svg class="track-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Balance and equity history"><path d="${line("balance")}" fill="none" stroke="#22d3ee" stroke-width="3" vector-effect="non-scaling-stroke"/><path d="${line("equity")}" fill="none" stroke="#10b981" stroke-width="3" vector-effect="non-scaling-stroke"/></svg><div class="track-history-label">Balance <span style="color:#22d3ee">●</span> &nbsp; Equity <span style="color:#10b981">●</span> · ${clean.length} sampled read-only points</div>`;
   }
 
   function renderMonthly(rows) {
-    const container = document.getElementById("track-monthly");
-    if (!container) return;
-    const valid = (Array.isArray(rows) ? rows : []).filter(r => /^\d{4}-\d{2}$/.test(String(r.period || "")) && Number.isFinite(Number(r.return_percent)));
-    if (!valid.length) {
-      container.innerHTML = '<span class="track-history-label">Reconciled monthly history is not available yet.</span>';
-      return;
-    }
-    const years = [...new Set(valid.map(r => r.period.slice(0,4)))].sort();
-    const byMonth = new Map(valid.map(r => [r.period, Number(r.return_percent)]));
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const table = document.createElement("table");
-    table.className = "track-table";
-    const thead = document.createElement("thead");
-    const hr = document.createElement("tr");
-    ["Year", ...months, "Year"].forEach(label => { const th=document.createElement("th"); th.textContent=label; hr.appendChild(th); });
-    thead.appendChild(hr); table.appendChild(thead);
-    const tbody = document.createElement("tbody");
-    years.forEach(year => {
-      const tr = document.createElement("tr");
-      const yc = document.createElement("td"); yc.textContent = year; tr.appendChild(yc);
-      const vals = [];
-      for (let m=1;m<=12;m++) {
-        const key = `${year}-${String(m).padStart(2,"0")}`;
-        const value = byMonth.get(key);
-        const td = document.createElement("td");
-        if (Number.isFinite(value)) { td.textContent=fmtSignedPercent(value); td.className=value>0?"track-positive":value<0?"track-negative":"track-neutral"; vals.push(value/100); }
-        else td.textContent="—";
+    const container=document.getElementById("track-monthly");
+    if(!container)return;
+    const valid=(Array.isArray(rows)?rows:[]).filter(r=>/^\d{4}-\d{2}$/.test(String(r.period||""))&&Number.isFinite(Number(r.return_percent)));
+    if(!valid.length){container.innerHTML='<span class="track-history-label">Reconciled monthly history is not available yet.</span>';return;}
+    const years=[...new Set(valid.map(r=>r.period.slice(0,4)))].sort();
+    const byMonth=new Map(valid.map(r=>[r.period,Number(r.return_percent)]));
+    const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const table=document.createElement("table");table.className="track-table";
+    const thead=document.createElement("thead"),hr=document.createElement("tr");
+    ["Year",...months,"Year"].forEach(label=>{const th=document.createElement("th");th.textContent=label;hr.appendChild(th);});
+    thead.appendChild(hr);table.appendChild(thead);
+    const tbody=document.createElement("tbody");
+    years.forEach(year=>{
+      const tr=document.createElement("tr"),yc=document.createElement("td");yc.textContent=year;tr.appendChild(yc);const vals=[];
+      for(let m=1;m<=12;m++){
+        const key=`${year}-${String(m).padStart(2,"0")}`,value=byMonth.get(key),td=document.createElement("td");
+        if(Number.isFinite(value)){td.textContent=fmtSignedPercent(value);td.className=value>0?"track-positive":value<0?"track-negative":"track-neutral";vals.push(value/100);}else td.textContent="—";
         tr.appendChild(td);
       }
-      const annual = vals.length ? (vals.reduce((f,r)=>f*(1+r),1)-1)*100 : NaN;
-      const total = document.createElement("td"); total.textContent=Number.isFinite(annual)?fmtSignedPercent(annual):"—"; total.className=annual>0?"track-positive":annual<0?"track-negative":"track-neutral"; tr.appendChild(total);
-      tbody.appendChild(tr);
+      const annual=vals.length?(vals.reduce((f,r)=>f*(1+r),1)-1)*100:NaN,total=document.createElement("td");
+      total.textContent=Number.isFinite(annual)?fmtSignedPercent(annual):"—";total.className=annual>0?"track-positive":annual<0?"track-negative":"track-neutral";tr.appendChild(total);tbody.appendChild(tr);
     });
-    table.appendChild(tbody); container.innerHTML=""; container.appendChild(table);
+    table.appendChild(tbody);container.innerHTML="";container.appendChild(table);
   }
 
   async function fetchSummary() {
-    const response = await fetch(`${API}/performance/public-summary?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}});
-    if (!response.ok) throw new Error("summary unavailable");
-    const data = await response.json();
-    if (!data.available) throw new Error("track record unavailable");
+    const response=await fetch(`${API}/performance/public-summary?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});
+    if(!response.ok)throw new Error("summary unavailable");
+    const data=await response.json();
+    if(!data.available)throw new Error("track record unavailable");
     return data;
   }
 
   async function load() {
-    if (loading) return;
-    loading = true;
-    try {
-      const data = await fetchSummary();
-      setText("track-verification", `${String(data.verification_status || "VERIFIED").toUpperCase()} RECORD`);
-      setText("track-account", `Bethel Terminal 1 · ${data.account_mask || "masked"}`);
-      setText("track-total-return", fmtSignedPercent(data.total_return_percent));
-      setText("track-annualized-return", fmtSignedPercent(data.annualized_return_percent));
-      setText("track-max-dd", fmtPercent(data.maximum_drawdown_percent));
-      setText("track-current-dd", fmtPercent(data.current_drawdown_percent));
-      setText("track-sharpe", fmtNumber(data.sharpe_ratio));
-      setText("track-sortino", fmtNumber(data.sortino_ratio));
-      setText("track-volatility", fmtPercent(data.annualized_volatility_percent));
-      setText("track-winrate", fmtPercent(data.win_rate_percent));
-      setText("track-trades", `${Number(data.closed_trades || 0)} closed trades`);
-      setText("track-profit-factor", fmtNumber(data.profit_factor));
-      setText("track-grade", data.performance_grade || "—");
-      setText("track-risk", `Risk ${data.risk_level || "—"}`);
-      setText("track-ath", fmtSignedPercent(data.all_time_high_return_percent));
-      setText("track-ath-date", fmtDate(data.all_time_high_date));
-      setText("track-history-days", `${Number(data.history_days || 0)} days`);
-      setText("track-history-range", `${fmtDate(data.history_start)} — ${fmtDate(data.history_end)}`);
-      setText("track-methodology", data.methodology || "Read-only signed active-master snapshots and reconciled closed-trade history.");
-      renderChart(data.history || []);
-      renderMonthly(data.monthly_returns || []);
-      const loadingEl = document.getElementById("track-loading");
-      const contentEl = document.getElementById("track-content");
-      if (loadingEl) loadingEl.hidden = true;
-      if (contentEl) contentEl.hidden = false;
-    } catch (_) {
-      const loadingEl = document.getElementById("track-loading");
-      if (loadingEl) { loadingEl.className="track-error"; loadingEl.textContent="Verified performance is temporarily unavailable."; }
-    } finally {
-      loading = false;
-    }
+    if(loading)return;
+    loading=true;
+    try{
+      const data=await fetchSummary();
+      setText("track-verification",`${String(data.verification_status||"VERIFIED").toUpperCase()} RECORD`);
+      setText("track-account",`Bethel Terminal 1 · ${data.account_mask||"masked"}`);
+      setText("track-total-return",fmtSignedPercent(data.total_return_percent));
+      setText("track-annualized-return",fmtSignedPercent(data.annualized_return_percent));
+      setText("track-max-dd",fmtPercent(data.maximum_drawdown_percent));
+      setText("track-current-dd",fmtPercent(data.current_drawdown_percent));
+      setText("track-sharpe",fmtNumber(data.sharpe_ratio));
+      setText("track-sortino",fmtNumber(data.sortino_ratio));
+      setText("track-volatility",fmtPercent(data.annualized_volatility_percent));
+      setText("track-winrate",fmtPercent(data.win_rate_percent));
+      setText("track-trades",`${Number(data.closed_trades||0)} closed trades`);
+      setText("track-profit-factor",fmtNumber(data.profit_factor));
+      setText("track-grade",data.performance_grade||"—");
+      setText("track-risk",`Risk ${data.risk_level||"—"}`);
+      setText("track-ath",fmtSignedPercent(data.all_time_high_return_percent));
+      setText("track-ath-date",fmtDate(data.all_time_high_date));
+      setText("track-history-days",`${Number(data.history_days||0)} days`);
+      setText("track-history-range",`${fmtDate(data.history_start)} — ${fmtDate(data.history_end)}`);
+      setText("track-methodology",data.methodology||"Read-only signed active-master snapshots and reconciled closed-trade history.");
+      renderChart(data.history||[]);renderMonthly(data.monthly_returns||[]);
+      const loadingEl=document.getElementById("track-loading"),contentEl=document.getElementById("track-content");
+      if(loadingEl)loadingEl.hidden=true;if(contentEl)contentEl.hidden=false;
+    }catch(_){
+      const loadingEl=document.getElementById("track-loading");
+      if(loadingEl){loadingEl.className="track-error";loadingEl.textContent="Verified performance is temporarily unavailable.";}
+    }finally{loading=false;}
   }
 
   buildUnifiedDisplay();
   refreshSuperAdminVisibility();
   load();
-  setInterval(refreshSuperAdminVisibility, 3000);
-  setInterval(load, 60000);
+  setInterval(refreshSuperAdminVisibility,3000);
+  setInterval(load,60000);
 })();
