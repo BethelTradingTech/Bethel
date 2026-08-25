@@ -5,12 +5,14 @@ FastAPI Main Application
 Institutional Quant Trading Platform
 """
 
+import os
+
 # ==========================
 # FASTAPI CORE
 # ==========================
 
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,9 +97,34 @@ app = FastAPI(
     version="1.0"
 )
 
+PUBLIC_REGISTRATION_ENABLED = os.getenv(
+    "PUBLIC_REGISTRATION_ENABLED",
+    "false",
+).strip().lower() == "true"
+
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    # Funding-readiness / pre-launch gate: existing users and admin-created
+    # subscribers continue to work, but unauthenticated public account creation
+    # is closed unless deliberately re-enabled by configuration.
+    if (
+        request.method.upper() == "POST"
+        and request.url.path.rstrip("/") == "/copytrading/auth/register"
+        and not PUBLIC_REGISTRATION_ENABLED
+    ):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": (
+                    "Public registration is closed during Bethel's pre-launch "
+                    "invitation-only phase. Request access through "
+                    "info@betheltradingtechnologies.com."
+                )
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
