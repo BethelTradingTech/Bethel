@@ -89,10 +89,15 @@
         <div id="track-loading" class="track-loading">Loading verified performance…</div>
         <div id="track-content" hidden>
           <div class="track-grid">
-            <div class="track-card"><small>Starting balance</small><strong id="track-starting-balance">—</strong><span class="track-sub">Verified initial funding / first recorded balance</span></div>
+            <div class="track-card"><small>Starting balance</small><strong id="track-starting-balance">—</strong><span class="track-sub">Same active-master starting capital used by Super Admin</span></div>
             <div class="track-card"><small>Current balance</small><strong id="track-current-balance">—</strong><span class="track-sub">Active-master balance</span></div>
             <div class="track-card"><small>Current equity</small><strong id="track-current-equity">—</strong><span class="track-sub">Live account equity</span></div>
             <div class="track-card"><small>Total return</small><strong id="track-total-return">—</strong><span class="track-sub">Active-master record</span></div>
+            <div class="track-card"><small>Banked return</small><strong id="track-banked-return">—</strong><span class="track-sub">Closed-profit return basis</span></div>
+            <div class="track-card"><small>Daily return</small><strong id="track-daily-return">—</strong><span class="track-sub">Super Admin Performance & Analytics</span></div>
+            <div class="track-card"><small>Weekly return</small><strong id="track-weekly-return">—</strong><span class="track-sub">Super Admin Performance & Analytics</span></div>
+            <div class="track-card"><small>Monthly return</small><strong id="track-monthly-return">—</strong><span class="track-sub">Super Admin Performance & Analytics</span></div>
+            <div class="track-card"><small>History</small><strong id="track-history-days">—</strong><span class="track-sub" id="track-history-range">—</span></div>
             <div class="track-card"><small>Annualized return</small><strong id="track-annualized-return">—</strong><span class="track-sub">252 trading-day basis</span></div>
             <div class="track-card"><small>Maximum drawdown</small><strong id="track-max-dd">—</strong><span class="track-sub">Peak-to-valley</span></div>
             <div class="track-card"><small>Current drawdown</small><strong id="track-current-dd">—</strong><span class="track-sub">Latest high watermark</span></div>
@@ -103,7 +108,6 @@
             <div class="track-card"><small>Profit factor</small><strong id="track-profit-factor">—</strong><span class="track-sub">Gross profit / gross loss</span></div>
             <div class="track-card"><small>Performance grade</small><strong id="track-grade">—</strong><span class="track-sub" id="track-risk">Risk —</span></div>
             <div class="track-card"><small>All-time high return</small><strong id="track-ath">—</strong><span class="track-sub" id="track-ath-date">—</span></div>
-            <div class="track-card"><small>Record since</small><strong id="track-history-start">—</strong><span class="track-sub" id="track-history-range">—</span></div>
           </div>
           <div class="track-panel"><h3>Balance & Equity History</h3><div id="track-chart-container" class="track-chart-empty">Loading history…</div></div>
           <div class="track-panel"><h3>Monthly & Yearly Returns</h3><div id="track-monthly" class="track-table-wrap"><span class="track-history-label">Awaiting reconciled monthly history…</span></div></div>
@@ -253,6 +257,12 @@
       setText("track-current-balance", fmtMoney(data.current_balance, data.currency));
       setText("track-current-equity", fmtMoney(data.current_equity, data.currency));
       setText("track-total-return", fmtSignedPercent(data.total_return_percent));
+      setText("track-banked-return", fmtSignedPercent(data.banked_return_percent));
+      setText("track-daily-return", fmtSignedPercent(data.daily_return_percent));
+      setText("track-weekly-return", fmtSignedPercent(data.weekly_return_percent));
+      setText("track-monthly-return", fmtSignedPercent(data.monthly_return_percent));
+      setText("track-history-days", Number.isFinite(Number(data.history_days)) ? `${Number(data.history_days).toFixed(2)} days` : "—");
+      setText("track-history-range", data.history_start && data.history_end ? `${fmtDate(data.history_start)} — ${fmtDate(data.history_end)}` : "Active-master analytics history");
       setText("track-annualized-return", fmtSignedPercent(data.annualized_return_percent));
       setText("track-max-dd", fmtPercent(data.maximum_drawdown_percent));
       setText("track-current-dd", fmtPercent(data.current_drawdown_percent));
@@ -266,8 +276,6 @@
       setText("track-risk", `Risk ${data.risk_level || "—"}`);
       setText("track-ath", fmtSignedPercent(data.all_time_high_return_percent));
       setText("track-ath-date", fmtDate(data.all_time_high_date));
-      setText("track-history-start", fmtDate(data.history_start));
-      setText("track-history-range", data.history_end ? `Through ${fmtDate(data.history_end)}` : "—");
       setText("track-methodology", data.methodology || "Read-only signed active-master snapshots and reconciled closed-trade history.");
       renderChart(history);
       renderMonthly(data.monthly_returns || [], data.history_start, data.history_end);
