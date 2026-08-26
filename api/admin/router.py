@@ -19,6 +19,33 @@ DEFAULT_SETTINGS = {
         "hero_description": "Discipline-driven execution. Fully transparent algorithms. Rigorous institutional-grade risk management.",
         "primary_cta_text": "View Verified Performance",
         "primary_cta_url": "#performance",
+        "secondary_cta_text": "Partner With Us",
+        "secondary_cta_url": "#contact",
+        "registration_cta_text": "Request Access",
+        "registration_cta_url": "https://bethel-api.onrender.com/investor-frontend/onboarding.html",
+        "prelaunch_label": "PRE-LAUNCH NOTICE",
+        "prelaunch_text": "Bethel is completing corporate, contractual and regulatory work with professional advisers. Public account access is invitation-only. Live trading information shown below is Bethel-reported read-only telemetry and is not represented as independent third-party verification.",
+        "about_title": "About Us",
+        "about_subtitle": "Our philosophy is built on transparent execution and mathematical discipline.",
+        "about_paragraph_1": "Bethel Trading Technologies develops elite algorithmic trading systems designed to navigate today's volatile markets with precision.",
+        "about_paragraph_2": "Rather than relying on human emotion or market speculation, our software targets systematic inefficiencies in order to maintain a structured approach to wealth preservation and capital appreciation.",
+        "services_title": "Our Services",
+        "services_subtitle": "Innovative technology designed to elevate modern investment portfolios.",
+        "service_1_title": "Automated Trading Systems",
+        "service_1_text": "Deploy custom-built algorithms designed to monitor, track, and execute trades instantly without emotional bias.",
+        "service_2_title": "Copy Trading Solutions",
+        "service_2_text": "Seamlessly mirror active algorithmic portfolios directly into your personal broker account with real-time replication.",
+        "service_3_title": "Trading Signal Services",
+        "service_3_text": "Receive high-probability alerts and algorithmic insights curated by our core research team.",
+        "service_4_title": "Strategy Research & Dev",
+        "service_4_text": "Rigorous historical backtesting, modeling, and system optimization based on institutional-grade criteria.",
+        "service_5_title": "Investor Partnerships",
+        "service_5_text": "Tailored capital management solutions built to fit specific risk appetites and return profiles.",
+        "live_title": "LIVE TRADE BROADCAST FROM BETHEL TERMINAL 1",
+        "live_description": "Live read-only Bethel Terminal 1 broadcast and account telemetry, followed by the active master's monthly and yearly return record.",
+        "returns_title": "Monthly & Yearly Returns",
+        "contact_title": "Let's Build the Future of Your Capital",
+        "contact_description": "Get in touch to request our historical pitch books, discuss technical API integration, or learn how to partner with our automated trading systems.",
         "contact_email": "info@betheltradingtechnologies.com",
         "contact_phone": "+1 (246) 259-0997",
         "myfxbook_url": "https://www.myfxbook.com",
@@ -31,7 +58,26 @@ DEFAULT_SETTINGS = {
         "x_url": "https://x.com/betheltradingt",
         "youtube_url": "https://youtube.com/@betheltradingtech",
         "tiktok_url": "https://www.tiktok.com/@betheltradingtech",
-        "risk_disclosure": "Trading foreign exchange, CFDs, and leveraged products carries significant risk. Past performance does not guarantee future results."
+        "risk_disclosure": "Trading foreign exchange, CFDs, and leveraged products carries significant risk. Past performance does not guarantee future results.",
+        "public_controls": {
+            "site_enabled": True,
+            "show_navigation": True,
+            "show_hero": True,
+            "show_prelaunch_notice": True,
+            "show_about": True,
+            "show_services": True,
+            "show_live_broadcast": True,
+            "show_live_telemetry": True,
+            "show_monthly_yearly_returns": True,
+            "show_reviews": True,
+            "show_contact": True,
+            "show_contact_form": True,
+            "show_social_links": True,
+            "show_footer": True,
+            "show_request_access": True,
+            "show_performance_cta": True,
+            "show_partner_cta": True
+        }
     },
     "system": {
         "environment": "DEVELOPMENT",
@@ -61,6 +107,15 @@ CRITICAL_ADMIN_ROUTES = {
 }
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    for key, value in (override or {}).items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            _deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
 def read_settings() -> dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not SETTINGS_FILE.exists():
@@ -70,10 +125,7 @@ def read_settings() -> dict[str, Any]:
         saved = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         saved = {}
-    merged = json.loads(json.dumps(DEFAULT_SETTINGS))
-    for section in ("website", "system"):
-        merged[section].update(saved.get(section, {}))
-    return merged
+    return _deep_merge(json.loads(json.dumps(DEFAULT_SETTINGS)), saved)
 
 
 def write_settings(settings: dict[str, Any]) -> None:
@@ -91,7 +143,7 @@ def get_settings(_: dict = Depends(require_admin)):
 @router.put("/settings/website")
 def update_website(payload: dict[str, Any], _: dict = Depends(require_admin)):
     settings = read_settings()
-    settings["website"].update(payload)
+    _deep_merge(settings["website"], payload)
     write_settings(settings)
     return {"status": "success", "website": settings["website"]}
 
@@ -100,7 +152,7 @@ def update_website(payload: dict[str, Any], _: dict = Depends(require_admin)):
 def update_system(payload: dict[str, Any], _: dict = Depends(require_admin)):
     settings = read_settings()
     payload["environment"] = settings["system"].get("environment", "DEVELOPMENT")
-    settings["system"].update(payload)
+    _deep_merge(settings["system"], payload)
     write_settings(settings)
     return {"status": "success", "system": settings["system"]}
 
@@ -132,4 +184,10 @@ def admin_health(request: Request, admin: dict = Depends(require_admin)):
 @router.get("/public-settings")
 def public_settings():
     settings = read_settings()
-    return {"website": settings["website"], "system": {"maintenance_mode": settings["system"]["maintenance_mode"]}}
+    return {
+        "website": settings["website"],
+        "system": {
+            "maintenance_mode": bool(settings["system"].get("maintenance_mode", False)),
+            "subscriber_registration_enabled": bool(settings["system"].get("subscriber_registration_enabled", True)),
+        },
+    }
