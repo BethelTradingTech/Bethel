@@ -33,6 +33,7 @@
   const setText = (selector, value) => { const el=document.querySelector(selector); if(el&&value!=null&&value!=="") el.textContent=String(value); };
   const fmtSignedPercent = (value, digits = 2) => { const n=Number(value); return Number.isFinite(n)?`${n>0?"+":""}${n.toFixed(digits)}%`:"—"; };
   const fmtDate = value => { if(!value)return "—"; const raw=String(value),d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw)?`${raw}T00:00:00Z`:raw); return Number.isNaN(d.getTime())?raw:d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"}); };
+  const fmtMoney = (value,currency="USD") => { const n=Number(value); if(!Number.isFinite(n))return "—"; try{return new Intl.NumberFormat(undefined,{style:"currency",currency:String(currency||"USD").toUpperCase(),minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}catch(_){return `${String(currency||"USD").toUpperCase()} ${n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`}};
 
   function buildUnifiedDisplay(){
     const broadcastShell=broadcastSection?.querySelector(".public-broadcast-shell");
@@ -43,15 +44,37 @@
     if(liveShell&&telemetrySlot)telemetrySlot.appendChild(liveShell);
     if(broadcastSection?.isConnected)broadcastSection.remove();
     if(liveSection?.isConnected)liveSection.remove();
+    ensureStartingBalanceMetric();
+  }
+
+  function ensureStartingBalanceMetric(){
+    const grid=document.querySelector("#telemetry-slot .live-mt5-grid");
+    if(!grid||document.getElementById("public-mt5-starting-balance"))return;
+    const metric=document.createElement("div");
+    metric.className="live-mt5-metric";
+    metric.id="public-starting-balance-metric";
+    metric.innerHTML='<small>Starting Balance</small><strong id="public-mt5-starting-balance">—</strong>';
+    const balance=grid.querySelector("#public-mt5-balance")?.closest(".live-mt5-metric");
+    if(balance?.nextSibling)grid.insertBefore(metric,balance.nextSibling);else grid.prepend(metric);
+  }
+
+  function removePrelaunchNotices(){
+    document.getElementById("admin-prelaunch-notice")?.remove();
+    document.querySelectorAll("body *").forEach(el=>{
+      if(el.children.length===0&&/^PRE[- ]?LAUNCH NOTICE\b/i.test(String(el.textContent||"").trim())){
+        const container=el.closest("div,aside,section");
+        if(container&&!container.classList.contains("disclaimer"))container.remove();
+      }
+    });
   }
 
   function ensurePrelaunchNotice(){
+    if(!control("show_prelaunch_notice",false)){removePrelaunchNotices();return}
     let notice=document.getElementById("admin-prelaunch-notice");
     if(!notice){notice=document.createElement("div");notice.id="admin-prelaunch-notice";const hero=document.querySelector(".hero");if(hero?.parentNode)hero.parentNode.insertBefore(notice,hero.nextSibling)}
     notice.replaceChildren();
     const strong=document.createElement("strong"),span=document.createElement("span");
     strong.textContent=publicWebsite.prelaunch_label||"PRE-LAUNCH NOTICE";span.textContent=publicWebsite.prelaunch_text||"";notice.append(strong,span);
-    notice.classList.toggle("public-admin-hidden",!control("show_prelaunch_notice",true));
   }
 
   function renderSiteClosed(){
@@ -63,7 +86,7 @@
 
   function applyPublicSettings(){
     renderSiteClosed();
-    setVisible("header",control("show_navigation",true));setVisible(".hero",control("show_hero",true));setVisible("#about",control("show_about",true));setVisible("#services",control("show_services",true));setVisible("#visitor-reviews",control("show_reviews",true));setVisible("#contact",control("show_contact",true));setVisible("#contact .contact-form",control("show_contact_form",true));setVisible("#contact .social-networks-header,#contact .social-links-grid",control("show_social_links",true));setVisible("footer",control("show_footer",true));
+    setVisible("header",control("show_navigation",true));setVisible(".hero",control("show_hero",true));setVisible("#about",control("show_about",true));setVisible("#services",control("show_services",true));setVisible("#visitor-reviews",control("show_reviews",true));setVisible("#contact",control("show_contact",true));setVisible("#contact .contact-form",control("show_contact_form",true));setVisible("#contact .social-networks-header,#contact .social-links-grid",control("show_social_links",true));setVisible("footer",control("show_footer",true));setVisible(".bethel-chat-launcher,.bethel-chat-panel",control("show_ai_assistant",true));
     const registrationVisible=control("show_request_access",true)&&publicSystem.subscriber_registration_enabled!==false;setVisible(".onboarding-float,.nav-onboarding",registrationVisible);
     setText(".hero .badge",publicWebsite.hero_badge);setText(".hero h1",publicWebsite.hero_title);setText(".hero > p",publicWebsite.hero_description);
     const buttons=document.querySelectorAll(".hero .cta-group a");
@@ -76,12 +99,12 @@
     setText("#contact .contact-info h3",publicWebsite.contact_title);setText("#contact .contact-info > p",publicWebsite.contact_description);const email=document.querySelector('#contact a[href^="mailto:"]');if(email&&publicWebsite.contact_email){email.textContent=publicWebsite.contact_email;email.href=`mailto:${publicWebsite.contact_email}`}
     const socialMap={"LinkedIn":publicWebsite.linkedin_url,"Facebook":publicWebsite.facebook_url,"Instagram":publicWebsite.instagram_url,"X (Twitter)":publicWebsite.x_url,"TikTok":publicWebsite.tiktok_url,"YouTube":publicWebsite.youtube_url,"WhatsApp Business":publicWebsite.whatsapp_url};document.querySelectorAll("#contact .social-item").forEach(a=>{const url=socialMap[a.title];if(url)a.href=url});
     const disclosure=document.querySelector("footer .disclaimer");if(disclosure&&publicWebsite.risk_disclosure)disclosure.textContent=publicWebsite.risk_disclosure;
-    setText(".unified-live-title h2",publicWebsite.live_title);setText(".unified-live-title p",publicWebsite.live_description);setText(".returns-panel h3",publicWebsite.returns_title);ensurePrelaunchNotice();
+    setText(".unified-live-title h2",publicWebsite.live_title);setText(".unified-live-title p",publicWebsite.live_description);setText(".returns-panel h3",publicWebsite.returns_title);ensurePrelaunchNotice();ensureStartingBalanceMetric();setVisible("#public-starting-balance-metric",control("show_starting_balance",true));
     const anyPerformance=control("show_live_broadcast",true)||control("show_live_telemetry",true)||control("show_monthly_yearly_returns",true);performanceSection.classList.toggle("public-admin-hidden",!anyPerformance);document.querySelector(".returns-panel")?.classList.toggle("public-admin-hidden",!control("show_monthly_yearly_returns",true));
   }
 
   async function loadPublicSettings(){
-    try{const response=await fetch(`${API}/admin/control/public-settings?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error();const data=await response.json();publicWebsite=data.website||{};publicControls=publicWebsite.public_controls||{};publicSystem=data.system||{};applyPublicSettings();await syncPublicVisibility()}catch(_){/* keep checked-in defaults if settings are temporarily unavailable */}
+    try{const response=await fetch(`${API}/admin/control/public-settings?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error();const data=await response.json();publicWebsite=data.website||{};publicControls=publicWebsite.public_controls||{};publicSystem=data.system||{};applyPublicSettings();await syncPublicVisibility()}catch(_){removePrelaunchNotices()}
   }
 
   function renderMonthly(rows,historyStart,historyEnd){
@@ -93,6 +116,13 @@
     years.forEach(year=>{const tr=document.createElement("tr"),yearCell=document.createElement("td");yearCell.textContent=year;tr.appendChild(yearCell);const yearValues=[];for(let month=1;month<=12;month+=1){const key=`${year}-${String(month).padStart(2,"0")}`,value=byMonth.get(key),td=document.createElement("td");if(Number.isFinite(value)){td.textContent=fmtSignedPercent(value);td.className=value>0?"track-positive":value<0?"track-negative":"track-neutral";yearValues.push(value/100)}else{td.textContent="—";td.className="track-neutral"}tr.appendChild(td)}const annual=yearValues.length?(yearValues.reduce((factor,r)=>factor*(1+r),1)-1)*100:NaN,total=document.createElement("td");total.textContent=Number.isFinite(annual)?fmtSignedPercent(annual):"—";total.className=annual>0?"track-positive":annual<0?"track-negative":"track-neutral";tr.appendChild(total);tbody.appendChild(tr)});table.appendChild(tbody);container.replaceChildren(table);const note=document.createElement("div");note.className="track-history-label";note.style.marginTop=".65rem";note.textContent=`Active-master returns · ${fmtDate(historyStart)} — ${fmtDate(historyEnd)}.`;container.appendChild(note);container.hidden=false;
   }
 
+  function renderStartingBalance(data){
+    ensureStartingBalanceMetric();
+    const metric=document.getElementById("public-starting-balance-metric"),value=document.getElementById("public-mt5-starting-balance");
+    if(metric)metric.classList.toggle("public-admin-hidden",!control("show_starting_balance",true));
+    if(value)value.textContent=fmtMoney(data?.starting_balance,data?.currency||"USD");
+  }
+
   async function fetchSummary(){const response=await fetch(`${API}/performance/public-summary?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error("summary unavailable");const data=await response.json();if(!data.available)throw new Error("return history unavailable");return data}
 
   async function syncPublicVisibility(){
@@ -100,8 +130,9 @@
   }
 
   async function loadReturns(){
-    if(!control("show_monthly_yearly_returns",true)||loading)return;loading=true;try{const data=await fetchSummary(),summaryAgain=await fetchSummary();if(summaryAgain.account_number !== data.account_number)throw new Error("active master changed during refresh");renderMonthly(data.monthly_returns||[],data.history_start,data.history_end);const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true}catch(_){const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the active master record is refreshing."}}finally{loading=false}
+    const wantsReturns=control("show_monthly_yearly_returns",true),wantsStarting=control("show_starting_balance",true);
+    if((!wantsReturns&&!wantsStarting)||loading)return;loading=true;try{const data=await fetchSummary(),summaryAgain=await fetchSummary();if(summaryAgain.account_number !== data.account_number)throw new Error("active master changed during refresh");renderStartingBalance(data);if(wantsReturns){renderMonthly(data.monthly_returns||[],data.history_start,data.history_end);const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true}}catch(_){if(wantsReturns){const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the active master record is refreshing."}}}finally{loading=false}
   }
 
-  buildUnifiedDisplay();loadPublicSettings();syncPublicVisibility();loadReturns();setInterval(syncPublicVisibility,5000);setInterval(loadPublicSettings,10000);setInterval(loadReturns, 15000);
+  buildUnifiedDisplay();removePrelaunchNotices();loadPublicSettings();syncPublicVisibility();loadReturns();setInterval(syncPublicVisibility,5000);setInterval(loadPublicSettings,10000);setInterval(loadReturns,15000);
 })();
