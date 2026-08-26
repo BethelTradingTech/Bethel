@@ -204,6 +204,10 @@ def public_performance_summary():
         profile = {"status": "not_available"}
     profile_available = profile.get("status") == "available"
 
+    # Keep the public history-day figure identical to the existing Super Admin
+    # Performance & Analytics engine. Do not derive a second public-only age.
+    analytics_history_days = _round_metric(data.get("history_days"))
+
     return {
         "available": True,
         "read_only": True,
@@ -215,7 +219,8 @@ def public_performance_summary():
         "current_equity": _round_metric(data.get("current_equity")),
         "total_return_percent": _round_metric(data.get("total_return_percent")),
         "annualized_return_percent": _round_metric(profile.get("annualized_return_percent")) if profile_available else None,
-        "trading_days": int(profile.get("trading_days") or data.get("history_days") or 0),
+        "history_days": analytics_history_days,
+        "trading_days": int(round(float(analytics_history_days))) if analytics_history_days is not None else 0,
         "history_weekdays": int(profile.get("history_weekdays") or 0) if profile_available else None,
         "history_start": profile.get("history_start") if profile_available else None,
         "history_end": profile.get("history_end") if profile_available else None,
