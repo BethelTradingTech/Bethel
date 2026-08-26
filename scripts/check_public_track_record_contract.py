@@ -3,6 +3,7 @@
 This deliberately protects the long-lived public presentation contract:
 - Darwinex-style calendar matrix: Year + Jan..Dec + Year.
 - Starting/current balances and equity come from the active-master public API.
+- Headline daily/weekly/monthly/history values mirror Super Admin analytics.
 - Values come from the public performance APIs, never embedded account figures.
 - The page refreshes automatically so a newly active owner/master is reflected.
 - Backend master resolution stays dynamic and does not pin an MT5 account number.
@@ -49,11 +50,25 @@ require('"current_balance": _round_metric(data.get("current_balance"))' in PERFO
 require('"current_equity": _round_metric(data.get("current_equity"))' in PERFORMANCE,
         "Public summary must source current equity dynamically")
 
-# Avoid presenting an unreliable synthetic history-day count on the public card.
+# Headline return/history figures must mirror the same Performance & Analytics source.
+require('id="track-daily-return"' in FRONTEND and "data.daily_return_percent" in FRONTEND,
+        "Public track record must show the Super Admin daily-return value")
+require('id="track-weekly-return"' in FRONTEND and "data.weekly_return_percent" in FRONTEND,
+        "Public track record must show the Super Admin weekly-return value")
+require('id="track-monthly-return"' in FRONTEND and "data.monthly_return_percent" in FRONTEND,
+        "Public track record must show the Super Admin monthly-return value")
+require('id="track-history-days"' in FRONTEND and "data.history_days" in FRONTEND,
+        "Public track record must show the Super Admin history-days value")
+require('"daily_return_percent": _round_metric(data.get("daily_return_percent"))' in PERFORMANCE,
+        "Public summary must source daily return from Performance & Analytics")
+require('"weekly_return_percent": _round_metric(data.get("weekly_return_percent"))' in PERFORMANCE,
+        "Public summary must source weekly return from Performance & Analytics")
+require('"monthly_return_percent": _round_metric(data.get("monthly_return_percent"))' in PERFORMANCE,
+        "Public summary must source monthly return from Performance & Analytics")
+require('"history_days": analytics_history_days' in PERFORMANCE,
+        "Public summary must source history days from Performance & Analytics")
 require('id="track-history-start"' in FRONTEND and "fmtDate(data.history_start)" in FRONTEND,
-        "Public track record must show the reconciled history start date")
-require('id="track-history-days"' not in FRONTEND,
-        "Public track record must not restore the inaccurate history-days card")
+        "Public track record must retain the reconciled history start date")
 
 # No static performance figures or fixed account selection in the browser.
 require('/performance/public-summary' in FRONTEND and '/performance/public-history' in FRONTEND,
@@ -78,4 +93,4 @@ account_literals = re.findall(r'(?<![A-Za-z0-9_])[1-9][0-9]{6,11}(?![A-Za-z0-9_]
 require(not account_literals,
         f"Active master resolver contains hard-coded account-like values: {account_literals}")
 
-print("Public track-record layout, capital figures, and dynamic-master contract OK")
+print("Public track-record layout, aligned analytics, capital figures, and dynamic-master contract OK")
