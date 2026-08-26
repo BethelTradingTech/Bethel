@@ -23,12 +23,12 @@ body{background:#0b0f19;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;mar
 
   <form id="site-form">
     <section class="panel">
-      <h2>Global visibility</h2><p>Turn the whole public site or individual areas on and off.</p>
+      <h2>Global visibility</h2><p>Turn the whole public site or individual areas on and off. Starting Balance and Ask Bethel are controlled here too.</p>
       <div class="toggle-grid" id="visibility-controls"></div>
     </section>
 
     <section class="panel">
-      <h2>Pre-launch notice</h2><p>Control the public pre-launch message without editing code.</p>
+      <h2>Pre-launch notice</h2><p>The notice is OFF by default. Re-enable it here only if you intentionally want it shown publicly.</p>
       <div class="grid">
         <label class="field"><span>Label</span><input name="prelaunch_label"></label>
         <label class="field wide"><span>Notice text</span><textarea name="prelaunch_text"></textarea></label>
@@ -112,7 +112,7 @@ body{background:#0b0f19;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;mar
 <script>
 if(typeof requireAuthentication==="function"&&!requireAuthentication()){throw new Error("Authentication required")}
 const visibilityFields=[
- ["site_enabled","Public site enabled"],["show_navigation","Navigation"],["show_hero","Hero"],["show_prelaunch_notice","Pre-launch notice"],["show_about","About"],["show_services","Services"],["show_live_broadcast","Live broadcast"],["show_live_telemetry","Read-only telemetry"],["show_monthly_yearly_returns","Monthly/yearly returns"],["show_reviews","Visitor reviews"],["show_contact","Contact section"],["show_contact_form","Contact form"],["show_social_links","Social channels"],["show_footer","Footer/disclosure"],["show_request_access","Request access buttons"],["show_performance_cta","Performance CTA"],["show_partner_cta","Partner CTA"]
+ ["site_enabled","Public site enabled"],["show_navigation","Navigation"],["show_hero","Hero"],["show_prelaunch_notice","Pre-launch notice"],["show_about","About"],["show_services","Services"],["show_live_broadcast","Live broadcast"],["show_live_telemetry","Read-only telemetry"],["show_starting_balance","Starting balance metric"],["show_monthly_yearly_returns","Monthly/yearly returns"],["show_reviews","Visitor reviews"],["show_contact","Contact section"],["show_contact_form","Contact form"],["show_social_links","Social channels"],["show_footer","Footer/disclosure"],["show_request_access","Request access buttons"],["show_performance_cta","Performance CTA"],["show_partner_cta","Partner CTA"],["show_ai_assistant","Ask Bethel AI assistant"]
 ];
 const form=document.getElementById("site-form"),statusEl=document.getElementById("status"),toggles=document.getElementById("visibility-controls");
 visibilityFields.forEach(([name,label])=>{const row=document.createElement("label");row.className="toggle";row.innerHTML=`<input type="checkbox" name="${name}"><span>${label}</span>`;toggles.appendChild(row)});

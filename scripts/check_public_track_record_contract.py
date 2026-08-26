@@ -71,10 +71,11 @@ require("data.monthly_returns" in FRONTEND,
         "Public returns must use backend monthly return history")
 require('cache:"no-store"' in FRONTEND,
         "Public returns must bypass stale browser caching")
-require("setInterval(loadReturns, 15000)" in FRONTEND,
-        "Public returns must auto-refresh every 15 seconds")
 require("summaryAgain.account_number !== data.account_number" in FRONTEND,
         "Public returns must reject mixed-account data during master switches")
+compact_frontend = "".join(FRONTEND.split())
+require("setInterval(loadReturns,15000)" in compact_frontend,
+        "Public returns must auto-refresh every 15 seconds")
 
 # Backend remains dynamically resolved even though detailed analytics are not shown.
 require("MasterTerminalRegistry.subscriber_id.is_(None)" in RESOLVER,

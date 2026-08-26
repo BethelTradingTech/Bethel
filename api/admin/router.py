@@ -63,11 +63,12 @@ DEFAULT_SETTINGS = {
             "site_enabled": True,
             "show_navigation": True,
             "show_hero": True,
-            "show_prelaunch_notice": True,
+            "show_prelaunch_notice": False,
             "show_about": True,
             "show_services": True,
             "show_live_broadcast": True,
             "show_live_telemetry": True,
+            "show_starting_balance": True,
             "show_monthly_yearly_returns": True,
             "show_reviews": True,
             "show_contact": True,
@@ -76,7 +77,8 @@ DEFAULT_SETTINGS = {
             "show_footer": True,
             "show_request_access": True,
             "show_performance_cta": True,
-            "show_partner_cta": True
+            "show_partner_cta": True,
+            "show_ai_assistant": True
         }
     },
     "system": {
