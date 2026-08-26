@@ -1,4 +1,4 @@
-"""Regression gate for dynamic owner/master public performance routing."""
+"""Regression gate for dynamic owner/master public return routing."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,22 +24,22 @@ for needle in required_master:
 
 # The source-of-truth resolver must never pin a real account number in code.
 for forbidden in ("49617874", "37371080", "49224282", "52847245"):
-    if forbidden in master:
+    if forbidden in master or forbidden in public_js:
         raise SystemExit(f"DYNAMIC MASTER GATE FAIL: hard-coded account {forbidden}")
 
-# Public performance must always be loaded from the dynamic backend endpoints,
-# re-check the active account after history retrieval, and refresh frequently.
+# Public monthly/yearly returns must always come from the dynamic backend,
+# re-check the active account, and refresh frequently.
 required_public = [
     "/performance/public-summary",
-    "/performance/public-history",
+    "data.monthly_returns",
     "summaryAgain.account_number",
     "data.account_number",
     "active master changed during refresh",
-    "setInterval(load, 15000)",
+    "setInterval(loadReturns, 15000)",
     'cache:"no-store"',
 ]
 for needle in required_public:
     if needle not in public_js:
         raise SystemExit(f"DYNAMIC MASTER PUBLIC GATE FAIL: missing {needle!r}")
 
-print("PASS: active owner/master and public track record are dynamically synchronized")
+print("PASS: active owner/master and public monthly/yearly returns are dynamically synchronized")
