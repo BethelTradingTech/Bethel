@@ -1,15 +1,14 @@
-"""Regression contract for Bethel's public Verified Track Record.
+"""Regression contract for Bethel's public monthly/yearly return display.
 
-This deliberately protects the long-lived public presentation contract:
-- Darwinex-style calendar matrix: Year + Jan..Dec + Year.
-- Starting/current balances and equity come from the active-master public API.
-- Headline daily/weekly/monthly/history values mirror Super Admin analytics.
-- Values come from the public performance APIs, never embedded account figures.
-- The page refreshes automatically so a newly active owner/master is reflected.
-- Backend master resolution stays dynamic and does not pin an MT5 account number.
+Product ownership explicitly approved a simplified public presentation:
+- Keep the Darwinex-style calendar matrix: Year + Jan..Dec + Year.
+- Remove Super Admin-style performance analytics from the public renderer.
+- Keep return values dynamic and scoped to the active owner/master account.
+- Refresh automatically and reject mixed-account data during master switches.
+- Never pin a real MT5 account number in browser or master-resolution code.
 
-Change this contract only when product ownership explicitly approves a new public
-track-record design or data-source policy.
+Internal analytics remain available in Super Admin; this contract only governs
+what is rendered on the public website.
 """
 
 from pathlib import Path
@@ -26,71 +25,67 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(message)
 
 
-# Fixed public presentation contract.
+# Fixed public presentation contract: monthly/yearly returns only.
 require('const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]' in FRONTEND,
-        "Public track record must keep Jan-Dec calendar columns")
+        "Public returns must keep Jan-Dec calendar columns")
 require('["Year", ...months, "Year"]' in FRONTEND,
-        "Public track record must keep Year | Jan..Dec | Year matrix")
+        "Public returns must keep Year | Jan..Dec | Year matrix")
 require("yearValues.reduce((factor,r)=>factor*(1+r),1)" in FRONTEND,
         "Annual return column must remain compounded from monthly returns")
 require("track-positive" in FRONTEND and "track-negative" in FRONTEND,
         "Monthly matrix must distinguish positive and negative periods")
+require("Monthly & Yearly Returns" in FRONTEND,
+        "Public performance area must retain the monthly/yearly returns heading")
 
-# Public capital figures must stay dynamic and active-master scoped.
-require('id="track-starting-balance"' in FRONTEND and "data.starting_balance" in FRONTEND,
-        "Public track record must show the dynamic starting balance")
-require('id="track-current-balance"' in FRONTEND and "data.current_balance" in FRONTEND,
-        "Public track record must show the dynamic current balance")
-require('id="track-current-equity"' in FRONTEND and "data.current_equity" in FRONTEND,
-        "Public track record must show the dynamic current equity")
-require('"starting_balance": _round_metric(data.get("starting_capital"))' in PERFORMANCE,
-        "Public summary must source starting balance from performance-engine starting capital")
-require('"current_balance": _round_metric(data.get("current_balance"))' in PERFORMANCE,
-        "Public summary must source current balance dynamically")
-require('"current_equity": _round_metric(data.get("current_equity"))' in PERFORMANCE,
-        "Public summary must source current equity dynamically")
+# Internal Super Admin-style analytics must not be rendered publicly.
+for forbidden_id in (
+    "track-starting-balance",
+    "track-current-balance",
+    "track-current-equity",
+    "track-total-return",
+    "track-banked-return",
+    "track-daily-return",
+    "track-weekly-return",
+    "track-monthly-return",
+    "track-history-days",
+    "track-history-start",
+    "track-annualized-return",
+    "track-max-dd",
+    "track-current-dd",
+    "track-sharpe",
+    "track-sortino",
+    "track-volatility",
+    "track-winrate",
+    "track-profit-factor",
+    "track-grade",
+    "track-ath",
+    "track-chart-container",
+):
+    require(forbidden_id not in FRONTEND,
+            f"Public renderer must not expose internal analytics element {forbidden_id!r}")
 
-# Headline return/history figures must mirror the same Performance & Analytics source.
-require('id="track-daily-return"' in FRONTEND and "data.daily_return_percent" in FRONTEND,
-        "Public track record must show the Super Admin daily-return value")
-require('id="track-weekly-return"' in FRONTEND and "data.weekly_return_percent" in FRONTEND,
-        "Public track record must show the Super Admin weekly-return value")
-require('id="track-monthly-return"' in FRONTEND and "data.monthly_return_percent" in FRONTEND,
-        "Public track record must show the Super Admin monthly-return value")
-require('id="track-history-days"' in FRONTEND and "data.history_days" in FRONTEND,
-        "Public track record must show the Super Admin history-days value")
-require('"daily_return_percent": _round_metric(data.get("daily_return_percent"))' in PERFORMANCE,
-        "Public summary must source daily return from Performance & Analytics")
-require('"weekly_return_percent": _round_metric(data.get("weekly_return_percent"))' in PERFORMANCE,
-        "Public summary must source weekly return from Performance & Analytics")
-require('"monthly_return_percent": _round_metric(data.get("monthly_return_percent"))' in PERFORMANCE,
-        "Public summary must source monthly return from Performance & Analytics")
-require('"history_days": analytics_history_days' in PERFORMANCE,
-        "Public summary must source history days from Performance & Analytics")
-require('id="track-history-start"' in FRONTEND and "fmtDate(data.history_start)" in FRONTEND,
-        "Public track record must retain the reconciled history start date")
-
-# No static performance figures or fixed account selection in the browser.
-require('/performance/public-summary' in FRONTEND and '/performance/public-history' in FRONTEND,
-        "Public track record must load summary and history from backend APIs")
+# Returns must stay dynamic and active-master scoped.
+require('/performance/public-summary' in FRONTEND,
+        "Public returns must load from the dynamic performance summary API")
+require("data.monthly_returns" in FRONTEND,
+        "Public returns must use backend monthly return history")
 require('cache:"no-store"' in FRONTEND,
-        "Public track record must bypass stale browser caching")
-require("setInterval(load, 15000)" in FRONTEND,
-        "Public track record must auto-refresh every 15 seconds")
+        "Public returns must bypass stale browser caching")
+require("setInterval(loadReturns, 15000)" in FRONTEND,
+        "Public returns must auto-refresh every 15 seconds")
 require("summaryAgain.account_number !== data.account_number" in FRONTEND,
-        "Public track record must reject mixed-account data during master switches")
+        "Public returns must reject mixed-account data during master switches")
 
-# Dynamic owner/master source of truth.
+# Backend remains dynamically resolved even though detailed analytics are not shown.
 require("MasterTerminalRegistry.subscriber_id.is_(None)" in RESOLVER,
         "Active master resolver must prefer owner/master terminals")
 require("resolve_active_master_account" in PERFORMANCE,
         "Performance API must use the dynamic active-master resolver")
-require("EquitySnapshot.account_number == account" in PERFORMANCE,
-        "Public history must be filtered to the resolved active master")
 
-# Guard against future accidental account-number pinning in the resolver.
-account_literals = re.findall(r'(?<![A-Za-z0-9_])[1-9][0-9]{6,11}(?![A-Za-z0-9_])', RESOLVER)
-require(not account_literals,
-        f"Active master resolver contains hard-coded account-like values: {account_literals}")
+# Guard against future accidental account-number pinning in the resolver or browser.
+for source_name, source in (("resolver", RESOLVER), ("public renderer", FRONTEND)):
+    account_literals = re.findall(r'(?<![A-Za-z0-9_])[1-9][0-9]{6,11}(?![A-Za-z0-9_])', source)
+    require(not account_literals,
+            f"{source_name} contains hard-coded account-like values: {account_literals}")
 
-print("Public track-record layout, aligned analytics, capital figures, and dynamic-master contract OK")
+print("Public monthly/yearly returns-only dynamic-master contract OK")
