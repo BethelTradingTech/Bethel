@@ -16,7 +16,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = (ROOT / "frontend/js/verified-track-record.js").read_text(encoding="utf-8")
 RESOLVER = (ROOT / "api/services/master_account.py").read_text(encoding="utf-8")
-PERFORMANCE = (ROOT / "api/performance/routes.py").read_text(encoding="utf-8")
+PERFORMANCE = (ROOT / "api/routes/performance/router.py").read_text(encoding="utf-8")
 
 
 def require(condition: bool, message: str) -> None:
