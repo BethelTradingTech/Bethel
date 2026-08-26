@@ -2,6 +2,7 @@
 
 This deliberately protects the long-lived public presentation contract:
 - Darwinex-style calendar matrix: Year + Jan..Dec + Year.
+- Starting/current balances and equity come from the active-master public API.
 - Values come from the public performance APIs, never embedded account figures.
 - The page refreshes automatically so a newly active owner/master is reflected.
 - Backend master resolution stays dynamic and does not pin an MT5 account number.
@@ -34,6 +35,26 @@ require("yearValues.reduce((factor,r)=>factor*(1+r),1)" in FRONTEND,
 require("track-positive" in FRONTEND and "track-negative" in FRONTEND,
         "Monthly matrix must distinguish positive and negative periods")
 
+# Public capital figures must stay dynamic and active-master scoped.
+require('id="track-starting-balance"' in FRONTEND and "data.starting_balance" in FRONTEND,
+        "Public track record must show the dynamic starting balance")
+require('id="track-current-balance"' in FRONTEND and "data.current_balance" in FRONTEND,
+        "Public track record must show the dynamic current balance")
+require('id="track-current-equity"' in FRONTEND and "data.current_equity" in FRONTEND,
+        "Public track record must show the dynamic current equity")
+require('"starting_balance": _round_metric(data.get("starting_capital"))' in PERFORMANCE,
+        "Public summary must source starting balance from performance-engine starting capital")
+require('"current_balance": _round_metric(data.get("current_balance"))' in PERFORMANCE,
+        "Public summary must source current balance dynamically")
+require('"current_equity": _round_metric(data.get("current_equity"))' in PERFORMANCE,
+        "Public summary must source current equity dynamically")
+
+# Avoid presenting an unreliable synthetic history-day count on the public card.
+require('id="track-history-start"' in FRONTEND and "fmtDate(data.history_start)" in FRONTEND,
+        "Public track record must show the reconciled history start date")
+require('id="track-history-days"' not in FRONTEND,
+        "Public track record must not restore the inaccurate history-days card")
+
 # No static performance figures or fixed account selection in the browser.
 require('/performance/public-summary' in FRONTEND and '/performance/public-history' in FRONTEND,
         "Public track record must load summary and history from backend APIs")
@@ -57,4 +78,4 @@ account_literals = re.findall(r'(?<![A-Za-z0-9_])[1-9][0-9]{6,11}(?![A-Za-z0-9_]
 require(not account_literals,
         f"Active master resolver contains hard-coded account-like values: {account_literals}")
 
-print("Public track-record layout and dynamic-master contract OK")
+print("Public track-record layout, capital figures, and dynamic-master contract OK")
