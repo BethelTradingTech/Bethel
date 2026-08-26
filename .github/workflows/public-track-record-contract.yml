@@ -1,0 +1,37 @@
+name: Public Track Record Contract
+
+on:
+  pull_request:
+    paths:
+      - "frontend/js/verified-track-record.js"
+      - "api/services/master_account.py"
+      - "api/performance/routes.py"
+      - "scripts/check_public_track_record_contract.py"
+      - ".github/workflows/public-track-record-contract.yml"
+  push:
+    branches: [main, "fix/**", "feature/**"]
+    paths:
+      - "frontend/js/verified-track-record.js"
+      - "api/services/master_account.py"
+      - "api/performance/routes.py"
+      - "scripts/check_public_track_record_contract.py"
+      - ".github/workflows/public-track-record-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  public-track-record-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Lock Darwinex-style layout and dynamic source
+        run: python scripts/check_public_track_record_contract.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check public renderer syntax
+        run: node --check frontend/js/verified-track-record.js
