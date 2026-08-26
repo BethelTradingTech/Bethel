@@ -8,6 +8,9 @@
   if (!performanceSection) return;
 
   let loading = false;
+  let publicWebsite = {};
+  let publicControls = {};
+  let publicSystem = {};
 
   const style = document.createElement("style");
   style.textContent = `
@@ -28,8 +31,13 @@
     .unified-live-panel .public-broadcast-shell,.unified-live-panel .live-mt5-shell{max-width:none;margin:0;width:100%}
     .unified-live-panel .public-broadcast-shell{border:1px solid rgba(16,185,129,.35);box-shadow:none}
     .unified-live-panel .live-mt5-shell{padding:1rem}
-    #broadcast-slot[hidden],#telemetry-slot[hidden]{display:none!important}
-    @media(max-width:600px){.unified-live-title h2{font-size:1.35rem}.unified-live-title p{font-size:.8rem}.unified-live-panel{padding:.6rem;border-width:1px}.returns-panel{padding:.6rem}.track-table{font-size:.72rem;min-width:900px}.track-table th,.track-table td{padding:.45rem .5rem}}
+    #broadcast-slot[hidden],#telemetry-slot[hidden],.public-admin-hidden{display:none!important}
+    #admin-prelaunch-notice{max-width:980px;margin:-3.6rem auto 3rem;padding:1rem 1.2rem;border:1px solid rgba(245,158,11,.35);background:rgba(120,53,15,.16);border-radius:12px;color:#d1d5db;font-size:.82rem;line-height:1.55;text-align:left}
+    #admin-prelaunch-notice strong{color:#fbbf24;margin-right:.35rem}
+    #admin-site-closed{position:fixed;inset:0;z-index:99999;background:#0b0f19;color:#f3f4f6;display:flex;align-items:center;justify-content:center;padding:2rem;text-align:center}
+    #admin-site-closed .box{max-width:680px;background:#111827;border:1px solid #243044;border-radius:18px;padding:2rem}
+    #admin-site-closed h1{font-size:2rem;margin-bottom:1rem}#admin-site-closed p{color:#9ca3af}
+    @media(max-width:600px){.unified-live-title h2{font-size:1.35rem}.unified-live-title p{font-size:.8rem}.unified-live-panel{padding:.6rem;border-width:1px}.returns-panel{padding:.6rem}.track-table{font-size:.72rem;min-width:900px}.track-table th,.track-table td{padding:.45rem .5rem}#admin-prelaunch-notice{margin:-2.4rem 1rem 2rem}}
   `;
   document.head.appendChild(style);
 
@@ -45,6 +53,159 @@
     const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00Z` : raw);
     return Number.isNaN(d.getTime()) ? raw : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"});
   };
+
+  const control = (key, fallback = true) => Object.prototype.hasOwnProperty.call(publicControls,key) ? !!publicControls[key] : fallback;
+  const setVisible = (selector, visible) => {
+    document.querySelectorAll(selector).forEach(el => el.classList.toggle("public-admin-hidden", !visible));
+  };
+  const setText = (selector, value) => {
+    if (value == null || value === "") return;
+    const el = document.querySelector(selector);
+    if (el) el.textContent = String(value);
+  };
+  const setLink = (selector, text, url) => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    if (text) el.textContent = String(text);
+    if (url) el.setAttribute("href", String(url));
+  };
+
+  function ensurePrelaunchNotice() {
+    let notice = document.getElementById("admin-prelaunch-notice");
+    if (!notice) {
+      notice = document.createElement("div");
+      notice.id = "admin-prelaunch-notice";
+      const hero = document.querySelector(".hero");
+      if (hero && hero.parentNode) hero.parentNode.insertBefore(notice, hero.nextSibling);
+    }
+    const label = publicWebsite.prelaunch_label || "PRE-LAUNCH NOTICE";
+    const text = publicWebsite.prelaunch_text || "";
+    notice.innerHTML = "";
+    const strong = document.createElement("strong");
+    strong.textContent = label;
+    const span = document.createElement("span");
+    span.textContent = text;
+    notice.append(strong, span);
+    notice.classList.toggle("public-admin-hidden", !control("show_prelaunch_notice", true));
+  }
+
+  function renderSiteClosed() {
+    const closed = !control("site_enabled", true) || !!publicSystem.maintenance_mode;
+    let overlay = document.getElementById("admin-site-closed");
+    if (!closed) {
+      if (overlay) overlay.remove();
+      return;
+    }
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "admin-site-closed";
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `<div class="box"><h1>${publicSystem.maintenance_mode ? "Website maintenance" : "Public website temporarily unavailable"}</h1><p>${publicWebsite.site_disabled_message || "Bethel Trading Technologies is updating its public information. Please check back shortly."}</p></div>`;
+  }
+
+  function applyTextAndVisibility() {
+    renderSiteClosed();
+    setVisible("header", control("show_navigation", true));
+    setVisible(".hero", control("show_hero", true));
+    setVisible("#about", control("show_about", true));
+    setVisible("#services", control("show_services", true));
+    setVisible("#visitor-reviews", control("show_reviews", true));
+    setVisible("#contact", control("show_contact", true));
+    setVisible("#contact .contact-form", control("show_contact_form", true));
+    setVisible("#contact .social-networks-header,#contact .social-links-grid", control("show_social_links", true));
+    setVisible("footer", control("show_footer", true));
+    setVisible(".onboarding-float,.nav-onboarding", control("show_request_access", true) && publicSystem.subscriber_registration_enabled !== false);
+
+    setText(".hero .badge", publicWebsite.hero_badge);
+    setText(".hero h1", publicWebsite.hero_title);
+    setText(".hero > p", publicWebsite.hero_description);
+    const heroButtons = document.querySelectorAll(".hero .cta-group a");
+    if (heroButtons[0]) {
+      heroButtons[0].classList.toggle("public-admin-hidden", !control("show_performance_cta", true));
+      if (publicWebsite.primary_cta_text) heroButtons[0].textContent = publicWebsite.primary_cta_text;
+      if (publicWebsite.primary_cta_url) heroButtons[0].href = publicWebsite.primary_cta_url;
+    }
+    if (heroButtons[1]) {
+      heroButtons[1].classList.toggle("public-admin-hidden", !control("show_partner_cta", true));
+      if (publicWebsite.secondary_cta_text) heroButtons[1].textContent = publicWebsite.secondary_cta_text;
+      if (publicWebsite.secondary_cta_url) heroButtons[1].href = publicWebsite.secondary_cta_url;
+    }
+    if (heroButtons[2]) {
+      heroButtons[2].classList.toggle("public-admin-hidden", !control("show_request_access", true) || publicSystem.subscriber_registration_enabled === false);
+      if (publicWebsite.registration_cta_text) heroButtons[2].textContent = publicWebsite.registration_cta_text;
+      if (publicWebsite.registration_cta_url) heroButtons[2].href = publicWebsite.registration_cta_url;
+    }
+    setLink(".nav-onboarding", publicWebsite.registration_cta_text, publicWebsite.registration_cta_url);
+    setLink(".onboarding-float", publicWebsite.registration_cta_text, publicWebsite.registration_cta_url);
+
+    setText("#about .section-header h2", publicWebsite.about_title);
+    setText("#about .section-header p", publicWebsite.about_subtitle);
+    const aboutParagraphs = document.querySelectorAll("#about .about-text p");
+    if (aboutParagraphs[0] && publicWebsite.about_paragraph_1) aboutParagraphs[0].textContent = publicWebsite.about_paragraph_1;
+    if (aboutParagraphs[1] && publicWebsite.about_paragraph_2) aboutParagraphs[1].textContent = publicWebsite.about_paragraph_2;
+
+    setText("#services .section-header h2", publicWebsite.services_title);
+    setText("#services .section-header p", publicWebsite.services_subtitle);
+    const serviceCards = document.querySelectorAll("#services .service-card");
+    serviceCards.forEach((card,index) => {
+      const n = index + 1;
+      const title = publicWebsite[`service_${n}_title`];
+      const text = publicWebsite[`service_${n}_text`];
+      if (title) { const h = card.querySelector("h3"); if (h) h.textContent = title; }
+      if (text) { const p = card.querySelector("p"); if (p) p.textContent = text; }
+    });
+
+    setText("#contact .contact-info h3", publicWebsite.contact_title);
+    setText("#contact .contact-info > p", publicWebsite.contact_description);
+    const emailLink = document.querySelector('#contact a[href^="mailto:"]');
+    if (emailLink && publicWebsite.contact_email) { emailLink.textContent = publicWebsite.contact_email; emailLink.href = `mailto:${publicWebsite.contact_email}`; }
+
+    const socials = {
+      "LinkedIn": publicWebsite.linkedin_url,
+      "Facebook": publicWebsite.facebook_url,
+      "Instagram": publicWebsite.instagram_url,
+      "X (Twitter)": publicWebsite.x_url,
+      "TikTok": publicWebsite.tiktok_url,
+      "YouTube": publicWebsite.youtube_url,
+      "WhatsApp Business": publicWebsite.whatsapp_url
+    };
+    document.querySelectorAll("#contact .social-item").forEach(a => {
+      const url = socials[a.getAttribute("title")];
+      if (url) a.href = url;
+    });
+
+    const disclosure = document.querySelector("footer .disclaimer");
+    if (disclosure && publicWebsite.risk_disclosure) disclosure.textContent = publicWebsite.risk_disclosure;
+    ensurePrelaunchNotice();
+
+    const title = document.querySelector(".unified-live-title h2");
+    const description = document.querySelector(".unified-live-title p");
+    const returnsTitle = document.querySelector(".returns-panel h3");
+    if (title && publicWebsite.live_title) title.textContent = publicWebsite.live_title;
+    if (description && publicWebsite.live_description) description.textContent = publicWebsite.live_description;
+    if (returnsTitle && publicWebsite.returns_title) returnsTitle.textContent = publicWebsite.returns_title;
+
+    const anyPerformance = control("show_live_broadcast", true) || control("show_live_telemetry", true) || control("show_monthly_yearly_returns", true);
+    performanceSection.classList.toggle("public-admin-hidden", !anyPerformance);
+    const returnsPanel = document.querySelector(".returns-panel");
+    if (returnsPanel) returnsPanel.classList.toggle("public-admin-hidden", !control("show_monthly_yearly_returns", true));
+  }
+
+  async function loadPublicSettings() {
+    try {
+      const response = await fetch(`${API}/admin/control/public-settings?ts=${Date.now()}`, {cache:"no-store",headers:{Accept:"application/json"}});
+      if (!response.ok) throw new Error("public settings unavailable");
+      const data = await response.json();
+      publicWebsite = data.website || {};
+      publicControls = publicWebsite.public_controls || {};
+      publicSystem = data.system || {};
+      applyTextAndVisibility();
+      await syncPublicVisibility();
+    } catch (_) {
+      // Fail open to the checked-in public presentation if the settings endpoint is temporarily unavailable.
+    }
+  }
 
   function buildUnifiedDisplay() {
     const broadcastShell = broadcastSection ? broadcastSection.querySelector(".public-broadcast-shell") : null;
@@ -169,8 +330,8 @@
       ]);
       const broadcast = broadcastResponse.ok ? await broadcastResponse.json() : null;
       const telemetry = telemetryResponse.ok ? await telemetryResponse.json() : null;
-      if (broadcastSlot) broadcastSlot.hidden = !(broadcast && broadcast.enabled && broadcast.hls_url);
-      if (telemetrySlot) telemetrySlot.hidden = !(telemetry && telemetry.enabled);
+      if (broadcastSlot) broadcastSlot.hidden = !(control("show_live_broadcast", true) && broadcast && broadcast.enabled && broadcast.hls_url);
+      if (telemetrySlot) telemetrySlot.hidden = !(control("show_live_telemetry", true) && telemetry && telemetry.enabled);
     } catch (_) {
       if (broadcastSlot) broadcastSlot.hidden = true;
       if (telemetrySlot) telemetrySlot.hidden = true;
@@ -178,6 +339,7 @@
   }
 
   async function loadReturns() {
+    if (!control("show_monthly_yearly_returns", true)) return;
     if (loading) return;
     loading = true;
     try {
@@ -202,8 +364,12 @@
   }
 
   buildUnifiedDisplay();
+  loadPublicSettings();
   syncPublicVisibility();
   loadReturns();
+  const observer = new MutationObserver(() => applyTextAndVisibility());
+  observer.observe(document.body,{childList:true,subtree:true});
   setInterval(syncPublicVisibility, 5000);
+  setInterval(loadPublicSettings, 10000);
   setInterval(loadReturns, 15000);
 })();
