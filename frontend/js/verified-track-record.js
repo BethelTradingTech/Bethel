@@ -98,6 +98,7 @@
             <div class="track-card"><small>Weekly return</small><strong id="track-weekly-return">—</strong><span class="track-sub">Super Admin Performance & Analytics</span></div>
             <div class="track-card"><small>Monthly return</small><strong id="track-monthly-return">—</strong><span class="track-sub">Super Admin Performance & Analytics</span></div>
             <div class="track-card"><small>History</small><strong id="track-history-days">—</strong><span class="track-sub" id="track-history-range">—</span></div>
+            <div class="track-card"><small>Record since</small><strong id="track-history-start">—</strong><span class="track-sub">Reconciled active-master start date</span></div>
             <div class="track-card"><small>Annualized return</small><strong id="track-annualized-return">—</strong><span class="track-sub">252 trading-day basis</span></div>
             <div class="track-card"><small>Maximum drawdown</small><strong id="track-max-dd">—</strong><span class="track-sub">Peak-to-valley</span></div>
             <div class="track-card"><small>Current drawdown</small><strong id="track-current-dd">—</strong><span class="track-sub">Latest high watermark</span></div>
@@ -262,6 +263,7 @@
       setText("track-weekly-return", fmtSignedPercent(data.weekly_return_percent));
       setText("track-monthly-return", fmtSignedPercent(data.monthly_return_percent));
       setText("track-history-days", Number.isFinite(Number(data.history_days)) ? `${Number(data.history_days).toFixed(2)} days` : "—");
+      setText("track-history-start", fmtDate(data.history_start));
       setText("track-history-range", data.history_start && data.history_end ? `${fmtDate(data.history_start)} — ${fmtDate(data.history_end)}` : "Active-master analytics history");
       setText("track-annualized-return", fmtSignedPercent(data.annualized_return_percent));
       setText("track-max-dd", fmtPercent(data.maximum_drawdown_percent));
