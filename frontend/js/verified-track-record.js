@@ -26,7 +26,7 @@
     .track-card small{display:block;color:var(--text-secondary);margin-bottom:.3rem;font-size:.75rem}.track-card strong{font-size:1.15rem}.track-sub{display:block;color:var(--text-secondary);font-size:.72rem;margin-top:.25rem}
     .track-panel{background:rgba(255,255,255,.018);border:1px solid var(--border-color);border-radius:12px;padding:1rem;overflow:hidden}.track-panel h3{font-size:1rem;margin-bottom:.75rem;text-align:left}
     .track-chart{width:100%;height:220px;display:block}.track-chart-empty{height:180px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:.9rem}
-    .track-table-wrap{overflow:auto}.track-table{width:100%;border-collapse:collapse;min-width:420px;font-size:.8rem}.track-table th,.track-table td{padding:.55rem .6rem;border-bottom:1px solid var(--border-color);text-align:left;white-space:nowrap}.track-table th:last-child,.track-table td:last-child{text-align:right}
+    .track-table-wrap{overflow:auto}.track-table{width:100%;border-collapse:collapse;min-width:1050px;font-size:.8rem}.track-table th,.track-table td{padding:.55rem .6rem;border-bottom:1px solid var(--border-color);text-align:center;white-space:nowrap}.track-table th:first-child,.track-table td:first-child{text-align:left;font-weight:700}.track-table th:last-child,.track-table td:last-child{font-weight:800}
     .track-positive{color:#34d399}.track-negative{color:#fb7185}.track-neutral{color:var(--text-secondary)}.track-method{color:var(--text-secondary);font-size:.78rem;line-height:1.55;text-align:left}.track-method strong{color:var(--text-primary)}
     .track-loading{color:var(--text-secondary);padding:1rem 0}.track-error{color:#fca5a5;padding:1rem 0}.track-history-label{color:var(--text-secondary);font-size:.78rem}
     .unified-live-panel .public-broadcast-shell,.unified-live-panel .live-mt5-shell{max-width:none;margin:0;width:100%}
@@ -55,12 +55,6 @@
     const raw = String(value);
     const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00Z` : raw);
     return Number.isNaN(d.getTime()) ? raw : d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"});
-  };
-  const fmtMonth = (period) => {
-    const match = /^(\d{4})-(\d{2})$/.exec(String(period || ""));
-    if (!match) return String(period || "—");
-    const d = new Date(`${match[1]}-${match[2]}-01T00:00:00Z`);
-    return d.toLocaleDateString(undefined,{year:"numeric",month:"long",timeZone:"UTC"});
   };
   function setText(id, value) {
     const el = document.getElementById(id);
@@ -100,7 +94,7 @@
             <div class="track-card"><small>Verified record span</small><strong id="track-history-days">—</strong><span class="track-sub" id="track-history-range">—</span></div>
           </div>
           <div class="track-panel"><h3>Balance & Equity History</h3><div id="track-chart-container" class="track-chart-empty">Loading history…</div></div>
-          <div class="track-panel"><h3>Monthly Returns</h3><div id="track-monthly" class="track-table-wrap"><span class="track-history-label">Awaiting reconciled monthly history…</span></div></div>
+          <div class="track-panel"><h3>Monthly & Yearly Returns</h3><div id="track-monthly" class="track-table-wrap"><span class="track-history-label">Awaiting reconciled monthly history…</span></div></div>
           <div class="track-panel track-method"><strong>Methodology & provenance</strong><br><span id="track-methodology">—</span><br><br>Read-only display. Account credentials, broker secrets, order tickets and execution controls are not published. Past performance does not guarantee future results.</div>
         </div>
       </div>`;
@@ -147,32 +141,54 @@
       container.innerHTML = '<span class="track-history-label">Reconciled monthly history is not available for the verified record window.</span>';
       return;
     }
+
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const years = [...new Set(valid.map(r => String(r.period).slice(0,4)))].sort();
+    const byMonth = new Map(valid.map(r => [String(r.period), Number(r.return_percent)]));
     const table = document.createElement("table");
     table.className = "track-table";
     const thead = document.createElement("thead");
     const hr = document.createElement("tr");
-    ["Verified month", "Return"].forEach(label => { const th=document.createElement("th"); th.textContent=label; hr.appendChild(th); });
-    thead.appendChild(hr); table.appendChild(thead);
+    ["Year", ...months, "Year"].forEach(label => { const th=document.createElement("th"); th.textContent=label; hr.appendChild(th); });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
     const tbody = document.createElement("tbody");
-    valid.forEach(row => {
+    years.forEach(year => {
       const tr = document.createElement("tr");
-      const period = document.createElement("td");
-      period.textContent = fmtMonth(row.period);
-      tr.appendChild(period);
-      const value = Number(row.return_percent);
-      const result = document.createElement("td");
-      result.textContent = fmtSignedPercent(value);
-      result.className = value > 0 ? "track-positive" : value < 0 ? "track-negative" : "track-neutral";
-      tr.appendChild(result);
+      const yearCell = document.createElement("td");
+      yearCell.textContent = year;
+      tr.appendChild(yearCell);
+      const yearValues = [];
+      for (let month = 1; month <= 12; month += 1) {
+        const key = `${year}-${String(month).padStart(2,"0")}`;
+        const value = byMonth.get(key);
+        const td = document.createElement("td");
+        if (Number.isFinite(value)) {
+          td.textContent = fmtSignedPercent(value);
+          td.className = value > 0 ? "track-positive" : value < 0 ? "track-negative" : "track-neutral";
+          yearValues.push(value / 100);
+        } else {
+          td.textContent = "—";
+          td.className = "track-neutral";
+        }
+        tr.appendChild(td);
+      }
+      const annual = yearValues.length ? (yearValues.reduce((factor,r)=>factor*(1+r),1)-1)*100 : NaN;
+      const total = document.createElement("td");
+      total.textContent = Number.isFinite(annual) ? fmtSignedPercent(annual) : "—";
+      total.className = annual > 0 ? "track-positive" : annual < 0 ? "track-negative" : "track-neutral";
+      tr.appendChild(total);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
     container.innerHTML = "";
     container.appendChild(table);
+
     const note = document.createElement("div");
     note.className = "track-history-label";
     note.style.marginTop = ".65rem";
-    note.textContent = `${valid.length} verified month${valid.length === 1 ? "" : "s"} within ${fmtDate(historyStart)} — ${fmtDate(historyEnd)}.`;
+    note.textContent = `Calendar returns for the active master only · ${fmtDate(historyStart)} — ${fmtDate(historyEnd)}.`;
     container.appendChild(note);
   }
 
@@ -214,8 +230,13 @@
     loading = true;
     try {
       const [data, history] = await Promise.all([fetchSummary(), fetchHistory()]);
+      const summaryAgain = await fetchSummary();
+      if (summaryAgain.account_number !== data.account_number) {
+        throw new Error("active master changed during refresh");
+      }
+
       setText("track-verification", `${String(data.verification_status || "VERIFIED").toUpperCase()} RECORD`);
-      setText("track-account", `Bethel Terminal 1 · ${data.account_number || "masked"}`);
+      setText("track-account", `Active master · ${data.account_number || "masked"}`);
       setText("track-total-return", fmtSignedPercent(data.total_return_percent));
       setText("track-annualized-return", fmtSignedPercent(data.annualized_return_percent));
       setText("track-max-dd", fmtPercent(data.maximum_drawdown_percent));
@@ -243,7 +264,7 @@
       if (contentEl) contentEl.hidden = false;
     } catch (_) {
       const loadingEl = document.getElementById("track-loading");
-      if (loadingEl) { loadingEl.className="track-error"; loadingEl.textContent="Verified performance is temporarily unavailable."; }
+      if (loadingEl) { loadingEl.className="track-error"; loadingEl.hidden=false; loadingEl.textContent="Verified performance is temporarily unavailable or the active master is switching. No mixed-account record is displayed."; }
     } finally {
       loading = false;
     }
@@ -253,5 +274,5 @@
   syncPublicVisibility();
   load();
   setInterval(syncPublicVisibility, 5000);
-  setInterval(load, 60000);
+  setInterval(load, 15000);
 })();
