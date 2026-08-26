@@ -50,6 +50,15 @@
     if (!Number.isFinite(n)) return "—";
     return `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`;
   };
+  const fmtMoney = (value, currency = "USD") => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    try {
+      return new Intl.NumberFormat(undefined,{style:"currency",currency:String(currency || "USD").toUpperCase(),minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+    } catch (_) {
+      return `${String(currency || "USD").toUpperCase()} ${n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    }
+  };
   const fmtDate = (value) => {
     if (!value) return "—";
     const raw = String(value);
@@ -80,6 +89,9 @@
         <div id="track-loading" class="track-loading">Loading verified performance…</div>
         <div id="track-content" hidden>
           <div class="track-grid">
+            <div class="track-card"><small>Starting balance</small><strong id="track-starting-balance">—</strong><span class="track-sub">Verified initial funding / first recorded balance</span></div>
+            <div class="track-card"><small>Current balance</small><strong id="track-current-balance">—</strong><span class="track-sub">Active-master balance</span></div>
+            <div class="track-card"><small>Current equity</small><strong id="track-current-equity">—</strong><span class="track-sub">Live account equity</span></div>
             <div class="track-card"><small>Total return</small><strong id="track-total-return">—</strong><span class="track-sub">Active-master record</span></div>
             <div class="track-card"><small>Annualized return</small><strong id="track-annualized-return">—</strong><span class="track-sub">252 trading-day basis</span></div>
             <div class="track-card"><small>Maximum drawdown</small><strong id="track-max-dd">—</strong><span class="track-sub">Peak-to-valley</span></div>
@@ -91,7 +103,7 @@
             <div class="track-card"><small>Profit factor</small><strong id="track-profit-factor">—</strong><span class="track-sub">Gross profit / gross loss</span></div>
             <div class="track-card"><small>Performance grade</small><strong id="track-grade">—</strong><span class="track-sub" id="track-risk">Risk —</span></div>
             <div class="track-card"><small>All-time high return</small><strong id="track-ath">—</strong><span class="track-sub" id="track-ath-date">—</span></div>
-            <div class="track-card"><small>Verified record span</small><strong id="track-history-days">—</strong><span class="track-sub" id="track-history-range">—</span></div>
+            <div class="track-card"><small>Record since</small><strong id="track-history-start">—</strong><span class="track-sub" id="track-history-range">—</span></div>
           </div>
           <div class="track-panel"><h3>Balance & Equity History</h3><div id="track-chart-container" class="track-chart-empty">Loading history…</div></div>
           <div class="track-panel"><h3>Monthly & Yearly Returns</h3><div id="track-monthly" class="track-table-wrap"><span class="track-history-label">Awaiting reconciled monthly history…</span></div></div>
@@ -237,6 +249,9 @@
 
       setText("track-verification", `${String(data.verification_status || "VERIFIED").toUpperCase()} RECORD`);
       setText("track-account", `Active master · ${data.account_number || "masked"}`);
+      setText("track-starting-balance", fmtMoney(data.starting_balance, data.currency));
+      setText("track-current-balance", fmtMoney(data.current_balance, data.currency));
+      setText("track-current-equity", fmtMoney(data.current_equity, data.currency));
       setText("track-total-return", fmtSignedPercent(data.total_return_percent));
       setText("track-annualized-return", fmtSignedPercent(data.annualized_return_percent));
       setText("track-max-dd", fmtPercent(data.maximum_drawdown_percent));
@@ -251,10 +266,8 @@
       setText("track-risk", `Risk ${data.risk_level || "—"}`);
       setText("track-ath", fmtSignedPercent(data.all_time_high_return_percent));
       setText("track-ath-date", fmtDate(data.all_time_high_date));
-      const reconciledWeekdays = Number(data.history_weekdays ?? 0);
-      const activeTradingDays = Number(data.trading_days ?? 0);
-      setText("track-history-days", reconciledWeekdays > 0 ? `${reconciledWeekdays} reconciled weekdays` : "—");
-      setText("track-history-range", `${fmtDate(data.history_start)} — ${fmtDate(data.history_end)}${activeTradingDays > 0 ? ` · ${activeTradingDays} active trading days` : ""}`);
+      setText("track-history-start", fmtDate(data.history_start));
+      setText("track-history-range", data.history_end ? `Through ${fmtDate(data.history_end)}` : "—");
       setText("track-methodology", data.methodology || "Read-only signed active-master snapshots and reconciled closed-trade history.");
       renderChart(history);
       renderMonthly(data.monthly_returns || [], data.history_start, data.history_end);
