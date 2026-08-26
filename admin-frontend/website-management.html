@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Public Website Control Center | Bethel Admin</title>
+<link rel="stylesheet" href="css/admin-control.css?v=20260826-site-control">
+<style>
+body{background:#0b0f19;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;margin:0}.control-shell{max-width:1280px;margin:0 auto;padding:24px}.control-head{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px}.control-head a{color:#10b981;text-decoration:none}.panel{background:#111827;border:1px solid #243044;border-radius:16px;padding:20px;margin-bottom:18px}.panel h2{margin:0 0 6px}.panel p{color:#9ca3af}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wide{grid-column:1/-1}.toggle-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.toggle{display:flex;gap:10px;align-items:center;padding:12px;background:#0b1220;border:1px solid #243044;border-radius:10px}.toggle input{width:18px;height:18px}.field{display:grid;gap:6px}.field span{font-size:.82rem;color:#9ca3af}.field input,.field textarea{width:100%;box-sizing:border-box;background:#0b1220;color:#f3f4f6;border:1px solid #344257;border-radius:9px;padding:10px;font:inherit}.field textarea{min-height:84px;resize:vertical}.actions{display:flex;gap:10px;flex-wrap:wrap}.actions button,.actions a{border:0;border-radius:9px;padding:11px 16px;font-weight:700;text-decoration:none;cursor:pointer}.primary{background:#10b981;color:#04110c}.secondary{background:#1f2937;color:#f3f4f6}.danger{background:#7f1d1d;color:#fff}.status{min-height:22px;color:#34d399;font-weight:600}.warning{border-color:#92400e;background:#1c140b}.warning strong{color:#fbbf24}@media(max-width:800px){.grid,.toggle-grid{grid-template-columns:1fr}.wide{grid-column:auto}.control-shell{padding:14px}}
+</style>
+</head>
+<body>
+<div class="control-shell">
+  <div class="control-head">
+    <div><h1>Public Website Control Center</h1><p>Super Admin control over what visitors can see on the Bethel public website.</p></div>
+    <div class="actions"><a class="secondary" href="/admin-frontend/">← Admin Home</a><a class="primary" href="https://betheltradingtechnologies.com" target="_blank" rel="noopener">Open Public Website ↗</a></div>
+  </div>
+
+  <div class="panel warning">
+    <strong>Publishing control</strong>
+    <p>Changes here affect only public presentation. They do not alter MT5 execution, master-account selection, performance calculations, KYC, payments, or Super Admin analytics.</p>
+  </div>
+
+  <form id="site-form">
+    <section class="panel">
+      <h2>Global visibility</h2><p>Turn the whole public site or individual areas on and off.</p>
+      <div class="toggle-grid" id="visibility-controls"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Pre-launch notice</h2><p>Control the public pre-launch message without editing code.</p>
+      <div class="grid">
+        <label class="field"><span>Label</span><input name="prelaunch_label"></label>
+        <label class="field wide"><span>Notice text</span><textarea name="prelaunch_text"></textarea></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Hero and public calls to action</h2>
+      <div class="grid">
+        <label class="field"><span>Company name</span><input name="company_name"></label>
+        <label class="field"><span>Badge</span><input name="hero_badge"></label>
+        <label class="field wide"><span>Headline</span><input name="hero_title"></label>
+        <label class="field wide"><span>Description</span><textarea name="hero_description"></textarea></label>
+        <label class="field"><span>Performance button text</span><input name="primary_cta_text"></label>
+        <label class="field"><span>Performance button link</span><input name="primary_cta_url"></label>
+        <label class="field"><span>Partner button text</span><input name="secondary_cta_text"></label>
+        <label class="field"><span>Partner button link</span><input name="secondary_cta_url"></label>
+        <label class="field"><span>Request-access button text</span><input name="registration_cta_text"></label>
+        <label class="field"><span>Request-access link</span><input name="registration_cta_url"></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>About</h2>
+      <div class="grid">
+        <label class="field"><span>Title</span><input name="about_title"></label>
+        <label class="field"><span>Subtitle</span><input name="about_subtitle"></label>
+        <label class="field wide"><span>Paragraph 1</span><textarea name="about_paragraph_1"></textarea></label>
+        <label class="field wide"><span>Paragraph 2</span><textarea name="about_paragraph_2"></textarea></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Services</h2>
+      <div class="grid">
+        <label class="field"><span>Section title</span><input name="services_title"></label>
+        <label class="field"><span>Section subtitle</span><input name="services_subtitle"></label>
+        <label class="field"><span>Service 1 title</span><input name="service_1_title"></label><label class="field"><span>Service 1 description</span><textarea name="service_1_text"></textarea></label>
+        <label class="field"><span>Service 2 title</span><input name="service_2_title"></label><label class="field"><span>Service 2 description</span><textarea name="service_2_text"></textarea></label>
+        <label class="field"><span>Service 3 title</span><input name="service_3_title"></label><label class="field"><span>Service 3 description</span><textarea name="service_3_text"></textarea></label>
+        <label class="field"><span>Service 4 title</span><input name="service_4_title"></label><label class="field"><span>Service 4 description</span><textarea name="service_4_text"></textarea></label>
+        <label class="field"><span>Service 5 title</span><input name="service_5_title"></label><label class="field"><span>Service 5 description</span><textarea name="service_5_text"></textarea></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Live display and returns</h2>
+      <div class="grid">
+        <label class="field wide"><span>Live section title</span><input name="live_title"></label>
+        <label class="field wide"><span>Live section description</span><textarea name="live_description"></textarea></label>
+        <label class="field"><span>Returns title</span><input name="returns_title"></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Contact, social channels and disclosure</h2>
+      <div class="grid">
+        <label class="field"><span>Contact title</span><input name="contact_title"></label>
+        <label class="field"><span>Contact email</span><input type="email" name="contact_email"></label>
+        <label class="field wide"><span>Contact description</span><textarea name="contact_description"></textarea></label>
+        <label class="field"><span>Contact phone</span><input name="contact_phone"></label>
+        <label class="field"><span>WhatsApp URL</span><input name="whatsapp_url"></label>
+        <label class="field"><span>LinkedIn URL</span><input name="linkedin_url"></label>
+        <label class="field"><span>Facebook URL</span><input name="facebook_url"></label>
+        <label class="field"><span>Instagram URL</span><input name="instagram_url"></label>
+        <label class="field"><span>X URL</span><input name="x_url"></label>
+        <label class="field"><span>YouTube URL</span><input name="youtube_url"></label>
+        <label class="field"><span>TikTok URL</span><input name="tiktok_url"></label>
+        <label class="field wide"><span>Risk disclosure</span><textarea name="risk_disclosure"></textarea></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="actions"><button class="primary" type="submit">Save & Publish Settings</button><button class="secondary" id="reload" type="button">Reload Current Settings</button></div>
+      <div id="status" class="status" aria-live="polite"></div>
+    </section>
+  </form>
+</div>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script>
+if(typeof requireAuthentication==="function"&&!requireAuthentication()){throw new Error("Authentication required")}
+const visibilityFields=[
+ ["site_enabled","Public site enabled"],["show_navigation","Navigation"],["show_hero","Hero"],["show_prelaunch_notice","Pre-launch notice"],["show_about","About"],["show_services","Services"],["show_live_broadcast","Live broadcast"],["show_live_telemetry","Read-only telemetry"],["show_monthly_yearly_returns","Monthly/yearly returns"],["show_reviews","Visitor reviews"],["show_contact","Contact section"],["show_contact_form","Contact form"],["show_social_links","Social channels"],["show_footer","Footer/disclosure"],["show_request_access","Request access buttons"],["show_performance_cta","Performance CTA"],["show_partner_cta","Partner CTA"]
+];
+const form=document.getElementById("site-form"),statusEl=document.getElementById("status"),toggles=document.getElementById("visibility-controls");
+visibilityFields.forEach(([name,label])=>{const row=document.createElement("label");row.className="toggle";row.innerHTML=`<input type="checkbox" name="${name}"><span>${label}</span>`;toggles.appendChild(row)});
+function setStatus(message,error=false){statusEl.textContent=message;statusEl.style.color=error?"#f87171":"#34d399"}
+function fill(data){const website=data.website||{};const controls=website.public_controls||{};[...form.elements].forEach(el=>{if(!el.name)return;if(Object.prototype.hasOwnProperty.call(controls,el.name)){el.checked=!!controls[el.name];return}if(el.type!=="checkbox")el.value=website[el.name]??""})}
+async function load(){try{setStatus("Loading…");const data=await apiGet("/admin/control/settings");fill(data);setStatus("Current public settings loaded") }catch(e){setStatus(e.message||"Unable to load settings",true)}}
+form.addEventListener("submit",async e=>{e.preventDefault();const website={public_controls:{}};[...form.elements].forEach(el=>{if(!el.name)return;if(el.type==="checkbox")website.public_controls[el.name]=el.checked;else website[el.name]=el.value});try{setStatus("Saving…");await apiPut("/admin/control/settings/website",website);setStatus("Saved. Public website will use these settings on its next refresh.")}catch(err){setStatus(err.message||"Unable to save settings",true)}});
+document.getElementById("reload").onclick=load;load();
+</script>
+</body>
+</html>
