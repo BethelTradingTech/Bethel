@@ -204,8 +204,9 @@ def public_performance_summary():
         profile = {"status": "not_available"}
     profile_available = profile.get("status") == "available"
 
-    # Keep the public history-day figure identical to the existing Super Admin
-    # Performance & Analytics engine. Do not derive a second public-only age.
+    # Public headline performance uses the exact same dynamic values returned by
+    # Super Admin Performance & Analytics. Risk-only statistics still come from
+    # the reconciled risk profile. No public-only return or history calculation.
     analytics_history_days = _round_metric(data.get("history_days"))
 
     return {
@@ -218,6 +219,10 @@ def public_performance_summary():
         "current_balance": _round_metric(data.get("current_balance")),
         "current_equity": _round_metric(data.get("current_equity")),
         "total_return_percent": _round_metric(data.get("total_return_percent")),
+        "banked_return_percent": _round_metric(data.get("banked_return_percent")),
+        "daily_return_percent": _round_metric(data.get("daily_return_percent")),
+        "weekly_return_percent": _round_metric(data.get("weekly_return_percent")),
+        "monthly_return_percent": _round_metric(data.get("monthly_return_percent")),
         "annualized_return_percent": _round_metric(profile.get("annualized_return_percent")) if profile_available else None,
         "history_days": analytics_history_days,
         "trading_days": int(round(float(analytics_history_days))) if analytics_history_days is not None else 0,
@@ -245,7 +250,7 @@ def public_performance_summary():
         "monthly_returns": profile.get("monthly_returns", []) if profile_available else [],
         "yearly_returns": profile.get("yearly_returns", []) if profile_available else [],
         "currency": data.get("currency") or "USD",
-        "methodology": "Cash-flow-neutral risk statistics are reconstructed from signed active-master deals and cash flows and are published read-only only after ledger reconciliation. Total return may incorporate the configured FX Blue banked-return reconciliation when available.",
+        "methodology": "Headline balance, return and history metrics mirror Super Admin Performance & Analytics for the active master. Risk statistics and calendar month/year returns are reconstructed from signed active-master deals and cash flows. Total return may incorporate the configured FX Blue banked-return reconciliation when available.",
     }
 
 
