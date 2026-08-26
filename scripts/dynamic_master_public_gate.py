@@ -35,11 +35,14 @@ required_public = [
     "summaryAgain.account_number",
     "data.account_number",
     "active master changed during refresh",
-    "setInterval(loadReturns, 15000)",
     'cache:"no-store"',
 ]
 for needle in required_public:
     if needle not in public_js:
         raise SystemExit(f"DYNAMIC MASTER PUBLIC GATE FAIL: missing {needle!r}")
+
+compact_public_js = "".join(public_js.split())
+if "setInterval(loadReturns,15000)" not in compact_public_js:
+    raise SystemExit("DYNAMIC MASTER PUBLIC GATE FAIL: public returns must refresh every 15 seconds")
 
 print("PASS: active owner/master and public monthly/yearly returns are dynamically synchronized")
