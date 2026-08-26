@@ -27,14 +27,16 @@ for forbidden in ("49617874", "37371080", "49224282", "52847245"):
     if forbidden in master:
         raise SystemExit(f"DYNAMIC MASTER GATE FAIL: hard-coded account {forbidden}")
 
+# Public performance must always be loaded from the dynamic backend endpoints,
+# re-check the active account after history retrieval, and refresh frequently.
 required_public = [
     "/performance/public-summary",
     "/performance/public-history",
-    "firstSummary.account_number",
+    "summaryAgain.account_number",
     "data.account_number",
     "active master changed during refresh",
     "setInterval(load, 15000)",
-    "Stale telemetry from the previous master is not displayed",
+    'cache:"no-store"',
 ]
 for needle in required_public:
     if needle not in public_js:
