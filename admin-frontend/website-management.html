@@ -6,7 +6,7 @@
 <title>Public Website Control Center | Bethel Admin</title>
 <link rel="stylesheet" href="css/admin-control.css?v=20260826-site-control">
 <style>
-body{background:#0b0f19;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;margin:0}.control-shell{max-width:1280px;margin:0 auto;padding:24px}.control-head{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px}.control-head a{color:#10b981;text-decoration:none}.panel{background:#111827;border:1px solid #243044;border-radius:16px;padding:20px;margin-bottom:18px}.panel h2{margin:0 0 6px}.panel p{color:#9ca3af}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wide{grid-column:1/-1}.toggle-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.toggle{display:flex;gap:10px;align-items:center;padding:12px;background:#0b1220;border:1px solid #243044;border-radius:10px}.toggle input{width:18px;height:18px}.field{display:grid;gap:6px}.field span{font-size:.82rem;color:#9ca3af}.field input,.field textarea{width:100%;box-sizing:border-box;background:#0b1220;color:#f3f4f6;border:1px solid #344257;border-radius:9px;padding:10px;font:inherit}.field textarea{min-height:84px;resize:vertical}.actions{display:flex;gap:10px;flex-wrap:wrap}.actions button,.actions a{border:0;border-radius:9px;padding:11px 16px;font-weight:700;text-decoration:none;cursor:pointer}.primary{background:#10b981;color:#04110c}.secondary{background:#1f2937;color:#f3f4f6}.danger{background:#7f1d1d;color:#fff}.status{min-height:22px;color:#34d399;font-weight:600}.warning{border-color:#92400e;background:#1c140b}.warning strong{color:#fbbf24}@media(max-width:800px){.grid,.toggle-grid{grid-template-columns:1fr}.wide{grid-column:auto}.control-shell{padding:14px}}
+body{background:#0b0f19;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;margin:0}.control-shell{max-width:1280px;margin:0 auto;padding:24px}.control-head{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px}.control-head a{color:#10b981;text-decoration:none}.panel{background:#111827;border:1px solid #243044;border-radius:16px;padding:20px;margin-bottom:18px}.panel h2{margin:0 0 6px}.panel p{color:#9ca3af}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wide{grid-column:1/-1}.toggle-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.toggle{display:flex;gap:10px;align-items:center;padding:12px;background:#0b1220;border:1px solid #243044;border-radius:10px}.toggle input{width:18px;height:18px}.field{display:grid;gap:6px}.field span{font-size:.82rem;color:#9ca3af}.field input,.field textarea{width:100%;box-sizing:border-box;background:#0b1220;color:#f3f4f6;border:1px solid #344257;border-radius:9px;padding:10px;font:inherit}.field textarea{min-height:84px;resize:vertical}.actions{display:flex;gap:10px;flex-wrap:wrap}.actions button,.actions a{border:0;border-radius:9px;padding:11px 16px;font-weight:700;text-decoration:none;cursor:pointer}.primary{background:#10b981;color:#04110c}.secondary{background:#1f2937;color:#f3f4f6}.danger{background:#7f1d1d;color:#fff}.status{min-height:22px;color:#34d399;font-weight:600}.warning{border-color:#92400e;background:#1c140b}.warning strong{color:#fbbf24}.disclosure-card{border-color:#36516b;background:linear-gradient(180deg,#101a28,#111827)}.disclosure-card h2{color:#e5eef9}.disclosure-card .toggle{margin:14px 0;background:#0c1624}@media(max-width:800px){.grid,.toggle-grid{grid-template-columns:1fr}.wide{grid-column:auto}.control-shell{padding:14px}}
 </style>
 </head>
 <body>
@@ -22,17 +22,18 @@ body{background:#0b0f19;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;mar
   </div>
 
   <form id="site-form">
-    <section class="panel">
-      <h2>Global visibility</h2><p>Turn the whole public site or individual areas on and off. Starting Balance and Ask Bethel are controlled here too.</p>
-      <div class="toggle-grid" id="visibility-controls"></div>
+    <section class="panel disclosure-card">
+      <h2>Public Notice Disclosure</h2>
+      <p>Control the public disclosure independently. You decide whether it is shown or hidden, and you can edit the disclosure text at any time.</p>
+      <label class="toggle"><input type="checkbox" name="show_public_notice_disclosure"><span>Enable Public Notice Disclosure on the public website</span></label>
+      <div class="grid">
+        <label class="field wide"><span>Disclosure text</span><textarea name="public_notice_text" rows="7"></textarea></label>
+      </div>
     </section>
 
     <section class="panel">
-      <h2>Pre-launch notice</h2><p>The notice is OFF by default. Re-enable it here only if you intentionally want it shown publicly.</p>
-      <div class="grid">
-        <label class="field"><span>Label</span><input name="prelaunch_label"></label>
-        <label class="field wide"><span>Notice text</span><textarea name="prelaunch_text"></textarea></label>
-      </div>
+      <h2>Global visibility</h2><p>Turn the whole public site or individual areas on and off. Starting Balance and Ask Bethel are controlled here too.</p>
+      <div class="toggle-grid" id="visibility-controls"></div>
     </section>
 
     <section class="panel">
@@ -112,7 +113,7 @@ body{background:#0b0f19;color:#f3f4f6;font-family:Inter,system-ui,sans-serif;mar
 <script>
 if(typeof requireAuthentication==="function"&&!requireAuthentication()){throw new Error("Authentication required")}
 const visibilityFields=[
- ["site_enabled","Public site enabled"],["show_navigation","Navigation"],["show_hero","Hero"],["show_prelaunch_notice","Pre-launch notice"],["show_about","About"],["show_services","Services"],["show_live_broadcast","Live broadcast"],["show_live_telemetry","Read-only telemetry"],["show_starting_balance","Starting balance metric"],["show_monthly_yearly_returns","Monthly/yearly returns"],["show_reviews","Visitor reviews"],["show_contact","Contact section"],["show_contact_form","Contact form"],["show_social_links","Social channels"],["show_footer","Footer/disclosure"],["show_request_access","Request access buttons"],["show_performance_cta","Performance CTA"],["show_partner_cta","Partner CTA"],["show_ai_assistant","Ask Bethel AI assistant"]
+ ["site_enabled","Public site enabled"],["show_navigation","Navigation"],["show_hero","Hero"],["show_about","About"],["show_services","Services"],["show_live_broadcast","Live broadcast"],["show_live_telemetry","Read-only telemetry"],["show_starting_balance","Starting balance metric"],["show_monthly_yearly_returns","Monthly/yearly returns"],["show_reviews","Visitor reviews"],["show_contact","Contact section"],["show_contact_form","Contact form"],["show_social_links","Social channels"],["show_footer","Footer/disclosure"],["show_request_access","Request access buttons"],["show_performance_cta","Performance CTA"],["show_partner_cta","Partner CTA"],["show_ai_assistant","Ask Bethel AI assistant"]
 ];
 const form=document.getElementById("site-form"),statusEl=document.getElementById("status"),toggles=document.getElementById("visibility-controls");
 visibilityFields.forEach(([name,label])=>{const row=document.createElement("label");row.className="toggle";row.innerHTML=`<input type="checkbox" name="${name}"><span>${label}</span>`;toggles.appendChild(row)});
