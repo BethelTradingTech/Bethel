@@ -22,7 +22,7 @@ DEFAULT_SETTINGS = {
         "secondary_cta_text": "Partner With Us",
         "secondary_cta_url": "#contact",
         "registration_cta_text": "Request Access",
-        "registration_cta_url": "https://bethel-api.onrender.com/investor-frontend/onboarding.html",
+        "registration_cta_url": "#contact",
         "prelaunch_label": "PRE-LAUNCH NOTICE",
         "prelaunch_text": "Bethel is completing corporate, contractual and regulatory work with professional advisers. Public account access is invitation-only. Live trading information shown below is Bethel-reported read-only telemetry and is not represented as independent third-party verification.",
         "public_notice_text": "Bethel Quant Trading Technologies Limited is currently in its pre-launch and commercial readiness phase. The information, technology demonstrations, live trading broadcasts, performance records, and platform features presented on this website are provided to demonstrate the capabilities and ongoing development of the Bethel technology ecosystem. Public customer services and any activities requiring regulatory authorization will only be made available in applicable jurisdictions once the necessary legal, compliance, and regulatory requirements have been satisfied. Nothing presented on this website constitutes an offer, solicitation, investment recommendation, or guarantee of future trading performance.",
