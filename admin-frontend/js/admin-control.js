@@ -1,3 +1,15 @@
+/*
+Compatibility wrapper: the original Super Admin implementation is preserved in
+admin-control-core.js and still owns these critical routes:
+/admin/control/settings
+/admin/operations/backups
+/admin/notifications
+/admin/legal/acceptances
+/admin/subscriptions
+/admin/payments
+/connector/v1/admin/public-display
+/broadcast/v1/admin/control
+*/
 (function(){
   "use strict";
   const core=document.createElement("script");
