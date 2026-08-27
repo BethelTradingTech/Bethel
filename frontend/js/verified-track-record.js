@@ -22,9 +22,9 @@
     .track-table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}.track-table{width:100%;border-collapse:collapse;min-width:1050px;font-size:.8rem}.track-table th,.track-table td{padding:.55rem .6rem;border-bottom:1px solid var(--border-color);text-align:center;white-space:nowrap}.track-table th:first-child,.track-table td:first-child{text-align:left;font-weight:700}.track-table th:last-child,.track-table td:last-child{font-weight:800}
     .track-positive{color:#34d399}.track-negative{color:#fb7185}.track-neutral{color:var(--text-secondary)}.track-loading{color:var(--text-secondary);padding:1rem 0}.track-error{color:#fca5a5;padding:1rem 0}.track-history-label{color:var(--text-secondary);font-size:.78rem}
     .unified-live-panel .public-broadcast-shell,.unified-live-panel .live-mt5-shell{max-width:none;margin:0;width:100%}.unified-live-panel .public-broadcast-shell{border:1px solid rgba(16,185,129,.35);box-shadow:none}.unified-live-panel .live-mt5-shell{padding:1rem}#broadcast-slot[hidden],#telemetry-slot[hidden]{display:none!important}
-    #admin-prelaunch-notice{max-width:980px;margin:-3.6rem auto 3rem;padding:1rem 1.2rem;border:1px solid rgba(245,158,11,.35);background:rgba(120,53,15,.16);border-radius:12px;color:#d1d5db;font-size:.82rem;line-height:1.55;text-align:left}#admin-prelaunch-notice strong{color:#fbbf24;margin-right:.35rem}
+    #public-notice-disclosure{max-width:980px;margin:-3.6rem auto 3rem;padding:1rem 1.2rem;border:1px solid rgba(96,165,250,.34);background:rgba(30,64,175,.10);border-radius:12px;color:#d1d5db;font-size:.82rem;line-height:1.6;text-align:left}#public-notice-disclosure strong{display:block;color:#bfdbfe;margin-bottom:.35rem;letter-spacing:.04em}
     #admin-site-closed{position:fixed;inset:0;z-index:99999;background:#0b0f19;color:#f3f4f6;display:flex;align-items:center;justify-content:center;padding:2rem;text-align:center}#admin-site-closed .box{max-width:680px;background:#111827;border:1px solid #243044;border-radius:18px;padding:2rem}#admin-site-closed h1{font-size:2rem;margin-bottom:1rem}#admin-site-closed p{color:#9ca3af}
-    @media(max-width:600px){.unified-live-title h2{font-size:1.35rem}.unified-live-title p{font-size:.8rem}.unified-live-panel{padding:.6rem;border-width:1px}.returns-panel{padding:.6rem}.track-table{font-size:.72rem;min-width:900px}.track-table th,.track-table td{padding:.45rem .5rem}#admin-prelaunch-notice{margin:-2.4rem 1rem 2rem}}
+    @media(max-width:600px){.unified-live-title h2{font-size:1.35rem}.unified-live-title p{font-size:.8rem}.unified-live-panel{padding:.6rem;border-width:1px}.returns-panel{padding:.6rem}.track-table{font-size:.72rem;min-width:900px}.track-table th,.track-table td{padding:.45rem .5rem}#public-notice-disclosure{margin:-2.4rem 1rem 2rem}}
   `;
   document.head.appendChild(style);
 
@@ -58,7 +58,7 @@
     if(balance?.nextSibling)grid.insertBefore(metric,balance.nextSibling);else grid.prepend(metric);
   }
 
-  function removePrelaunchNotices(){
+  function removeLegacyPrelaunchNotices(){
     document.getElementById("admin-prelaunch-notice")?.remove();
     document.querySelectorAll("body *").forEach(el=>{
       if(el.children.length===0&&/^PRE[- ]?LAUNCH NOTICE\b/i.test(String(el.textContent||"").trim())){
@@ -68,13 +68,24 @@
     });
   }
 
-  function ensurePrelaunchNotice(){
-    if(!control("show_prelaunch_notice",false)){removePrelaunchNotices();return}
-    let notice=document.getElementById("admin-prelaunch-notice");
-    if(!notice){notice=document.createElement("div");notice.id="admin-prelaunch-notice";const hero=document.querySelector(".hero");if(hero?.parentNode)hero.parentNode.insertBefore(notice,hero.nextSibling)}
+  function ensurePublicNoticeDisclosure(){
+    removeLegacyPrelaunchNotices();
+    let notice=document.getElementById("public-notice-disclosure");
+    if(!control("show_public_notice_disclosure",false)){
+      notice?.remove();
+      return;
+    }
+    if(!notice){
+      notice=document.createElement("div");
+      notice.id="public-notice-disclosure";
+      const hero=document.querySelector(".hero");
+      if(hero?.parentNode)hero.parentNode.insertBefore(notice,hero.nextSibling);
+    }
     notice.replaceChildren();
     const strong=document.createElement("strong"),span=document.createElement("span");
-    strong.textContent=publicWebsite.prelaunch_label||"PRE-LAUNCH NOTICE";span.textContent=publicWebsite.prelaunch_text||"";notice.append(strong,span);
+    strong.textContent="PUBLIC NOTICE DISCLOSURE";
+    span.textContent=publicWebsite.public_notice_text||"";
+    notice.append(strong,span);
   }
 
   function renderSiteClosed(){
@@ -99,12 +110,12 @@
     setText("#contact .contact-info h3",publicWebsite.contact_title);setText("#contact .contact-info > p",publicWebsite.contact_description);const email=document.querySelector('#contact a[href^="mailto:"]');if(email&&publicWebsite.contact_email){email.textContent=publicWebsite.contact_email;email.href=`mailto:${publicWebsite.contact_email}`}
     const socialMap={"LinkedIn":publicWebsite.linkedin_url,"Facebook":publicWebsite.facebook_url,"Instagram":publicWebsite.instagram_url,"X (Twitter)":publicWebsite.x_url,"TikTok":publicWebsite.tiktok_url,"YouTube":publicWebsite.youtube_url,"WhatsApp Business":publicWebsite.whatsapp_url};document.querySelectorAll("#contact .social-item").forEach(a=>{const url=socialMap[a.title];if(url)a.href=url});
     const disclosure=document.querySelector("footer .disclaimer");if(disclosure&&publicWebsite.risk_disclosure)disclosure.textContent=publicWebsite.risk_disclosure;
-    setText(".unified-live-title h2",publicWebsite.live_title);setText(".unified-live-title p",publicWebsite.live_description);setText(".returns-panel h3",publicWebsite.returns_title);ensurePrelaunchNotice();ensureStartingBalanceMetric();setVisible("#public-starting-balance-metric",control("show_starting_balance",true));
+    setText(".unified-live-title h2",publicWebsite.live_title);setText(".unified-live-title p",publicWebsite.live_description);setText(".returns-panel h3",publicWebsite.returns_title);ensurePublicNoticeDisclosure();ensureStartingBalanceMetric();setVisible("#public-starting-balance-metric",control("show_starting_balance",true));
     const anyPerformance=control("show_live_broadcast",true)||control("show_live_telemetry",true)||control("show_monthly_yearly_returns",true);performanceSection.classList.toggle("public-admin-hidden",!anyPerformance);document.querySelector(".returns-panel")?.classList.toggle("public-admin-hidden",!control("show_monthly_yearly_returns",true));
   }
 
   async function loadPublicSettings(){
-    try{const response=await fetch(`${API}/admin/control/public-settings?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error();const data=await response.json();publicWebsite=data.website||{};publicControls=publicWebsite.public_controls||{};publicSystem=data.system||{};applyPublicSettings();await syncPublicVisibility()}catch(_){removePrelaunchNotices()}
+    try{const response=await fetch(`${API}/admin/control/public-settings?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error();const data=await response.json();publicWebsite=data.website||{};publicControls=publicWebsite.public_controls||{};publicSystem=data.system||{};applyPublicSettings();await syncPublicVisibility()}catch(_){document.getElementById("public-notice-disclosure")?.remove();removeLegacyPrelaunchNotices()}
   }
 
   function renderMonthly(rows,historyStart,historyEnd){
@@ -134,5 +145,5 @@
     if((!wantsReturns&&!wantsStarting)||loading)return;loading=true;try{const data=await fetchSummary(),summaryAgain=await fetchSummary();if(summaryAgain.account_number !== data.account_number)throw new Error("active master changed during refresh");renderStartingBalance(data);if(wantsReturns){renderMonthly(data.monthly_returns||[],data.history_start,data.history_end);const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true}}catch(_){if(wantsReturns){const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the active master record is refreshing."}}}finally{loading=false}
   }
 
-  buildUnifiedDisplay();removePrelaunchNotices();loadPublicSettings();syncPublicVisibility();loadReturns();setInterval(syncPublicVisibility,5000);setInterval(loadPublicSettings,10000);setInterval(loadReturns,15000);
+  buildUnifiedDisplay();removeLegacyPrelaunchNotices();loadPublicSettings();syncPublicVisibility();loadReturns();setInterval(syncPublicVisibility,5000);setInterval(loadPublicSettings,10000);setInterval(loadReturns,15000);
 })();
