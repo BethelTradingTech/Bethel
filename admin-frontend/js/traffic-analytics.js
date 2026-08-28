@@ -63,6 +63,7 @@
             <button id="traffic-refresh" type="button">Refresh now</button>
           </div>
         </div>
+        <p id="traffic-location-coverage" class="notice">Location coverage: awaiting data.</p>
         <div class="panel-grid">
           <article class="panel"><h3>Top Countries</h3><div id="traffic-countries"></div></article>
           <article class="panel"><h3>Top Cities</h3><div id="traffic-cities"></div></article>
@@ -88,11 +89,15 @@
     }
   }
 
-  function ranked(targetId, rows){
+  function ranked(targetId, rows, unit="visits"){
     const target = document.getElementById(targetId);
     if(!target) return;
     if(!rows?.length){ target.innerHTML = '<p class="muted">No traffic recorded yet.</p>'; return; }
-    target.innerHTML = rows.map(row => `<div class="connector-details"><div><strong>${esc(row.name || "Unknown")}</strong><small>${Number(row.count || 0).toLocaleString()} views</small></div></div>`).join("");
+    target.innerHTML = rows.map(row => {
+      const count = Number(row.count || 0);
+      const label = count === 1 ? unit.replace(/s$/, "") : unit;
+      return `<div class="connector-details"><div><strong>${esc(row.name || "Unknown")}</strong><small>${count.toLocaleString()} ${esc(label)}</small></div></div>`;
+    }).join("");
   }
 
   async function loadTraffic(){
@@ -105,14 +110,24 @@
       document.getElementById("traffic-today").textContent = Number(response.visitors_today || 0).toLocaleString();
       document.getElementById("traffic-online").textContent = Number(response.online_now || 0).toLocaleString();
       document.getElementById("traffic-bots").textContent = Number(response.bot_requests || 0).toLocaleString();
-      ranked("traffic-countries", response.countries);
-      ranked("traffic-cities", response.cities);
-      ranked("traffic-pages", response.top_pages);
-      ranked("traffic-referrers", response.referrers);
-      ranked("traffic-devices", response.devices);
-      ranked("traffic-browsers", response.browsers);
+      ranked("traffic-countries", response.countries, "visits");
+      ranked("traffic-cities", response.cities, "visits");
+      ranked("traffic-pages", response.top_pages, "views");
+      ranked("traffic-referrers", response.referrers, "visits");
+      ranked("traffic-devices", response.devices, "visits");
+      ranked("traffic-browsers", response.browsers, "visits");
+
+      const coverage = response.location_coverage || {};
+      const coverageEl = document.getElementById("traffic-location-coverage");
+      if(coverageEl){
+        coverageEl.textContent = `Location coverage — country: ${Number(coverage.country_pct || 0).toFixed(1)}%, city: ${Number(coverage.city_pct || 0).toFixed(1)}%. City coverage improves automatically when requests pass through the Cloudflare Pages edge tracker.`;
+      }
+
       const recent = document.getElementById("traffic-recent");
-      recent.innerHTML = (response.recent || []).map(row => `<tr><td>${esc(row.path)}</td><td>${esc([row.city,row.country].filter(Boolean).join(", ") || "Unavailable")}</td><td>${esc(row.device)}</td><td>${esc(row.browser)}</td><td>${row.time ? esc(new Date(row.time).toLocaleString()) : "—"}</td></tr>`).join("") || '<tr><td colspan="5">No traffic recorded yet.</td></tr>';
+      recent.innerHTML = (response.recent || []).map(row => {
+        const location = [row.city, row.region, row.country].filter(Boolean).join(", ") || "Unavailable";
+        return `<tr><td>${esc(row.path)}</td><td>${esc(location)}</td><td>${esc(row.device)}</td><td>${esc(row.browser)}</td><td>${row.time ? esc(new Date(row.time).toLocaleString()) : "—"}</td></tr>`;
+      }).join("") || '<tr><td colspan="5">No traffic recorded yet.</td></tr>';
       document.getElementById("traffic-privacy").textContent = response.privacy || "Raw visitor IP addresses are not stored.";
     }catch(error){
       if(typeof setStatus === "function") setStatus(error.message || "Traffic analytics unavailable", true);
