@@ -93,6 +93,15 @@ function requireAuthentication(){
     return true;
 }
 
+// Bethel is now an independent administration surface. Remove legacy cross-
+// platform switching controls that previously linked Trust & Remit into the
+// Bethel Super Admin shell. This does not affect either platform's APIs.
+function removeLegacyTrustRemitAdminLinks(){
+    document.querySelectorAll('a[href*="trust-remit-app.onrender.com"], a[href*="trust-remit-admin.onrender.com"]').forEach((link) => link.remove());
+    const switcher = document.querySelector(".platform-switcher");
+    if(switcher) switcher.remove();
+}
+
 // ======================================
 // SUPER ADMIN EXTENSIONS
 // ======================================
@@ -132,6 +141,7 @@ function ensureTrafficAnalyticsReady(){
 }
 
 function loadAdminExtensions(){
+    removeLegacyTrustRemitAdminLinks();
     loadAdminExtension(
         "js/risk-monitor.js?v=20260807-risk3",
         "bethel-risk-monitor",
