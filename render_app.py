@@ -17,6 +17,8 @@ from api.auth.dependency import require_admin
 from api.mt5_ingest.routes import router as mt5_ingest_router
 from api.broadcast.routes import router as broadcast_router
 from api.copyhub.live_activation_fix import router as live_activation_router
+from api.copyhub.models import CopyDiagnosticIncident, PackageMasterRoute
+from api.copyhub.package_router import router as package_copyhub_router
 from api.payment_route_loader import mount_payment_routes
 from api.database import Base as ApiBase, SessionLocal, engine as api_engine
 from api.public_assistant import router as public_assistant_router
@@ -29,6 +31,7 @@ from api.traffic.routes import router as traffic_router
 SNAPSHOT_PATH = "/connector/v1/snapshot"
 BROADCAST_WORKER_CONFIG_PATH = "/broadcast/v1/worker/config"
 COPIER_ACTIVATION_PATH = "/copyhub/v1/receiver/activate"
+PACKAGE_COPIER_STATUS_PATH = "/copyhub/v2/admin/status"
 TRAFFIC_VISIT_PATH = "/traffic/visit"
 PUBLIC_ASSISTANT_PATH = "/public/assistant/chat"
 PUBLIC_REVIEWS_PATH = "/public/reviews"
@@ -85,6 +88,15 @@ if not _route_exists(SNAPSHOT_PATH):
 if not _route_exists(BROADCAST_WORKER_CONFIG_PATH):
     app.include_router(broadcast_router)
     print("Broadcast API Loaded (isolated Render entry point)")
+
+# Package-controlled copier v2 is deliberately separate from the legacy v1
+# mutation routes that remain disabled by the permanent platform guard. v2 is
+# a signed event/control plane; MetaTrader terminals remain the execution edge.
+PackageMasterRoute.__table__.create(bind=api_engine, checkfirst=True)
+CopyDiagnosticIncident.__table__.create(bind=api_engine, checkfirst=True)
+if not _route_exists(PACKAGE_COPIER_STATUS_PATH):
+    app.include_router(package_copyhub_router)
+    print("Package-controlled multi-master CopyHub v2 loaded")
 
 if not _route_exists(PUBLIC_ASSISTANT_PATH):
     app.include_router(public_assistant_router)
