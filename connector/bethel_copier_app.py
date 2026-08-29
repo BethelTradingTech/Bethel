@@ -90,8 +90,6 @@ def terminal_details(path):
     account = mt5.account_info()
     if account is None:
         raise RuntimeError("Log in to the subscriber account inside MT5 first")
-    if str(account.login) == "49617874":
-        raise RuntimeError("The master account cannot be connected as a subscriber")
     symbols = mt5.symbols_get() or []
     info = next((item for item in symbols if item.trade_contract_size > 0 and item.volume_step > 0), None)
     if info is None:
@@ -153,14 +151,14 @@ class SetupApp(tk.Tk):
         style.configure("TFrame", background="#071426"); style.configure("TLabel", background="#071426", foreground="#e8f1ff", font=("Segoe UI", 11)); style.configure("Title.TLabel", font=("Segoe UI Semibold", 23), foreground="#55d6ff")
         frame = ttk.Frame(self, padding=36); frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="BETHEL COPIER", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(frame, text="Secure automatic master-to-subscriber copying", foreground="#9fb3c8").pack(anchor="w", pady=(4, 28))
+        ttk.Label(frame, text="Secure automatic package-controlled copying", foreground="#9fb3c8").pack(anchor="w", pady=(4, 28))
         ttk.Label(frame, text="MetaTrader 5 terminal").pack(anchor="w")
         self.terminals = ttk.Combobox(frame, textvariable=self.terminal, width=76, state="readonly"); self.terminals.pack(fill="x", pady=(6, 18))
         ttk.Label(frame, text="One-time activation code").pack(anchor="w")
         ttk.Entry(frame, textvariable=self.code, width=76).pack(fill="x", pady=(6, 22))
         self.connect_button = ttk.Button(frame, text="Connect Bethel Copier", command=self._connect, state="disabled"); self.connect_button.pack(fill="x", ipady=8)
         ttk.Label(frame, textvariable=self.status, foreground="#77e1a6", wraplength=560).pack(anchor="w", pady=(20, 0))
-        ttk.Label(frame, text="Bethel never requests or stores your MT5 trading password.", foreground="#9fb3c8").pack(anchor="w", pady=(22, 0))
+        ttk.Label(frame, text="Your subscription package determines the master route. Bethel never asks you to select a master account.", foreground="#9fb3c8", wraplength=560).pack(anchor="w", pady=(22, 0))
 
     def _detect(self):
         found = terminal_candidates()
@@ -182,7 +180,7 @@ class SetupApp(tk.Tk):
     def _activate(self):
         try:
             account, metadata = terminal_details(self.terminal.get())
-            response = requests.post(API + "/copyhub/v1/receiver/activate", json={"activation_code": self.code.get().strip(), **metadata}, timeout=30)
+            response = requests.post(API + "/copyhub/v2/receiver/activate", json={"activation_code": self.code.get().strip(), **metadata}, timeout=30)
             if not response.ok:
                 detail = response.json().get("detail", response.text) if "application/json" in response.headers.get("content-type", "") else response.text
                 raise RuntimeError(detail)
@@ -193,8 +191,10 @@ class SetupApp(tk.Tk):
             self.after(0, lambda: self._failure(str(error)))
 
     def _success(self, data):
-        self.status.set("Connected successfully. Bethel Copier will start automatically with Windows.")
-        messagebox.showinfo("Bethel Copier connected", "Connection complete. Copying remains subject to your subscription and Bethel safety controls.")
+        package = data.get("package") or "your package"
+        master = data.get("master_account") or "the assigned master"
+        self.status.set(f"Connected. {package} is routed automatically to {master}. Copying remains paused until approval.")
+        messagebox.showinfo("Bethel Copier connected", "Connection complete. Your package controls the master route; copying remains subject to Bethel safety controls.")
 
     def _failure(self, message):
         self.connect_button["state"] = "normal"; self.status.set("Connection failed. Check the account and activation code.")
