@@ -9,6 +9,7 @@ import requests
 API = os.getenv("BETHEL_API_URL", "https://bethel-api.onrender.com").rstrip("/")
 SECRET = os.getenv("MT5_CONNECTOR_SECRET", "")
 CONNECTOR_ID = os.getenv("MT5_CONNECTOR_ID", "owner-laptop-1")
+TERMINAL_PATH = os.getenv("BETHEL_MT5_TERMINAL_PATH", "").strip()
 INTERVAL = max(int(os.getenv("MT5_SNAPSHOT_INTERVAL", "60")), 30)
 HISTORY_INTERVAL = max(int(os.getenv("MT5_HISTORY_INTERVAL", "900")), 300)
 HISTORY_DAYS = max(int(os.getenv("MT5_HISTORY_DAYS", "3650")), 1)
@@ -24,7 +25,8 @@ def snapshot():
     global last_history_sync
     if len(SECRET) < 64:
         raise RuntimeError("MT5_CONNECTOR_SECRET must contain at least 64 characters")
-    if not mt5.initialize():
+    initialized = mt5.initialize(path=TERMINAL_PATH) if TERMINAL_PATH else mt5.initialize()
+    if not initialized:
         raise RuntimeError(f"MT5 initialization failed: {mt5.last_error()}")
     account = mt5.account_info()
     if account is None:
@@ -116,7 +118,9 @@ def send(payload):
         "Content-Type":"application/json", "X-Bethel-Connector-Id":CONNECTOR_ID,
         "X-Bethel-Timestamp":timestamp, "X-Bethel-Nonce":nonce, "X-Bethel-Signature":signature,
     })
-    if not response.ok: print("SERVER RESPONSE:", response.status_code, response.text); response.raise_for_status()
+    if not response.ok:
+        logger.error("snapshot rejected status=%s body=%s", response.status_code, response.text[:500])
+        response.raise_for_status()
 
 
 if __name__ == "__main__":
@@ -131,7 +135,7 @@ if __name__ == "__main__":
                 details.append(f"{len(payload['closed_deals'])} closed deals")
             if payload["cash_flows"]:
                 details.append(f"{len(payload['cash_flows'])} cash-flow events")
-            logger.info("snapshot accepted%s", f" with {', '.join(details)}" if details else "")
+            logger.info("snapshot accepted account=%s connector=%s%s", payload["account_number"], CONNECTOR_ID, f" with {', '.join(details)}" if details else "")
         except Exception as error:
             failures += 1
             logger.error("connector error: %s", error)
