@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bethel Package Master Routing</title>
+<link rel="stylesheet" href="css/admin-control.css?v=20260829-copyhub2">
+<style>
+body{padding:24px;background:#07101f;color:#eef4ff}.shell{max-width:1280px;margin:auto}.header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}.header a{color:#d6b45b}.panel{background:#0d1a2d;border:1px solid #263a57;border-radius:16px;padding:20px;margin-bottom:20px}.muted{color:#9eb0c8}.table-wrap{overflow:auto}.data-table{width:100%;border-collapse:collapse}.data-table th,.data-table td{padding:10px;border-bottom:1px solid #263a57;text-align:left;vertical-align:top}.panel select,.panel button{padding:9px 10px;border-radius:9px;border:1px solid #38506f;background:#081423;color:#fff}.panel button{cursor:pointer}.primary{background:#d6b45b!important;color:#081423!important;font-weight:700}.danger{background:#5b2530!important}.good{color:#77e1a6}.bad{color:#ff9d9d}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#223753}.actions{display:flex;gap:7px;flex-wrap:wrap}.notice{min-height:22px}.finding{padding:10px;border-bottom:1px solid #263a57}.finding:last-child{border-bottom:0}@media(max-width:700px){body{padding:12px}.header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="header"><div><p class="muted">Bethel Trading Technologies · Super Admin</p><h1>Package → Master Routing</h1><p class="muted">Subscribers choose a package only. Super Admin controls which registered owner/master terminal serves each package.</p></div><a href="/admin-frontend/">← Return to Super Admin</a></header>
+
+<section class="panel">
+<div class="header"><div><h2>Package routing</h2><p class="muted">Changing a package master automatically reroutes affected receivers and keeps them paused until you verify and resume them.</p></div><button id="refresh" type="button">Refresh</button></div>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Package</th><th>Assigned master</th><th>Health</th><th>Change master</th><th>Copy state</th></tr></thead><tbody id="routes"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+<p id="route-message" class="notice muted" aria-live="polite"></p>
+</section>
+
+<section class="panel">
+<div class="header"><div><h2>Copier self-diagnostics</h2><p class="muted">The reasoning layer detects route mismatches, stale terminals and repeated delivery faults. Auto-remediation is fail-closed only: it may pause, deactivate, or reroute-and-pause. It never changes trading strategy or resumes trading by itself.</p></div><div class="actions"><button id="diagnose" class="primary" type="button">Run diagnostics</button><button id="diagnose-safe" type="button">Inspect only</button></div></div>
+<div id="health" class="notice muted">Loading health…</div>
+<div id="findings"></div>
+</section>
+
+<section class="panel">
+<h2>Connected owner/master terminals</h2>
+<p class="muted">Register terminals first from the main Master Terminals view. Only active Owner / Master terminals are eligible for package routing.</p>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Terminal</th><th>Account</th><th>Mode</th><th>Connection</th><th>Last seen</th></tr></thead><tbody id="terminals"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
+</section>
+</main>
+<script src="js/api.js?v=20260829-copyhub2"></script>
+<script>
+const esc=v=>String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+let ownerMasters=[];
+let routeData=[];
+
+async function loadTerminals(){
+ const body=document.getElementById("terminals");
+ try{
+  const data=await apiGet("/connector/v1/status");
+  ownerMasters=(data.connectors||[]).filter(r=>!r.subscriber_id&&r.registry_active!==false);
+  body.innerHTML=ownerMasters.map(r=>`<tr><td><strong>${esc(r.label||r.connector_id)}</strong><br><small>${esc(r.connector_id)}</small></td><td>${esc(r.account_number)}</td><td>${esc(r.account_mode||r.mode||"—")}</td><td>${esc(r.connection_status||"OFFLINE")}</td><td>${r.last_seen?new Date(r.last_seen).toLocaleString():"Never"}</td></tr>`).join("")||'<tr><td colspan="5">No active owner/master terminals are registered.</td></tr>';
+ }catch(e){body.innerHTML=`<tr><td colspan="5">${esc(e.message||"Terminal status unavailable")}</td></tr>`}
+}
+
+function masterOptions(selected){
+ const options=['<option value="">Select owner/master…</option>'].concat(ownerMasters.map(r=>`<option value="${Number(r.registry_id)}" ${Number(selected)===Number(r.registry_id)?"selected":""}>${esc(r.label||r.connector_id)} · ${esc(r.account_number)} · ${esc(r.connection_status||"OFFLINE")}</option>`));
+ return options.join("");
+}
+
+async function loadRoutes(){
+ const body=document.getElementById("routes");
+ try{
+  const data=await apiGet("/copyhub/v2/admin/package-routes");routeData=data.routes||[];
+  body.innerHTML=routeData.map(r=>{
+   const online=r.master_online===true;
+   return `<tr><td><strong>${esc(r.plan_name)}</strong><br><small>${r.plan_active?"ACTIVE":"INACTIVE"}</small></td><td>${r.master_account?`<strong>${esc(r.master_account)}</strong><br><small>${esc(r.connector_id||"")}</small>`:"Not assigned"}</td><td><span class="${online?"good":"bad"}">${r.master_account?(online?"ONLINE":"OFFLINE / STALE"):"NO ROUTE"}</span><br><small>${esc(r.master_mode||"—")}${r.master_age_seconds!=null?` · ${r.master_age_seconds}s ago`:""}</small></td><td><select data-route-select="${esc(r.plan_name)}">${masterOptions(r.terminal_registry_id)}</select><br><button class="primary" data-map="${esc(r.plan_name)}" type="button">Save mapping</button></td><td class="actions"><button data-pause="${esc(r.plan_name)}" data-state="true" type="button">Pause</button><button data-pause="${esc(r.plan_name)}" data-state="false" type="button">Resume</button></td></tr>`;
+  }).join("")||'<tr><td colspan="5">No subscription packages found.</td></tr>';
+  body.querySelectorAll("button[data-map]").forEach(btn=>btn.onclick=()=>mapPackage(btn.dataset.map));
+  body.querySelectorAll("button[data-pause]").forEach(btn=>btn.onclick=()=>setPause(btn.dataset.pause,btn.dataset.state==="true"));
+ }catch(e){body.innerHTML=`<tr><td colspan="5">${esc(e.message||"Package routing unavailable")}</td></tr>`}
+}
+
+async function mapPackage(plan){
+ const select=document.querySelector(`[data-route-select="${CSS.escape(plan)}"]`);const id=Number(select?.value||0);const msg=document.getElementById("route-message");
+ if(!id){msg.textContent="Select a registered owner/master terminal first.";return}
+ if(!confirm(`Assign ${plan} subscribers to this master? Existing receivers on ${plan} will be rerouted and paused for verification.`))return;
+ try{const r=await apiRequest(`/copyhub/v2/admin/package-routes/${encodeURIComponent(plan)}`,{method:"PUT",body:JSON.stringify({terminal_registry_id:id})});msg.textContent=`${r.plan_name} mapped to ${r.master_account}. ${r.receivers_rerouted_and_paused||0} receiver(s) rerouted and paused.`;await Promise.all([loadRoutes(),loadHealth(false)])}catch(e){msg.textContent=e.message||"Unable to save package route"}
+}
+
+async function setPause(plan,paused){
+ const msg=document.getElementById("route-message");
+ if(!paused&&!confirm(`Resume copying for package ${plan}? This is allowed only if the assigned master is healthy.`))return;
+ try{const r=await apiRequest(`/copyhub/v2/admin/package-routes/${encodeURIComponent(plan)}/pause`,{method:"PATCH",body:JSON.stringify({paused})});msg.textContent=`${plan} copy channel ${r.globally_paused?"paused":"resumed"}.`;await loadRoutes()}catch(e){msg.textContent=e.message||"Unable to update package copy state"}
+}
+
+function renderHealth(data){
+ const health=document.getElementById("health"),findings=document.getElementById("findings");
+ const h=data.health?.health||data.health||"UNKNOWN";const count=data.health?.finding_count??data.finding_count??0;
+ health.innerHTML=`Copier health: <strong class="${h==="HEALTHY"?"good":"bad"}">${esc(h)}</strong> · ${count} finding(s) · routing mode: ${esc(data.routing_mode||"subscription_package_enforced")}`;
+ const rows=data.health?.findings||data.findings||[];
+ findings.innerHTML=rows.map(f=>`<div class="finding"><strong>${esc(f.severity)} · ${esc(f.code)}</strong><br>${esc(f.detail)}${f.auto_remediated?'<br><span class="good">Safe auto-remediation applied.</span>':""}</div>`).join("")||'<p class="good">No active copier diagnostic findings.</p>';
+}
+
+async function loadHealth(auto=false){
+ try{const data=auto?await apiPost("/copyhub/v2/admin/diagnostics/run",{auto_remediate:true}):await apiGet("/copyhub/v2/admin/status");renderHealth(data)}catch(e){document.getElementById("health").textContent=e.message||"Copier diagnostics unavailable"}
+}
+
+async function inspectOnly(){
+ try{const data=await apiPost("/copyhub/v2/admin/diagnostics/run",{auto_remediate:false});renderHealth(data)}catch(e){document.getElementById("health").textContent=e.message||"Copier diagnostics unavailable"}
+}
+
+document.getElementById("refresh").onclick=()=>Promise.all([loadTerminals().then(loadRoutes),loadHealth(false)]);
+document.getElementById("diagnose").onclick=()=>loadHealth(true);
+document.getElementById("diagnose-safe").onclick=inspectOnly;
+if(!getToken()){location.href="/admin-frontend/login.html"}else{loadTerminals().then(loadRoutes);loadHealth(false)}
+</script>
+</body>
+</html>

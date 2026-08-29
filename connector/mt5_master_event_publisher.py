@@ -1,4 +1,4 @@
-"""Read-only fast loop that publishes master position changes to Bethel."""
+"""Read-only fast loop that publishes master position changes to Bethel CopyHub v2."""
 from datetime import datetime, timezone
 import hashlib
 import hmac
@@ -15,10 +15,12 @@ import requests
 
 API = os.getenv("BETHEL_API_URL", "https://bethel-api.onrender.com").rstrip("/")
 SECRET = os.getenv("MT5_CONNECTOR_SECRET", "")
-CONNECTOR_ID = os.getenv("MT5_EVENT_CONNECTOR_ID", "owner-master-events-1")
-EXPECTED_MASTER = os.getenv("BETHEL_MASTER_ACCOUNT", "49617874")
+CONNECTOR_ID = os.getenv("MT5_EVENT_CONNECTOR_ID", os.getenv("MT5_CONNECTOR_ID", "owner-laptop-1"))
+EXPECTED_MASTER = os.getenv("BETHEL_MASTER_ACCOUNT", "").strip()
+TERMINAL_PATH = os.getenv("BETHEL_MT5_TERMINAL_PATH", "").strip()
 SCAN_SECONDS = max(float(os.getenv("BETHEL_MASTER_SCAN_SECONDS", "1")), 0.5)
-STATE_PATH = Path(os.getenv("BETHEL_MASTER_EVENT_STATE", str(Path.home() / ".bethel-master-events.json")))
+_default_state = str(Path.home() / f".bethel-master-events-{EXPECTED_MASTER or 'unconfigured'}.json")
+STATE_PATH = Path(os.getenv("BETHEL_MASTER_EVENT_STATE", _default_state))
 LOG_PATH = os.getenv("BETHEL_MASTER_EVENT_LOG", "")
 session = requests.Session()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=[logging.StreamHandler()] + ([logging.FileHandler(LOG_PATH, encoding="utf-8")] if LOG_PATH else []))
@@ -28,7 +30,10 @@ logger = logging.getLogger("bethel.mt5.master.events")
 def current_positions():
     if len(SECRET) < 64:
         raise RuntimeError("MT5_CONNECTOR_SECRET must contain at least 64 characters")
-    if not mt5.initialize():
+    if not EXPECTED_MASTER:
+        raise RuntimeError("BETHEL_MASTER_ACCOUNT is required for every master publisher instance")
+    initialized = mt5.initialize(path=TERMINAL_PATH) if TERMINAL_PATH else mt5.initialize()
+    if not initialized:
         raise RuntimeError(f"MT5 initialization failed: {mt5.last_error()}")
     account = mt5.account_info()
     if account is None or str(account.login) != EXPECTED_MASTER:
@@ -60,16 +65,19 @@ def save_state(positions, sequence):
 
 
 def publish(event, sequence):
+    event = dict(event)
     event["account_number"] = EXPECTED_MASTER
     event["event_key"] = f"{event['master_ticket']}:{event['event_type']}:{sequence}"
     body = json.dumps(event, separators=(",", ":")).encode()
     timestamp, nonce = str(int(time.time())), secrets.token_urlsafe(24)
     signature = hmac.new(SECRET.encode(), timestamp.encode() + b"\n" + nonce.encode() + b"\n" + body, hashlib.sha256).hexdigest()
-    response = session.post(API + "/copyhub/v1/master/events", data=body, timeout=20, headers={
+    response = session.post(API + "/copyhub/v2/master/events", data=body, timeout=20, headers={
         "Content-Type": "application/json", "X-Bethel-Connector-Id": CONNECTOR_ID,
         "X-Bethel-Timestamp": timestamp, "X-Bethel-Nonce": nonce,
         "X-Bethel-Signature": signature,
     })
+    if not response.ok:
+        logger.error("master event rejected status=%s body=%s", response.status_code, response.text[:500])
     response.raise_for_status()
 
 
@@ -92,24 +100,30 @@ def changes(previous, current):
 
 def run():
     previous, sequence = load_state()
+    failures = 0
     while True:
         try:
             current = current_positions()
             if previous is None:
-                # Existing trades are not copied on first installation.
+                # Existing trades are intentionally not copied on first installation.
                 previous = current
                 save_state(previous, sequence)
-                logger.info("master baseline recorded; existing positions skipped")
+                logger.info("master baseline recorded account=%s; existing positions skipped", EXPECTED_MASTER)
             else:
-                for event in changes(previous, current):
-                    sequence += 1
-                    publish(event, sequence)
-                    logger.info("published %s ticket=%s", event["event_type"], event["master_ticket"])
+                pending = changes(previous, current)
+                for event in pending:
+                    next_sequence = sequence + 1
+                    publish(event, next_sequence)
+                    sequence = next_sequence
+                    logger.info("published %s ticket=%s account=%s", event["event_type"], event["master_ticket"], EXPECTED_MASTER)
                 previous = current
                 save_state(previous, sequence)
+            failures = 0
         except Exception as error:
+            failures += 1
             logger.error("master event loop error: %s", error)
-        time.sleep(SCAN_SECONDS)
+        delay = SCAN_SECONDS if failures == 0 else min(30, max(SCAN_SECONDS, 2 ** min(failures, 5)))
+        time.sleep(delay)
 
 
 if __name__ == "__main__":

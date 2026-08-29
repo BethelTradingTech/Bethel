@@ -99,3 +99,40 @@ class ReceiverActivation(Base):
     used_at = Column(DateTime, nullable=True)
     attempts = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=utc_now)
+
+
+class PackageMasterRoute(Base):
+    """Server-side subscription-plan to master-terminal assignment.
+
+    Subscribers never select a master. Their active onboarding plan resolves to
+    exactly one active owner/master terminal through this table.
+    """
+
+    __tablename__ = "copy_package_master_routes"
+
+    id = Column(Integer, primary_key=True)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, unique=True, index=True)
+    terminal_registry_id = Column(Integer, ForeignKey("master_terminal_registry.id"), nullable=False, index=True)
+    active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class CopyDiagnosticIncident(Base):
+    """Durable copier self-diagnostic finding for audit and remediation history."""
+
+    __tablename__ = "copy_diagnostic_incidents"
+
+    id = Column(Integer, primary_key=True)
+    fingerprint = Column(String(64), nullable=False, unique=True, index=True)
+    code = Column(String(80), nullable=False, index=True)
+    severity = Column(String(16), nullable=False, index=True)
+    entity_type = Column(String(40), nullable=False, index=True)
+    entity_id = Column(String(120), nullable=False, index=True)
+    detail = Column(String(500), nullable=False)
+    context = Column(JSON, nullable=False, default=dict)
+    active = Column(Boolean, nullable=False, default=True, index=True)
+    auto_remediated = Column(Boolean, nullable=False, default=False)
+    first_seen_at = Column(DateTime, nullable=False, default=utc_now)
+    last_seen_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+    resolved_at = Column(DateTime, nullable=True)
