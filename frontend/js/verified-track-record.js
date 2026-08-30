@@ -8,6 +8,7 @@
   if (!performanceSection) return;
 
   let loading = false;
+  let settingsLoaded = false;
   let publicWebsite = {};
   let publicControls = {};
   let publicSystem = {};
@@ -115,7 +116,26 @@
   }
 
   async function loadPublicSettings(){
-    try{const response=await fetch(`${API}/admin/control/public-settings?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error();const data=await response.json();publicWebsite=data.website||{};publicControls=publicWebsite.public_controls||{};publicSystem=data.system||{};applyPublicSettings();await syncPublicVisibility()}catch(_){document.getElementById("public-notice-disclosure")?.remove();removeLegacyPrelaunchNotices()}
+    try{
+      const response=await fetch(`${API}/admin/control/public-settings?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});
+      if(!response.ok)throw new Error();
+      const data=await response.json();
+      publicWebsite=data.website||{};
+      publicControls=publicWebsite.public_controls||{};
+      publicSystem=data.system||{};
+      settingsLoaded=true;
+      applyPublicSettings();
+      await syncPublicVisibility();
+      await loadReturns();
+    }catch(_){
+      settingsLoaded=false;
+      performanceSection.classList.add("public-admin-hidden");
+      const broadcastSlot=document.getElementById("broadcast-slot"),telemetrySlot=document.getElementById("telemetry-slot");
+      if(broadcastSlot)broadcastSlot.hidden=true;
+      if(telemetrySlot)telemetrySlot.hidden=true;
+      document.getElementById("public-notice-disclosure")?.remove();
+      removeLegacyPrelaunchNotices();
+    }
   }
 
   function renderMonthly(rows,historyStart,historyEnd){
@@ -137,13 +157,22 @@
   async function fetchSummary(){const response=await fetch(`${API}/performance/public-summary?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error("summary unavailable");const data=await response.json();if(!data.available)throw new Error("return history unavailable");return data}
 
   async function syncPublicVisibility(){
-    const broadcastSlot=document.getElementById("broadcast-slot"),telemetrySlot=document.getElementById("telemetry-slot");try{const [broadcastResponse,telemetryResponse]=await Promise.all([fetch(`${API}/broadcast/v1/public/status?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}}),fetch(`${API}/connector/v1/public/live?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}})]),broadcast=broadcastResponse.ok?await broadcastResponse.json():null,telemetry=telemetryResponse.ok?await telemetryResponse.json():null;if(broadcastSlot)broadcastSlot.hidden=!(control("show_live_broadcast",true)&&broadcast&&broadcast.enabled&&broadcast.hls_url);if(telemetrySlot)telemetrySlot.hidden=!(control("show_live_telemetry",true)&&telemetry&&telemetry.enabled)}catch(_){if(broadcastSlot)broadcastSlot.hidden=true;if(telemetrySlot)telemetrySlot.hidden=true}
+    const broadcastSlot=document.getElementById("broadcast-slot"),telemetrySlot=document.getElementById("telemetry-slot");
+    if(!settingsLoaded){if(broadcastSlot)broadcastSlot.hidden=true;if(telemetrySlot)telemetrySlot.hidden=true;return}
+    try{const [broadcastResponse,telemetryResponse]=await Promise.all([fetch(`${API}/broadcast/v1/public/status?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}}),fetch(`${API}/connector/v1/public/live?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}})]),broadcast=broadcastResponse.ok?await broadcastResponse.json():null,telemetry=telemetryResponse.ok?await telemetryResponse.json():null;if(broadcastSlot)broadcastSlot.hidden=!(control("show_live_broadcast",true)&&broadcast&&broadcast.enabled&&broadcast.hls_url);if(telemetrySlot)telemetrySlot.hidden=!(control("show_live_telemetry",true)&&telemetry&&telemetry.enabled)}catch(_){if(broadcastSlot)broadcastSlot.hidden=true;if(telemetrySlot)telemetrySlot.hidden=true}
   }
 
   async function loadReturns(){
+    if(!settingsLoaded)return;
     const wantsReturns=control("show_monthly_yearly_returns",true),wantsStarting=control("show_starting_balance",true);
     if((!wantsReturns&&!wantsStarting)||loading)return;loading=true;try{const data=await fetchSummary(),summaryAgain=await fetchSummary();if(summaryAgain.account_number !== data.account_number)throw new Error("active master changed during refresh");renderStartingBalance(data);if(wantsReturns){renderMonthly(data.monthly_returns||[],data.history_start,data.history_end);const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true}}catch(_){if(wantsReturns){const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the active master record is refreshing."}}}finally{loading=false}
   }
 
-  buildUnifiedDisplay();removeLegacyPrelaunchNotices();loadPublicSettings();syncPublicVisibility();loadReturns();setInterval(syncPublicVisibility,5000);setInterval(loadPublicSettings,10000);setInterval(loadReturns,15000);
+  buildUnifiedDisplay();
+  removeLegacyPrelaunchNotices();
+  performanceSection.classList.add("public-admin-hidden");
+  loadPublicSettings();
+  setInterval(syncPublicVisibility,5000);
+  setInterval(loadPublicSettings,10000);
+  setInterval(loadReturns,15000);
 })();
