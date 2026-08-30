@@ -8,8 +8,18 @@ const API_BASE =
             ? window.location.origin
             : "https://bethel-api.onrender.com";
 
+function safeNextPage() {
+    const requested = new URLSearchParams(window.location.search).get("next") || "";
+    const allowed = new Set([
+        "index.html",
+        "package-routing.html",
+        "promotions.html"
+    ]);
+    return allowed.has(requested) ? requested : "index.html";
+}
+
 if (isAuthenticated()) {
-    window.location.replace("index.html");
+    window.location.replace(safeNextPage());
 }
 
 document.getElementById("login-form").addEventListener("submit", async (event) => {
@@ -45,7 +55,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
         }
 
         saveToken(data.access_token);
-        window.location.replace("index.html");
+        window.location.replace(safeNextPage());
     } catch (loginError) {
         error.innerText = loginError.message || "Unable to sign in";
         button.disabled = false;

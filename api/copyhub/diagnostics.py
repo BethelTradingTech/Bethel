@@ -30,6 +30,7 @@ RECEIVER_STALE_SECONDS = 120
 DELIVERY_STALE_SECONDS = 180
 FAILED_DELIVERY_WINDOW_MINUTES = 15
 FAILED_DELIVERY_THRESHOLD = 3
+ROUTABLE_PACKAGE_NAMES = {"starter", "standard", "professional", "enterprise"}
 
 
 def utc_now() -> datetime:
@@ -109,9 +110,17 @@ def run_diagnostics(db: Session, *, auto_remediate: bool = True) -> dict:
     findings: list[dict] = []
     seen: set[str] = set()
 
-    plans = db.query(SubscriptionPlan).filter(SubscriptionPlan.active.is_(True)).all()
+    active_plans = db.query(SubscriptionPlan).filter(SubscriptionPlan.active.is_(True)).all()
+    plans = [
+        plan for plan in active_plans
+        if str(plan.name or "").strip().lower() in ROUTABLE_PACKAGE_NAMES
+    ]
+    routable_plan_ids = {plan.id for plan in plans}
     routes = db.query(PackageMasterRoute).filter(PackageMasterRoute.active.is_(True)).all()
-    route_by_plan = {route.plan_id: route for route in routes}
+    route_by_plan = {
+        route.plan_id: route for route in routes
+        if route.plan_id in routable_plan_ids
+    }
 
     for plan in plans:
         route = route_by_plan.get(plan.id)

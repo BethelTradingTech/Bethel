@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bethel Package Master Routing</title>
-<link rel="stylesheet" href="css/admin-control.css?v=20260829-copyhub2">
+<link rel="stylesheet" href="css/admin-control.css?v=20260830-copyhub3">
 <style>
 body{padding:24px;background:#07101f;color:#eef4ff}.shell{max-width:1280px;margin:auto}.header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}.header a{color:#d6b45b}.panel{background:#0d1a2d;border:1px solid #263a57;border-radius:16px;padding:20px;margin-bottom:20px}.muted{color:#9eb0c8}.table-wrap{overflow:auto}.data-table{width:100%;border-collapse:collapse}.data-table th,.data-table td{padding:10px;border-bottom:1px solid #263a57;text-align:left;vertical-align:top}.panel select,.panel button{padding:9px 10px;border-radius:9px;border:1px solid #38506f;background:#081423;color:#fff}.panel button{cursor:pointer}.primary{background:#d6b45b!important;color:#081423!important;font-weight:700}.danger{background:#5b2530!important}.good{color:#77e1a6}.bad{color:#ff9d9d}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#223753}.actions{display:flex;gap:7px;flex-wrap:wrap}.notice{min-height:22px}.finding{padding:10px;border-bottom:1px solid #263a57}.finding:last-child{border-bottom:0}@media(max-width:700px){body{padding:12px}.header{align-items:flex-start;flex-direction:column}}
 </style>
@@ -31,11 +31,29 @@ body{padding:24px;background:#07101f;color:#eef4ff}.shell{max-width:1280px;margi
 <div class="table-wrap"><table class="data-table"><thead><tr><th>Terminal</th><th>Account</th><th>Mode</th><th>Connection</th><th>Last seen</th></tr></thead><tbody id="terminals"><tr><td colspan="5">Loading…</td></tr></tbody></table></div>
 </section>
 </main>
-<script src="js/api.js?v=20260829-copyhub2"></script>
+<script src="js/api.js?v=20260830-copyhub3"></script>
 <script>
 const esc=v=>String(v??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const ROUTABLE_PACKAGES=new Set(["starter","standard","professional","enterprise"]);
 let ownerMasters=[];
 let routeData=[];
+let redirectingForAuth=false;
+
+function redirectToLogin(){
+ if(redirectingForAuth)return;
+ redirectingForAuth=true;
+ localStorage.removeItem("bethel_access_token");
+ location.replace("/admin-frontend/login.html?next=package-routing.html");
+}
+
+function handleApiError(error,fallback){
+ const message=String(error?.message||fallback||"Request failed");
+ if(message.includes("Administrator authorization required")){
+  redirectToLogin();
+  return "Re-authentication required";
+ }
+ return message;
+}
 
 async function loadTerminals(){
  const body=document.getElementById("terminals");
@@ -43,7 +61,7 @@ async function loadTerminals(){
   const data=await apiGet("/connector/v1/status");
   ownerMasters=(data.connectors||[]).filter(r=>!r.subscriber_id&&r.registry_active!==false);
   body.innerHTML=ownerMasters.map(r=>`<tr><td><strong>${esc(r.label||r.connector_id)}</strong><br><small>${esc(r.connector_id)}</small></td><td>${esc(r.account_number)}</td><td>${esc(r.account_mode||r.mode||"—")}</td><td>${esc(r.connection_status||"OFFLINE")}</td><td>${r.last_seen?new Date(r.last_seen).toLocaleString():"Never"}</td></tr>`).join("")||'<tr><td colspan="5">No active owner/master terminals are registered.</td></tr>';
- }catch(e){body.innerHTML=`<tr><td colspan="5">${esc(e.message||"Terminal status unavailable")}</td></tr>`}
+ }catch(e){body.innerHTML=`<tr><td colspan="5">${esc(handleApiError(e,"Terminal status unavailable"))}</td></tr>`}
 }
 
 function masterOptions(selected){
@@ -54,27 +72,30 @@ function masterOptions(selected){
 async function loadRoutes(){
  const body=document.getElementById("routes");
  try{
-  const data=await apiGet("/copyhub/v2/admin/package-routes");routeData=data.routes||[];
+  const data=await apiGet("/copyhub/v2/admin/package-routes");
+  routeData=(data.routes||[]).filter(r=>ROUTABLE_PACKAGES.has(String(r.plan_name||"").trim().toLowerCase()));
   body.innerHTML=routeData.map(r=>{
    const online=r.master_online===true;
    return `<tr><td><strong>${esc(r.plan_name)}</strong><br><small>${r.plan_active?"ACTIVE":"INACTIVE"}</small></td><td>${r.master_account?`<strong>${esc(r.master_account)}</strong><br><small>${esc(r.connector_id||"")}</small>`:"Not assigned"}</td><td><span class="${online?"good":"bad"}">${r.master_account?(online?"ONLINE":"OFFLINE / STALE"):"NO ROUTE"}</span><br><small>${esc(r.master_mode||"—")}${r.master_age_seconds!=null?` · ${r.master_age_seconds}s ago`:""}</small></td><td><select data-route-select="${esc(r.plan_name)}">${masterOptions(r.terminal_registry_id)}</select><br><button class="primary" data-map="${esc(r.plan_name)}" type="button">Save mapping</button></td><td class="actions"><button data-pause="${esc(r.plan_name)}" data-state="true" type="button">Pause</button><button data-pause="${esc(r.plan_name)}" data-state="false" type="button">Resume</button></td></tr>`;
-  }).join("")||'<tr><td colspan="5">No subscription packages found.</td></tr>';
+  }).join("")||'<tr><td colspan="5">No routable subscription packages found.</td></tr>';
   body.querySelectorAll("button[data-map]").forEach(btn=>btn.onclick=()=>mapPackage(btn.dataset.map));
   body.querySelectorAll("button[data-pause]").forEach(btn=>btn.onclick=()=>setPause(btn.dataset.pause,btn.dataset.state==="true"));
- }catch(e){body.innerHTML=`<tr><td colspan="5">${esc(e.message||"Package routing unavailable")}</td></tr>`}
+ }catch(e){body.innerHTML=`<tr><td colspan="5">${esc(handleApiError(e,"Package routing unavailable"))}</td></tr>`}
 }
 
 async function mapPackage(plan){
+ if(!ROUTABLE_PACKAGES.has(String(plan||"").trim().toLowerCase()))return;
  const select=document.querySelector(`[data-route-select="${CSS.escape(plan)}"]`);const id=Number(select?.value||0);const msg=document.getElementById("route-message");
  if(!id){msg.textContent="Select a registered owner/master terminal first.";return}
  if(!confirm(`Assign ${plan} subscribers to this master? Existing receivers on ${plan} will be rerouted and paused for verification.`))return;
- try{const r=await apiRequest(`/copyhub/v2/admin/package-routes/${encodeURIComponent(plan)}`,{method:"PUT",body:JSON.stringify({terminal_registry_id:id})});msg.textContent=`${r.plan_name} mapped to ${r.master_account}. ${r.receivers_rerouted_and_paused||0} receiver(s) rerouted and paused.`;await Promise.all([loadRoutes(),loadHealth(false)])}catch(e){msg.textContent=e.message||"Unable to save package route"}
+ try{const r=await apiRequest(`/copyhub/v2/admin/package-routes/${encodeURIComponent(plan)}`,{method:"PUT",body:JSON.stringify({terminal_registry_id:id})});msg.textContent=`${r.plan_name} mapped to ${r.master_account}. ${r.receivers_rerouted_and_paused||0} receiver(s) rerouted and paused.`;await Promise.all([loadRoutes(),loadHealth(false)])}catch(e){msg.textContent=handleApiError(e,"Unable to save package route")}
 }
 
 async function setPause(plan,paused){
+ if(!ROUTABLE_PACKAGES.has(String(plan||"").trim().toLowerCase()))return;
  const msg=document.getElementById("route-message");
  if(!paused&&!confirm(`Resume copying for package ${plan}? This is allowed only if the assigned master is healthy.`))return;
- try{const r=await apiRequest(`/copyhub/v2/admin/package-routes/${encodeURIComponent(plan)}/pause`,{method:"PATCH",body:JSON.stringify({paused})});msg.textContent=`${plan} copy channel ${r.globally_paused?"paused":"resumed"}.`;await loadRoutes()}catch(e){msg.textContent=e.message||"Unable to update package copy state"}
+ try{const r=await apiRequest(`/copyhub/v2/admin/package-routes/${encodeURIComponent(plan)}/pause`,{method:"PATCH",body:JSON.stringify({paused})});msg.textContent=`${plan} copy channel ${r.globally_paused?"paused":"resumed"}.`;await loadRoutes()}catch(e){msg.textContent=handleApiError(e,"Unable to update package copy state")}
 }
 
 function renderHealth(data){
@@ -86,17 +107,17 @@ function renderHealth(data){
 }
 
 async function loadHealth(auto=false){
- try{const data=auto?await apiPost("/copyhub/v2/admin/diagnostics/run",{auto_remediate:true}):await apiGet("/copyhub/v2/admin/status");renderHealth(data)}catch(e){document.getElementById("health").textContent=e.message||"Copier diagnostics unavailable"}
+ try{const data=auto?await apiPost("/copyhub/v2/admin/diagnostics/run",{auto_remediate:true}):await apiGet("/copyhub/v2/admin/status");renderHealth(data)}catch(e){document.getElementById("health").textContent=handleApiError(e,"Copier diagnostics unavailable")}
 }
 
 async function inspectOnly(){
- try{const data=await apiPost("/copyhub/v2/admin/diagnostics/run",{auto_remediate:false});renderHealth(data)}catch(e){document.getElementById("health").textContent=e.message||"Copier diagnostics unavailable"}
+ try{const data=await apiPost("/copyhub/v2/admin/diagnostics/run",{auto_remediate:false});renderHealth(data)}catch(e){document.getElementById("health").textContent=handleApiError(e,"Copier diagnostics unavailable")}
 }
 
 document.getElementById("refresh").onclick=()=>Promise.all([loadTerminals().then(loadRoutes),loadHealth(false)]);
 document.getElementById("diagnose").onclick=()=>loadHealth(true);
 document.getElementById("diagnose-safe").onclick=inspectOnly;
-if(!getToken()){location.href="/admin-frontend/login.html"}else{loadTerminals().then(loadRoutes);loadHealth(false)}
+if(!getToken()){redirectToLogin()}else{loadTerminals().then(loadRoutes);loadHealth(false)}
 </script>
 </body>
 </html>
