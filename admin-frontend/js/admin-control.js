@@ -12,9 +12,83 @@ admin-control-core.js and still owns these critical routes:
 */
 (function(){
   "use strict";
+
+  function installUnifiedAdminTools(){
+    const main=document.querySelector("main.workspace");
+    const nav=document.querySelector("#sidebar nav");
+    if(!main||!nav)return;
+
+    const tools=[
+      {id:"website-control",title:"Website Control Center",label:"Website Control Center",icon:"◫",src:"/admin-frontend/website-management.html",after:"Website Management",quick:"Full website control"},
+      {id:"promotions",title:"Pricing & Promotions",label:"Pricing & Promotions",icon:"💰",src:"/admin-frontend/promotions.html",existing:"Pricing & Promotions",quick:"Pricing & Promotions"},
+      {id:"package-routing",title:"Package → Master Routing",label:"Package Routing",icon:"⇄",src:"/admin-frontend/package-routing.html",existing:"Package Routing",quick:"Manage Package Routing"},
+      {id:"reviews",title:"Visitor Reviews",label:"Visitor Reviews",icon:"★",src:"/admin-frontend/reviews.html",after:"Notifications",quick:"Moderate visitor reviews"}
+    ];
+
+    function navButtons(){return [...nav.querySelectorAll(".nav-item")]}
+    function buttonText(button){return (button.textContent||"").replace(/\s+/g," ").trim()}
+    function findNav(label){return navButtons().find(button=>buttonText(button).includes(label))}
+
+    function ensureView(tool){
+      let section=document.getElementById(`view-${tool.id}`);
+      if(section)return section;
+      section=document.createElement("section");
+      section.id=`view-${tool.id}`;
+      section.className="view";
+      section.innerHTML=`<article class="panel" style="padding:0;overflow:hidden;min-height:78vh"><iframe title="${tool.title}" src="${tool.src}" style="display:block;width:100%;height:78vh;min-height:720px;border:0;background:#07101f" loading="lazy" referrerpolicy="same-origin"></iframe></article>`;
+      main.appendChild(section);
+      return section;
+    }
+
+    function openTool(tool){
+      document.querySelectorAll(".view").forEach(view=>view.classList.remove("active"));
+      navButtons().forEach(button=>button.classList.toggle("active",button.dataset.toolView===tool.id));
+      ensureView(tool).classList.add("active");
+      const title=document.getElementById("page-title");
+      if(title)title.textContent=tool.title;
+      document.getElementById("sidebar")?.classList.remove("open");
+      document.getElementById("overlay")?.classList.remove("show");
+    }
+
+    tools.forEach(tool=>{
+      let button=tool.existing?findNav(tool.existing):null;
+      if(!button){
+        button=document.createElement("button");
+        button.type="button";
+        button.className="nav-item";
+        button.innerHTML=`${tool.icon} <span>${tool.label}</span>`;
+        const anchor=tool.after?findNav(tool.after):null;
+        if(anchor&&anchor.nextSibling)nav.insertBefore(button,anchor.nextSibling);else nav.appendChild(button);
+      }
+      button.removeAttribute("onclick");
+      button.removeAttribute("data-view");
+      button.dataset.toolView=tool.id;
+      button.onclick=()=>openTool(tool);
+      ensureView(tool);
+    });
+
+    const quick=document.querySelector(".quick-grid");
+    if(quick){
+      tools.forEach(tool=>{
+        let button=[...quick.querySelectorAll("button")].find(item=>buttonText(item).includes(tool.quick)||buttonText(item).includes(tool.label));
+        if(!button){
+          button=document.createElement("button");
+          button.type="button";
+          button.textContent=tool.quick;
+          quick.appendChild(button);
+        }
+        button.removeAttribute("onclick");
+        button.removeAttribute("data-go");
+        button.onclick=()=>openTool(tool);
+      });
+    }
+  }
+
   const core=document.createElement("script");
   core.src="js/admin-control-core.js?v=20260827-disclosure-control";
   core.onload=async()=>{
+    installUnifiedAdminTools();
+
     const form=document.getElementById("website-form");
     if(!form)return;
     const grid=form.querySelector(".form-grid");
