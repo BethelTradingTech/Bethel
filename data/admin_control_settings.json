@@ -20,7 +20,10 @@
     "x_url": "https://x.com/betheltradingt",
     "youtube_url": "https://youtube.com/@betheltradingtech",
     "tiktok_url": "https://www.tiktok.com/@betheltradingtech",
-    "risk_disclosure": "Trading foreign exchange, CFDs, and leveraged products carries significant risk. Past performance does not guarantee future results."
+    "risk_disclosure": "Trading foreign exchange, CFDs, and leveraged products carries significant risk. Past performance does not guarantee future results.",
+    "public_controls": {
+      "show_monthly_yearly_returns": false
+    }
   },
   "system": {
     "environment": "DEVELOPMENT",
