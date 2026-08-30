@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from api.auth.dependency import require_super_admin
 from api.broker_accounts.models import BrokerAccount
-from api.copyhub.diagnostics import run_diagnostics
+from api.copyhub.diagnostics import ROUTABLE_PACKAGE_NAMES, run_diagnostics
 from api.copyhub.models import (
     CopyChannel,
     CopyDelivery,
@@ -51,6 +51,15 @@ def utc_now() -> datetime:
 
 def token_hash(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+def _is_routable_package(name: str | None) -> bool:
+    return str(name or "").strip().lower() in ROUTABLE_PACKAGE_NAMES
+
+
+def _require_routable_package_name(plan_name: str) -> None:
+    if not _is_routable_package(plan_name):
+        raise HTTPException(404, "Routable trading package not found")
 
 
 class PackageRouteRequest(BaseModel):
@@ -153,10 +162,14 @@ def _plan_for_subscriber(db: Session, subscriber_id: int) -> tuple[ClientOnboard
     ).first()
     if plan is None:
         raise HTTPException(409, "Subscriber package is unavailable")
+    if not _is_routable_package(plan.name):
+        raise HTTPException(409, "Subscriber package is not eligible for CopyHub routing")
     return onboarding, plan
 
 
 def _registry_for_plan(db: Session, plan: SubscriptionPlan) -> tuple[PackageMasterRoute, MasterTerminalRegistry]:
+    if not _is_routable_package(plan.name):
+        raise HTTPException(409, "Package is not eligible for CopyHub routing")
     route = db.query(PackageMasterRoute).filter(
         PackageMasterRoute.plan_id == plan.id,
         PackageMasterRoute.active.is_(True),
@@ -221,7 +234,11 @@ def _receiver_route_guard(db: Session, receiver: CopyReceiver, *, repair: bool) 
 
 @router.get("/admin/package-routes")
 def list_package_routes(db: Session = Depends(get_db), _admin=Depends(require_super_admin)):
-    plans = db.query(SubscriptionPlan).order_by(SubscriptionPlan.id).all()
+    plans = [
+        plan
+        for plan in db.query(SubscriptionPlan).order_by(SubscriptionPlan.id).all()
+        if _is_routable_package(plan.name)
+    ]
     rows = []
     for plan in plans:
         route = db.query(PackageMasterRoute).filter(PackageMasterRoute.plan_id == plan.id).first()
@@ -256,6 +273,7 @@ def set_package_route(
     db: Session = Depends(get_db),
     _admin=Depends(require_super_admin),
 ):
+    _require_routable_package_name(plan_name)
     plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.name == plan_name).first()
     if plan is None:
         raise HTTPException(404, "Subscription package not found")
@@ -556,6 +574,7 @@ def pause_package_channel(
     db: Session = Depends(get_db),
     _admin=Depends(require_super_admin),
 ):
+    _require_routable_package_name(plan_name)
     plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.name == plan_name).first()
     if plan is None:
         raise HTTPException(404, "Subscription package not found")
@@ -587,12 +606,26 @@ async def publish_master_event(request: Request, db: Session = Depends(get_db)):
     ).first()
     if registry is None:
         raise HTTPException(403, "Master event connector is not registered for this owner/master account")
-    route_count = db.query(PackageMasterRoute).filter(
+    route_count = db.query(PackageMasterRoute).join(
+        SubscriptionPlan, SubscriptionPlan.id == PackageMasterRoute.plan_id
+    ).filter(
         PackageMasterRoute.terminal_registry_id == registry.id,
         PackageMasterRoute.active.is_(True),
-    ).count()
+    ).all()
+    route_count = sum(1 for route in route_count if _is_routable_package(route.plan.name if hasattr(route, "plan") else None))
     if route_count == 0:
-        raise HTTPException(409, "Master account is not assigned to any active subscription package")
+        routable_plan_ids = [
+            plan.id
+            for plan in db.query(SubscriptionPlan).all()
+            if _is_routable_package(plan.name)
+        ]
+        route_count = db.query(PackageMasterRoute).filter(
+            PackageMasterRoute.terminal_registry_id == registry.id,
+            PackageMasterRoute.active.is_(True),
+            PackageMasterRoute.plan_id.in_(routable_plan_ids or [-1]),
+        ).count()
+    if route_count == 0:
+        raise HTTPException(409, "Master account is not assigned to any active trading package")
 
     channel = _channel_for_master(db, data.account_number)
     if not channel.active or channel.globally_paused:
