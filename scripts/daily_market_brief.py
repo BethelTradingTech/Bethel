@@ -1,10 +1,11 @@
 """Bethel Daily Market Brief.
 
 Runs as a weekday cron job, prefers an authenticated editorial brief already
-archived for the trading day, and falls back to selected public RSS/Atom feeds
-when no editorial brief is available. It can email the authoritative brief and
-can dispatch a concise social version only after social publishing is explicitly
-enabled and every configured channel webhook is present.
+archived for the trading day, and otherwise can enhance selected public RSS/Atom
+feeds with a fail-safe AI editorial pass before falling back to the original
+deterministic renderer. It can email the authoritative brief and can dispatch a
+concise social version only after social publishing is explicitly enabled and
+every configured channel webhook is present.
 
 The job is intentionally isolated from MT5 execution and CopyHub. It never
 opens, modifies, or closes trades.
@@ -26,6 +27,7 @@ import xml.etree.ElementTree as ET
 import requests
 
 from api.database import SessionLocal, engine
+from api.daily_brief.ai_writer import generate_ai_brief
 from api.daily_brief.models import DailyMarketBrief
 from api.notifications.emailer import record_and_send
 
@@ -35,7 +37,7 @@ DEFAULT_FEEDS = (
     ("CNBC Top News", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
 )
 SOCIAL_CHANNELS = ("facebook", "instagram", "x", "linkedin", "tiktok", "youtube")
-USER_AGENT = "BethelDailyMarketBrief/1.2 (+https://betheltradingtechnologies.com)"
+USER_AGENT = "BethelDailyMarketBrief/1.3 (+https://betheltradingtechnologies.com)"
 PUBLIC_BRIEF_URL = os.getenv(
     "DAILY_MARKET_BRIEF_PUBLIC_URL",
     "https://betheltradingtechnologies.com/daily-market-brief.html",
@@ -264,7 +266,17 @@ def publish_social(text: str, now: datetime) -> dict[str, str]:
     return results
 
 
-def archive_brief(db, now: datetime, body: str, social_text: str, errors: list[str], social_status: dict[str, str]) -> None:
+def archive_brief(
+    db,
+    now: datetime,
+    body: str,
+    social_text: str,
+    errors: list[str],
+    social_status: dict[str, str],
+    *,
+    origin: str = "rss_fallback",
+    ai_model: str | None = None,
+) -> None:
     DailyMarketBrief.__table__.create(bind=engine, checkfirst=True)
     row = db.query(DailyMarketBrief).filter(DailyMarketBrief.brief_date == now.date()).first()
     if row is None:
@@ -273,7 +285,10 @@ def archive_brief(db, now: datetime, body: str, social_text: str, errors: list[s
     row.generated_at = now.replace(tzinfo=None)
     row.body = body
     row.social_text = social_text
-    row.source_health = json.dumps({"origin": "rss_fallback", "errors": errors}, sort_keys=True)
+    metadata: dict[str, object] = {"origin": origin, "errors": errors}
+    if ai_model:
+        metadata["ai_model"] = ai_model
+    row.source_health = json.dumps(metadata, sort_keys=True)
     row.social_status = json.dumps(social_status, sort_keys=True)
 
 
@@ -285,6 +300,19 @@ def _is_editorial_intake(row: DailyMarketBrief | None) -> bool:
     except (TypeError, ValueError):
         return False
     return isinstance(metadata, dict) and metadata.get("origin") == "editorial_intake"
+
+
+def _headline_evidence(headlines: list[Headline]) -> list[dict[str, str]]:
+    return [
+        {
+            "source": item.source,
+            "title": item.title,
+            "url": item.url,
+            "published": item.published,
+        }
+        for item in headlines
+        if item.url.startswith("https://")
+    ]
 
 
 def run() -> int:
@@ -307,11 +335,28 @@ def run() -> int:
         else:
             headlines, errors = fetch_headlines()
             snapshot = fetch_bethel_snapshot()
-            body = render_brief(headlines, snapshot, errors, now=now)
-            social_text = render_social_text(headlines, now=now)
+            ai_brief = generate_ai_brief(_headline_evidence(headlines), snapshot, errors, now)
+            if ai_brief is not None:
+                body = ai_brief.body
+                social_text = ai_brief.social_text
+                source_label = "ai_rss"
+                ai_model = ai_brief.model
+            else:
+                body = render_brief(headlines, snapshot, errors, now=now)
+                social_text = render_social_text(headlines, now=now)
+                source_label = "rss_fallback"
+                ai_model = None
             social_status = publish_social(social_text, now)
-            archive_brief(db, now, body, social_text, errors, social_status)
-            source_label = "rss_fallback"
+            archive_brief(
+                db,
+                now,
+                body,
+                social_text,
+                errors,
+                social_status,
+                origin=source_label,
+                ai_model=ai_model,
+            )
 
         sent = 0
         for recipient in targets:
