@@ -4,14 +4,20 @@ on:
   pull_request:
     paths:
       - 'scripts/daily_market_brief.py'
+      - 'api/daily_brief/**'
+      - 'frontend/daily-market-brief.html'
       - 'tests/test_daily_market_brief.py'
+      - 'render_app.py'
       - 'render.yaml'
       - '.github/workflows/daily-market-brief-ci.yml'
   push:
     branches: [main]
     paths:
       - 'scripts/daily_market_brief.py'
+      - 'api/daily_brief/**'
+      - 'frontend/daily-market-brief.html'
       - 'tests/test_daily_market_brief.py'
+      - 'render_app.py'
       - 'render.yaml'
       - '.github/workflows/daily-market-brief-ci.yml'
 
@@ -24,5 +30,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - run: python -m py_compile scripts/daily_market_brief.py
+      - run: python -m py_compile scripts/daily_market_brief.py api/daily_brief/models.py api/daily_brief/routes.py render_app.py
       - run: pytest -q tests/test_daily_market_brief.py
