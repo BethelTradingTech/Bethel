@@ -227,6 +227,31 @@ def recipients() -> list[str]:
     return values
 
 
+def _safe_email_diagnostic(status: str, error: str | None) -> str:
+    if status == "SMTP_NOT_CONFIGURED":
+        return "smtp_not_configured"
+    value = (error or "").lower()
+    if "auth" in value or "username and password" in value or "credentials" in value:
+        return "smtp_authentication"
+    if "timed out" in value or "timeout" in value:
+        return "smtp_timeout"
+    if "ssl" in value or "tls" in value or "certificate" in value:
+        return "smtp_tls"
+    if "name or service not known" in value or "getaddrinfo" in value or "nodename nor servname" in value:
+        return "smtp_dns"
+    if "connection refused" in value:
+        return "smtp_connection_refused"
+    if "network is unreachable" in value or "no route to host" in value:
+        return "smtp_network"
+    if "sender" in value and ("refused" in value or "rejected" in value):
+        return "smtp_sender_rejected"
+    if "recipient" in value and ("refused" in value or "rejected" in value):
+        return "smtp_recipient_rejected"
+    if status == "FAILED":
+        return "smtp_failed_other"
+    return status.lower() if status else "unknown"
+
+
 def social_publishing_ready() -> bool:
     enabled = os.getenv("DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED", "false").strip().lower()
     if enabled not in {"1", "true", "yes", "on"}:
@@ -370,6 +395,11 @@ def run() -> int:
             )
             if delivery.status == "SENT":
                 sent += 1
+            else:
+                print(
+                    "Daily Market Brief email diagnostic: "
+                    f"status={delivery.status}; reason={_safe_email_diagnostic(delivery.status, delivery.error)}"
+                )
         db.commit()
 
         attempted_social = [value for value in social_status.values() if value != "WITHHELD"]
