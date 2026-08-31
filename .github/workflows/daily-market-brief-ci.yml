@@ -1,0 +1,36 @@
+name: Daily Market Brief CI
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/daily_market_brief.py'
+      - 'api/daily_brief/**'
+      - 'frontend/daily-market-brief.html'
+      - 'frontend/sitemap.xml'
+      - 'tests/test_daily_market_brief.py'
+      - 'render_app.py'
+      - 'render.yaml'
+      - '.github/workflows/daily-market-brief-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/daily_market_brief.py'
+      - 'api/daily_brief/**'
+      - 'frontend/daily-market-brief.html'
+      - 'frontend/sitemap.xml'
+      - 'tests/test_daily_market_brief.py'
+      - 'render_app.py'
+      - 'render.yaml'
+      - '.github/workflows/daily-market-brief-ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt pytest
+      - run: python -m py_compile scripts/daily_market_brief.py api/daily_brief/models.py api/daily_brief/routes.py render_app.py
+      - run: python -m pytest -q tests/test_daily_market_brief.py

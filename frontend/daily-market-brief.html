@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bethel Daily Market Brief | Bethel Trading Technologies</title>
+  <meta name="description" content="Daily market headlines and Bethel public performance context for informational purposes.">
+  <link rel="canonical" href="https://betheltradingtechnologies.com/daily-market-brief.html">
+  <style>
+    :root{color-scheme:dark;--bg:#0b0f19;--card:#111827;--text:#f3f4f6;--muted:#9ca3af;--accent:#10b981;--border:#1f2937}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+    header,main,footer{max-width:980px;margin:auto;padding:24px} header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+    a{color:var(--accent);text-decoration:none}.brand{font-weight:700;color:var(--text)}
+    .hero{padding:56px 24px 20px}.badge{display:inline-block;padding:6px 12px;border:1px solid rgba(16,185,129,.3);border-radius:999px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.08em}
+    h1{font-size:clamp(32px,6vw,54px);line-height:1.1;margin:18px 0 12px}.muted{color:var(--muted)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;margin:20px 0}.brief{white-space:pre-wrap;font:inherit;margin:0}
+    .status{color:var(--muted)} footer{font-size:12px;color:var(--muted);border-top:1px solid var(--border);margin-top:40px}
+  </style>
+</head>
+<body>
+<header><a class="brand" href="/">BETHEL TRADING TECHNOLOGIES</a><a href="/">Home</a></header>
+<main>
+  <section class="hero">
+    <span class="badge">DAILY MARKET INTELLIGENCE</span>
+    <h1>Bethel Daily Market Brief</h1>
+    <p class="muted">A concise weekday summary of selected public market headlines and Bethel public-performance context.</p>
+  </section>
+  <section class="card">
+    <p id="status" class="status">Loading the latest brief…</p>
+    <pre id="brief" class="brief" hidden></pre>
+  </section>
+</main>
+<footer>Market information is provided for general informational purposes only and is not investment advice. Past performance does not guarantee future results.</footer>
+<script>
+(async function(){
+  const status=document.getElementById('status');
+  const brief=document.getElementById('brief');
+  try{
+    const r=await fetch('https://api.betheltradingtechnologies.com/public/daily-market-brief/latest',{cache:'no-store'});
+    if(!r.ok) throw new Error('Latest brief is not available yet');
+    const data=await r.json();
+    brief.textContent=data.body||'No brief content was returned.';
+    brief.hidden=false;
+    status.textContent='Published '+data.brief_date;
+  }catch(e){status.textContent=e.message||'Daily brief temporarily unavailable.';}
+})();
+</script>
+</body>
+</html>

@@ -21,6 +21,8 @@ from api.copyhub.models import CopyDiagnosticIncident, PackageMasterRoute
 from api.copyhub.package_router import router as package_copyhub_router
 from api.payment_route_loader import mount_payment_routes
 from api.database import Base as ApiBase, SessionLocal, engine as api_engine
+from api.daily_brief.models import DailyMarketBrief
+from api.daily_brief.routes import router as daily_market_brief_router
 from api.public_assistant import router as public_assistant_router
 from api.public_reviews import VisitorReview, router as public_reviews_router
 from api.security_alerts import send_security_alert
@@ -35,6 +37,7 @@ PACKAGE_COPIER_STATUS_PATH = "/copyhub/v2/admin/status"
 TRAFFIC_VISIT_PATH = "/traffic/visit"
 PUBLIC_ASSISTANT_PATH = "/public/assistant/chat"
 PUBLIC_REVIEWS_PATH = "/public/reviews"
+PUBLIC_DAILY_MARKET_BRIEF_PATH = "/public/daily-market-brief/latest"
 NOTIFICATIONS_PATH = "/admin/notifications"
 LEGAL_DOCUMENTS_PATH = "/legal/documents"
 NATIVE_KYC_READINESS_PATH = "/kyc/native/readiness"
@@ -106,6 +109,11 @@ VisitorReview.__table__.create(bind=api_engine, checkfirst=True)
 if not _route_exists(PUBLIC_REVIEWS_PATH):
     app.include_router(public_reviews_router)
     print("Bethel moderated visitor reviews loaded")
+
+DailyMarketBrief.__table__.create(bind=api_engine, checkfirst=True)
+if not _route_exists(PUBLIC_DAILY_MARKET_BRIEF_PATH):
+    app.include_router(daily_market_brief_router)
+    print("Bethel public Daily Market Brief loaded")
 
 app.router.routes[:] = [
     route

@@ -90,6 +90,53 @@ services:
       - key: BETHEL_PUBLIC_API_BASE
         value: https://api.betheltradingtechnologies.com
 
+  - type: cron
+    name: bethel-daily-market-brief
+    runtime: docker
+    plan: starter
+    schedule: "15 22 * * 1-5"
+    dockerCommand: python scripts/daily_market_brief.py
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bethel-db
+          property: connectionString
+      - key: BETHEL_PUBLIC_API_BASE
+        value: https://api.betheltradingtechnologies.com
+      - key: DAILY_MARKET_BRIEF_PUBLIC_URL
+        value: https://betheltradingtechnologies.com/daily-market-brief.html
+      - key: DAILY_MARKET_BRIEF_RECIPIENTS
+        value: info@betheltradingtechnologies.com
+      - key: DAILY_MARKET_BRIEF_SOCIAL_WEBHOOK_TOKEN
+        sync: false
+      - key: DAILY_MARKET_BRIEF_FACEBOOK_WEBHOOK
+        sync: false
+      - key: DAILY_MARKET_BRIEF_INSTAGRAM_WEBHOOK
+        sync: false
+      - key: DAILY_MARKET_BRIEF_X_WEBHOOK
+        sync: false
+      - key: DAILY_MARKET_BRIEF_LINKEDIN_WEBHOOK
+        sync: false
+      - key: DAILY_MARKET_BRIEF_TIKTOK_WEBHOOK
+        sync: false
+      - key: DAILY_MARKET_BRIEF_YOUTUBE_WEBHOOK
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_USE_SSL
+        value: "false"
+      - key: SMTP_USE_STARTTLS
+        value: "true"
+
 databases:
   - name: bethel-db
     plan: basic-256mb
