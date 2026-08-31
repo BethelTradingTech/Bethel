@@ -31,6 +31,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt pytest
       - run: python -m py_compile scripts/daily_market_brief.py api/daily_brief/models.py api/daily_brief/routes.py render_app.py
       - run: pytest -q tests/test_daily_market_brief.py
