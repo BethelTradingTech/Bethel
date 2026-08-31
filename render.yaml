@@ -42,6 +42,8 @@ services:
         value: info@betheltradingtechnologies.com
       - key: REVIEW_HASH_SALT
         generateValue: true
+      - key: DAILY_MARKET_BRIEF_INTAKE_TOKEN
+        sync: false
 
   - type: web
     name: bethel-broadcast
@@ -108,6 +110,8 @@ services:
         value: https://betheltradingtechnologies.com/daily-market-brief.html
       - key: DAILY_MARKET_BRIEF_RECIPIENTS
         value: info@betheltradingtechnologies.com
+      - key: DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED
+        value: "false"
       - key: DAILY_MARKET_BRIEF_SOCIAL_WEBHOOK_TOKEN
         sync: false
       - key: DAILY_MARKET_BRIEF_FACEBOOK_WEBHOOK
