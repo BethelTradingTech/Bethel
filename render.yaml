@@ -97,7 +97,7 @@ services:
     runtime: docker
     plan: starter
     schedule: "15 22 * * 1-5"
-    dockerCommand: python scripts/daily_market_brief.py
+    dockerCommand: python -m scripts.daily_market_brief
     autoDeployTrigger: commit
     envVars:
       - key: DATABASE_URL
