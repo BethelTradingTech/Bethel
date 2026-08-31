@@ -1,8 +1,10 @@
+import json
 from datetime import datetime, timezone
 
 import pytest
 from fastapi import HTTPException
 
+from api.daily_brief.ai_writer import ai_generation_enabled, generate_ai_brief
 from api.daily_brief.routes import _require_intake_token, _validated_sources
 from scripts.daily_market_brief import (
     Headline,
@@ -98,3 +100,94 @@ def test_social_publishing_withheld_until_enabled_and_complete(monkeypatch):
     assert social_publishing_ready() is False
     status = publish_social("Example brief", datetime(2026, 8, 31, tzinfo=timezone.utc))
     assert set(status.values()) == {"WITHHELD"}
+
+
+def test_ai_generation_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("DAILY_MARKET_BRIEF_AI_ENABLED", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "should-not-be-used")
+    assert ai_generation_enabled() is False
+    assert generate_ai_brief([], {}, [], datetime(2026, 8, 31, tzinfo=timezone.utc)) is None
+
+
+def test_ai_generation_missing_key_falls_back(monkeypatch):
+    monkeypatch.setenv("DAILY_MARKET_BRIEF_AI_ENABLED", "true")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert generate_ai_brief([], {}, [], datetime(2026, 8, 31, tzinfo=timezone.utc)) is None
+
+
+def test_ai_generation_accepts_valid_grounded_response(monkeypatch):
+    monkeypatch.setenv("DAILY_MARKET_BRIEF_AI_ENABLED", "true")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("DAILY_MARKET_BRIEF_AI_MODEL", "test-model")
+
+    generated = {
+        "headline": "Gold leads the market close",
+        "body": (
+            "Gold was the principal market development in the supplied evidence. "
+            "The report remains limited to the verified headlines provided to the editorial engine. "
+            "What to watch next: incoming macroeconomic developments cited by verified sources. "
+            "Market information is provided for general informational purposes only and is not investment advice. "
+            "Past performance does not guarantee future results."
+        ),
+        "social_text": "Bethel Market Close: gold led the supplied market headlines. For information only; not investment advice.",
+    }
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": json.dumps(generated)}],
+                    }
+                ]
+            }
+
+    calls = []
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return Response()
+
+    monkeypatch.setattr("api.daily_brief.ai_writer.requests.post", fake_post)
+    result = generate_ai_brief(
+        [
+            {
+                "source": "Example",
+                "title": "Gold advances after macro data",
+                "url": "https://example.com/gold",
+                "published": "2026-08-31T20:00:00Z",
+            }
+        ],
+        {"drawdown": "4.1%"},
+        [],
+        datetime(2026, 8, 31, tzinfo=timezone.utc),
+    )
+    assert result is not None
+    assert result.model == "test-model"
+    assert "SOURCES" in result.body
+    assert "https://example.com/gold" in result.body
+    assert len(calls) == 1
+    assert calls[0][1]["headers"]["Authorization"] == "Bearer test-key"
+
+
+def test_ai_generation_invalid_response_falls_back(monkeypatch):
+    monkeypatch.setenv("DAILY_MARKET_BRIEF_AI_ENABLED", "true")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "output": [
+                    {"type": "message", "content": [{"type": "output_text", "text": "not-json"}]}
+                ]
+            }
+
+    monkeypatch.setattr("api.daily_brief.ai_writer.requests.post", lambda *args, **kwargs: Response())
+    assert generate_ai_brief([], {}, [], datetime(2026, 8, 31, tzinfo=timezone.utc)) is None
