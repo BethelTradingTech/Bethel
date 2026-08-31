@@ -38,6 +38,26 @@ services:
         value: "500"
       - key: BETHEL_ASSISTANT_MAX_OUTPUT_TOKENS
         value: "140"
+      - key: BETHEL_AI_PUBLIC_ASSISTANT_ENABLED
+        value: "true"
+      - key: BETHEL_AI_PERFORMANCE_COMMENTARY_ENABLED
+        value: "false"
+      - key: BETHEL_AI_SUPPORT_DRAFTS_ENABLED
+        value: "false"
+      - key: BETHEL_AI_MARKET_SUMMARY_ENABLED
+        value: "false"
+      - key: BETHEL_AI_SOCIAL_CONTENT_ENABLED
+        value: "false"
+      - key: BETHEL_AI_INVESTOR_REPORTS_ENABLED
+        value: "false"
+      - key: BETHEL_AI_DOCUMENT_SUMMARY_ENABLED
+        value: "false"
+      - key: BETHEL_AI_INTERNAL_ASSISTANT_ENABLED
+        value: "false"
+      - key: BETHEL_AI_TRANSCRIPTION_ENABLED
+        value: "false"
+      - key: BETHEL_AI_IMAGE_GENERATION_ENABLED
+        value: "false"
       - key: PUBLIC_SUPPORT_EMAIL
         value: info@betheltradingtechnologies.com
       - key: REVIEW_HASH_SALT
@@ -111,7 +131,7 @@ services:
       - key: DAILY_MARKET_BRIEF_RECIPIENTS
         value: info@betheltradingtechnologies.com
       - key: DAILY_MARKET_BRIEF_AI_ENABLED
-        value: "false"
+        value: "true"
       - key: OPENAI_API_KEY
         sync: false
       - key: DAILY_MARKET_BRIEF_AI_MODEL
