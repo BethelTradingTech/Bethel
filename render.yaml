@@ -110,6 +110,16 @@ services:
         value: https://betheltradingtechnologies.com/daily-market-brief.html
       - key: DAILY_MARKET_BRIEF_RECIPIENTS
         value: info@betheltradingtechnologies.com
+      - key: DAILY_MARKET_BRIEF_AI_ENABLED
+        value: "false"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DAILY_MARKET_BRIEF_AI_MODEL
+        value: gpt-5.6-luna
+      - key: DAILY_MARKET_BRIEF_AI_TIMEOUT_SECONDS
+        value: "25"
+      - key: DAILY_MARKET_BRIEF_AI_MAX_OUTPUT_TOKENS
+        value: "1600"
       - key: DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED
         value: "false"
       - key: DAILY_MARKET_BRIEF_SOCIAL_WEBHOOK_TOKEN
