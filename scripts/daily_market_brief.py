@@ -1,9 +1,10 @@
 """Bethel Daily Market Brief.
 
-Runs as a weekday cron job, reads selected public RSS/Atom business feeds,
-adds a read-only Bethel public-performance snapshot, archives the brief for the
-public website, emails configured recipients, and dispatches a concise social
-version to configured publishing webhooks.
+Runs as a weekday cron job, prefers an authenticated editorial brief already
+archived for the trading day, and falls back to selected public RSS/Atom feeds
+when no editorial brief is available. It can email the authoritative brief and
+can dispatch a concise social version only after social publishing is explicitly
+enabled and every configured channel webhook is present.
 
 The job is intentionally isolated from MT5 execution and CopyHub. It never
 opens, modifies, or closes trades.
@@ -34,7 +35,7 @@ DEFAULT_FEEDS = (
     ("CNBC Top News", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
 )
 SOCIAL_CHANNELS = ("facebook", "instagram", "x", "linkedin", "tiktok", "youtube")
-USER_AGENT = "BethelDailyMarketBrief/1.1 (+https://betheltradingtechnologies.com)"
+USER_AGENT = "BethelDailyMarketBrief/1.2 (+https://betheltradingtechnologies.com)"
 PUBLIC_BRIEF_URL = os.getenv(
     "DAILY_MARKET_BRIEF_PUBLIC_URL",
     "https://betheltradingtechnologies.com/daily-market-brief.html",
@@ -224,7 +225,17 @@ def recipients() -> list[str]:
     return values
 
 
+def social_publishing_ready() -> bool:
+    enabled = os.getenv("DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED", "false").strip().lower()
+    if enabled not in {"1", "true", "yes", "on"}:
+        return False
+    return all(os.getenv(f"DAILY_MARKET_BRIEF_{channel.upper()}_WEBHOOK", "").strip() for channel in SOCIAL_CHANNELS)
+
+
 def publish_social(text: str, now: datetime) -> dict[str, str]:
+    if not social_publishing_ready():
+        return {channel: "WITHHELD" for channel in SOCIAL_CHANNELS}
+
     results: dict[str, str] = {}
     token = os.getenv("DAILY_MARKET_BRIEF_SOCIAL_WEBHOOK_TOKEN", "").strip()
     headers = {"User-Agent": USER_AGENT, "Content-Type": "application/json"}
@@ -232,9 +243,6 @@ def publish_social(text: str, now: datetime) -> dict[str, str]:
         headers["Authorization"] = f"Bearer {token}"
     for channel in SOCIAL_CHANNELS:
         url = os.getenv(f"DAILY_MARKET_BRIEF_{channel.upper()}_WEBHOOK", "").strip()
-        if not url:
-            results[channel] = "NOT_CONFIGURED"
-            continue
         try:
             safe_url = _safe_https_url(url)
             response = requests.post(
@@ -265,22 +273,46 @@ def archive_brief(db, now: datetime, body: str, social_text: str, errors: list[s
     row.generated_at = now.replace(tzinfo=None)
     row.body = body
     row.social_text = social_text
-    row.source_health = json.dumps(errors)
+    row.source_health = json.dumps({"origin": "rss_fallback", "errors": errors}, sort_keys=True)
     row.social_status = json.dumps(social_status, sort_keys=True)
+
+
+def _is_editorial_intake(row: DailyMarketBrief | None) -> bool:
+    if row is None or not row.source_health:
+        return False
+    try:
+        metadata = json.loads(row.source_health)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(metadata, dict) and metadata.get("origin") == "editorial_intake"
 
 
 def run() -> int:
     now = datetime.now(timezone.utc)
-    headlines, errors = fetch_headlines()
-    snapshot = fetch_bethel_snapshot()
-    body = render_brief(headlines, snapshot, errors, now=now)
-    social_text = render_social_text(headlines, now=now)
-    social_status = publish_social(social_text, now)
     targets = recipients()
-
     db = SessionLocal()
     try:
-        archive_brief(db, now, body, social_text, errors, social_status)
+        DailyMarketBrief.__table__.create(bind=engine, checkfirst=True)
+        existing = db.query(DailyMarketBrief).filter(DailyMarketBrief.brief_date == now.date()).first()
+        editorial = _is_editorial_intake(existing)
+
+        if editorial:
+            body = existing.body
+            social_text = existing.social_text
+            headlines: list[Headline] = []
+            errors: list[str] = []
+            social_status = publish_social(social_text, now)
+            existing.social_status = json.dumps(social_status, sort_keys=True)
+            source_label = "editorial_intake"
+        else:
+            headlines, errors = fetch_headlines()
+            snapshot = fetch_bethel_snapshot()
+            body = render_brief(headlines, snapshot, errors, now=now)
+            social_text = render_social_text(headlines, now=now)
+            social_status = publish_social(social_text, now)
+            archive_brief(db, now, body, social_text, errors, social_status)
+            source_label = "rss_fallback"
+
         sent = 0
         for recipient in targets:
             delivery = record_and_send(
@@ -294,12 +326,14 @@ def run() -> int:
             if delivery.status == "SENT":
                 sent += 1
         db.commit()
-        configured_social = [value for value in social_status.values() if value != "NOT_CONFIGURED"]
-        failed_social = [value for value in configured_social if value != "SENT"]
+
+        attempted_social = [value for value in social_status.values() if value != "WITHHELD"]
+        failed_social = [value for value in attempted_social if value != "SENT"]
         print(
-            f"Bethel Daily Market Brief complete: website archived; {sent}/{len(targets)} email(s) sent; "
-            f"{sum(1 for v in configured_social if v == 'SENT')}/{len(configured_social)} configured social dispatch(es) sent; "
-            f"{len(headlines)} headline(s); {len(errors)} feed error(s)."
+            f"Bethel Daily Market Brief complete: source={source_label}; website archived; "
+            f"{sent}/{len(targets)} email(s) sent; social="
+            f"{'WITHHELD' if not attempted_social else f'{sum(1 for v in attempted_social if v == 'SENT')}/{len(attempted_social)} sent'}; "
+            f"{len(headlines)} fallback headline(s); {len(errors)} feed error(s)."
         )
         email_failed = bool(targets and sent != len(targets))
         return 1 if email_failed or failed_social else 0
