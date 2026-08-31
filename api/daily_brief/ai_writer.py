@@ -69,6 +69,24 @@ def _source_appendix(headlines: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _safe_openai_error_code(response: requests.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return "unknown"
+    if not isinstance(payload, dict):
+        return "unknown"
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return "unknown"
+    value = error.get("code") or error.get("type")
+    if value is None:
+        return "unknown"
+    text = str(value).strip().lower()
+    safe = "".join(ch for ch in text if ch.isalnum() or ch in {"_", "-"})
+    return safe[:80] or "unknown"
+
+
 def generate_ai_brief(
     headlines: list[dict[str, str]],
     snapshot: dict[str, Any],
@@ -77,10 +95,12 @@ def generate_ai_brief(
 ) -> AIBrief | None:
     """Return a validated AI brief, or None so the caller can use RSS fallback."""
     if not ai_generation_enabled():
+        print("Daily Market Brief AI diagnostic: skipped=disabled")
         return None
 
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
+        print("Daily Market Brief AI diagnostic: skipped=missing_api_key")
         return None
 
     model = os.getenv(
@@ -131,27 +151,56 @@ The social_text must be concise, factual and suitable for public social channels
             },
             timeout=timeout,
         )
-        response.raise_for_status()
-        text = _extract_text(response.json())
-        if not text:
+        if not response.ok:
+            print(
+                "Daily Market Brief AI diagnostic: "
+                f"failed=http_{response.status_code}; code={_safe_openai_error_code(response)}"
+            )
             return None
-        payload = json.loads(_strip_json_fence(text))
+
+        try:
+            response_payload = response.json()
+        except ValueError:
+            print("Daily Market Brief AI diagnostic: failed=invalid_response_json")
+            return None
+
+        text = _extract_text(response_payload)
+        if not text:
+            print("Daily Market Brief AI diagnostic: failed=empty_output")
+            return None
+        try:
+            payload = json.loads(_strip_json_fence(text))
+        except (TypeError, ValueError):
+            print("Daily Market Brief AI diagnostic: failed=invalid_model_json")
+            return None
         if not isinstance(payload, dict):
+            print("Daily Market Brief AI diagnostic: failed=unexpected_model_payload")
             return None
 
         headline = str(payload.get("headline", "")).strip()
         body = str(payload.get("body", "")).strip()
         social_text = str(payload.get("social_text", "")).strip()
         if not (5 <= len(headline) <= 240):
+            print("Daily Market Brief AI diagnostic: failed=headline_validation")
             return None
         if not (80 <= len(body) <= 18000):
+            print("Daily Market Brief AI diagnostic: failed=body_validation")
             return None
         if not (20 <= len(social_text) <= 4500):
+            print("Daily Market Brief AI diagnostic: failed=social_validation")
             return None
 
         appendix = _source_appendix(headlines)
         if len(appendix.splitlines()) > 1:
             body = f"{body}\n\n{appendix}"
+        print(f"Daily Market Brief AI diagnostic: success; model={model}")
         return AIBrief(headline=headline, body=body, social_text=social_text, model=model)
-    except Exception:
+    except requests.Timeout:
+        print("Daily Market Brief AI diagnostic: failed=timeout")
+        return None
+    except requests.RequestException as exc:
+        print(f"Daily Market Brief AI diagnostic: failed=request_{type(exc).__name__}")
+        return None
+    except Exception as exc:
+        print(f"Daily Market Brief AI diagnostic: failed=unexpected_{type(exc).__name__}")
         return None
