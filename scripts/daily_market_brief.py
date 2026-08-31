@@ -329,10 +329,13 @@ def run() -> int:
 
         attempted_social = [value for value in social_status.values() if value != "WITHHELD"]
         failed_social = [value for value in attempted_social if value != "SENT"]
+        if attempted_social:
+            social_summary = f"{sum(1 for value in attempted_social if value == 'SENT')}/{len(attempted_social)} sent"
+        else:
+            social_summary = "WITHHELD"
         print(
             f"Bethel Daily Market Brief complete: source={source_label}; website archived; "
-            f"{sent}/{len(targets)} email(s) sent; social="
-            f"{'WITHHELD' if not attempted_social else f'{sum(1 for v in attempted_social if v == 'SENT')}/{len(attempted_social)} sent'}; "
+            f"{sent}/{len(targets)} email(s) sent; social={social_summary}; "
             f"{len(headlines)} fallback headline(s); {len(errors)} feed error(s)."
         )
         email_failed = bool(targets and sent != len(targets))
