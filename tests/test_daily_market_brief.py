@@ -1,6 +1,17 @@
 from datetime import datetime, timezone
 
-from scripts.daily_market_brief import Headline, parse_feed, render_brief, render_social_text
+import pytest
+from fastapi import HTTPException
+
+from api.daily_brief.routes import _require_intake_token, _validated_sources
+from scripts.daily_market_brief import (
+    Headline,
+    parse_feed,
+    publish_social,
+    render_brief,
+    render_social_text,
+    social_publishing_ready,
+)
 
 
 def test_parse_rss_feed():
@@ -48,3 +59,42 @@ def test_social_text_links_back_to_public_brief():
     assert "Gold advances — Example" in text
     assert "https://betheltradingtechnologies.com/daily-market-brief.html" in text
     assert "Not investment advice" in text
+
+
+def test_editorial_intake_token_fails_closed(monkeypatch):
+    monkeypatch.delenv("DAILY_MARKET_BRIEF_INTAKE_TOKEN", raising=False)
+    with pytest.raises(HTTPException) as missing:
+        _require_intake_token(None)
+    assert missing.value.status_code == 503
+
+    monkeypatch.setenv("DAILY_MARKET_BRIEF_INTAKE_TOKEN", "expected-secret")
+    with pytest.raises(HTTPException) as wrong:
+        _require_intake_token("wrong-secret")
+    assert wrong.value.status_code == 401
+
+    _require_intake_token("expected-secret")
+
+
+def test_editorial_sources_require_https():
+    assert _validated_sources(["https://reuters.com/example", "https://reuters.com/example"]) == [
+        "https://reuters.com/example"
+    ]
+    with pytest.raises(HTTPException) as invalid:
+        _validated_sources(["http://example.com/not-secure"])
+    assert invalid.value.status_code == 422
+
+
+def test_social_publishing_withheld_until_enabled_and_complete(monkeypatch):
+    monkeypatch.delenv("DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED", raising=False)
+    for channel in ("FACEBOOK", "INSTAGRAM", "X", "LINKEDIN", "TIKTOK", "YOUTUBE"):
+        monkeypatch.setenv(f"DAILY_MARKET_BRIEF_{channel}_WEBHOOK", f"https://publisher.example/{channel.lower()}")
+
+    assert social_publishing_ready() is False
+    status = publish_social("Example brief", datetime(2026, 8, 31, tzinfo=timezone.utc))
+    assert set(status.values()) == {"WITHHELD"}
+
+    monkeypatch.setenv("DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED", "true")
+    monkeypatch.delenv("DAILY_MARKET_BRIEF_YOUTUBE_WEBHOOK", raising=False)
+    assert social_publishing_ready() is False
+    status = publish_social("Example brief", datetime(2026, 8, 31, tzinfo=timezone.utc))
+    assert set(status.values()) == {"WITHHELD"}
