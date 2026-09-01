@@ -1,4 +1,4 @@
-"""Static regression checks for the additive public website assistant."""
+"""Static regression checks for the additive public website assistant and shared AI config."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,9 +29,40 @@ require(
     'Never provide personalized financial, investment or trading advice',
 )
 require(
+    "api/ai_config.py",
+    'OPENAI_API_KEY',
+    'BETHEL_AI_PUBLIC_ASSISTANT_ENABLED',
+    'BETHEL_AI_PERFORMANCE_COMMENTARY_ENABLED',
+    'BETHEL_AI_SUPPORT_DRAFTS_ENABLED',
+    'BETHEL_AI_MARKET_SUMMARY_ENABLED',
+    'BETHEL_AI_SOCIAL_CONTENT_ENABLED',
+    'BETHEL_AI_INVESTOR_REPORTS_ENABLED',
+    'BETHEL_AI_DOCUMENT_SUMMARY_ENABLED',
+    'BETHEL_AI_INTERNAL_ASSISTANT_ENABLED',
+    'BETHEL_AI_TRANSCRIPTION_ENABLED',
+    'BETHEL_AI_IMAGE_GENERATION_ENABLED',
+    'provider_configured',
+    'safe_status',
+)
+require(
     "render_app.py",
     'PUBLIC_ASSISTANT_PATH = "/public/assistant/chat"',
     'app.include_router(public_assistant_router)',
+)
+require(
+    "render.yaml",
+    '- key: OPENAI_API_KEY',
+    '- key: BETHEL_AI_PUBLIC_ASSISTANT_ENABLED',
+    '- key: BETHEL_AI_PERFORMANCE_COMMENTARY_ENABLED',
+    '- key: BETHEL_AI_SUPPORT_DRAFTS_ENABLED',
+    '- key: BETHEL_AI_MARKET_SUMMARY_ENABLED',
+    '- key: BETHEL_AI_SOCIAL_CONTENT_ENABLED',
+    '- key: BETHEL_AI_INVESTOR_REPORTS_ENABLED',
+    '- key: BETHEL_AI_DOCUMENT_SUMMARY_ENABLED',
+    '- key: BETHEL_AI_INTERNAL_ASSISTANT_ENABLED',
+    '- key: BETHEL_AI_TRANSCRIPTION_ENABLED',
+    '- key: BETHEL_AI_IMAGE_GENERATION_ENABLED',
+    '- key: DAILY_MARKET_BRIEF_AI_ENABLED',
 )
 require(
     "frontend/index.html",
@@ -51,4 +82,4 @@ frontend = text("frontend/js/chat-assistant.js") + text("frontend/index.html")
 if "OPENAI_API_KEY" in frontend or "api.openai.com" in frontend:
     raise SystemExit("PUBLIC ASSISTANT GATE FAIL: OpenAI credentials/API must remain server-side")
 
-print("PASS: additive public AI assistant safeguards")
+print("PASS: public AI assistant and centralized AI configuration safeguards")
