@@ -133,6 +133,9 @@ def test_ai_generation_accepts_valid_grounded_response(monkeypatch):
     }
 
     class Response:
+        ok = True
+        status_code = 200
+
         def raise_for_status(self):
             return None
 
@@ -179,6 +182,9 @@ def test_ai_generation_invalid_response_falls_back(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     class Response:
+        ok = True
+        status_code = 200
+
         def raise_for_status(self):
             return None
 
