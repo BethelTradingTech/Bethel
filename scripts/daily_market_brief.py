@@ -252,6 +252,12 @@ def _safe_email_diagnostic(status: str, error: str | None) -> str:
     return status.lower() if status else "unknown"
 
 
+def _missing_smtp_env_names() -> list[str]:
+    """Return missing SMTP variable names only; never expose secret values."""
+    required = ("SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM_EMAIL")
+    return [name for name in required if not (os.getenv(name) or "").strip()]
+
+
 def social_publishing_ready() -> bool:
     enabled = os.getenv("DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED", "false").strip().lower()
     if enabled not in {"1", "true", "yes", "on"}:
@@ -396,9 +402,17 @@ def run() -> int:
             if delivery.status == "SENT":
                 sent += 1
             else:
+                diagnostic = _safe_email_diagnostic(delivery.status, delivery.error)
+                if delivery.status == "SMTP_NOT_CONFIGURED":
+                    missing = _missing_smtp_env_names()
+                    missing_label = ",".join(missing) if missing else "none_detected"
+                    print(
+                        "Daily Market Brief SMTP runtime diagnostic: "
+                        f"missing={missing_label}; configured_required={5 - len(missing)}/5"
+                    )
                 print(
                     "Daily Market Brief email diagnostic: "
-                    f"status={delivery.status}; reason={_safe_email_diagnostic(delivery.status, delivery.error)}"
+                    f"status={delivery.status}; reason={diagnostic}"
                 )
         db.commit()
 
