@@ -18,11 +18,14 @@ from api.notifications.models import EmailDelivery
 PUBLIC_SUBSCRIBER_PORTAL = "https://bethel-api.onrender.com/investor-frontend"
 
 
+def _smtp_from_address() -> str:
+    """Return the configured SMTP sender, supporting the legacy/new env names."""
+    return (os.getenv("SMTP_FROM_EMAIL") or os.getenv("SMTP_FROM") or "").strip()
+
+
 def smtp_configured() -> bool:
-    return all(
-        os.getenv(name)
-        for name in ("SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM_EMAIL")
-    )
+    required = ("SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD")
+    return all(os.getenv(name) for name in required) and bool(_smtp_from_address())
 
 
 def record_and_send(
@@ -62,7 +65,7 @@ def record_and_send(
         return delivery
 
     message = EmailMessage()
-    message["From"] = os.environ["SMTP_FROM_EMAIL"]
+    message["From"] = _smtp_from_address()
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(text_body)
