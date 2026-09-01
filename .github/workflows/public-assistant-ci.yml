@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'api/public_assistant.py'
+      - 'api/ai_config.py'
+      - 'render.yaml'
       - 'render_app.py'
       - 'frontend/index.html'
       - 'frontend/js/chat-assistant.js'
@@ -14,6 +16,8 @@ on:
     branches: [main]
     paths:
       - 'api/public_assistant.py'
+      - 'api/ai_config.py'
+      - 'render.yaml'
       - 'render_app.py'
       - 'frontend/index.html'
       - 'frontend/js/chat-assistant.js'
@@ -32,7 +36,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Compile assistant backend
-        run: python -m py_compile api/public_assistant.py
+      - name: Compile assistant and AI configuration
+        run: python -m py_compile api/public_assistant.py api/ai_config.py
       - name: Verify assistant safeguards and additive wiring
         run: python scripts/public_assistant_gate.py
