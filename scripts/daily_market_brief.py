@@ -4,8 +4,8 @@ Runs as a weekday cron job, prefers an authenticated editorial brief already
 archived for the trading day, and otherwise can enhance selected public RSS/Atom
 feeds with a fail-safe AI editorial pass before falling back to the original
 deterministic renderer. It can email the authoritative brief and can dispatch a
-concise social version only after social publishing is explicitly enabled and
-every configured channel webhook is present.
+concise social version only after social publishing is explicitly enabled;
+configured channels publish independently while unconfigured channels remain withheld.
 
 The job is intentionally isolated from MT5 execution and CopyHub. It never
 opens, modifies, or closes trades.
@@ -260,9 +260,7 @@ def _missing_smtp_env_names() -> list[str]:
 
 def social_publishing_ready() -> bool:
     enabled = os.getenv("DAILY_MARKET_BRIEF_SOCIAL_PUBLISHING_ENABLED", "false").strip().lower()
-    if enabled not in {"1", "true", "yes", "on"}:
-        return False
-    return all(os.getenv(f"DAILY_MARKET_BRIEF_{channel.upper()}_WEBHOOK", "").strip() for channel in SOCIAL_CHANNELS)
+    return enabled in {"1", "true", "yes", "on"}
 
 
 def publish_social(text: str, now: datetime) -> dict[str, str]:
@@ -276,6 +274,9 @@ def publish_social(text: str, now: datetime) -> dict[str, str]:
         headers["Authorization"] = f"Bearer {token}"
     for channel in SOCIAL_CHANNELS:
         url = os.getenv(f"DAILY_MARKET_BRIEF_{channel.upper()}_WEBHOOK", "").strip()
+        if not url:
+            results[channel] = "WITHHELD"
+            continue
         try:
             safe_url = _safe_https_url(url)
             response = requests.post(
