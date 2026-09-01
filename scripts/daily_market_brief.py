@@ -390,15 +390,40 @@ def run() -> int:
             )
 
         sent = 0
+        run_started_naive = now.replace(tzinfo=None)
         for recipient in targets:
+            deduplication_key = f"daily-market-brief:{now:%Y-%m-%d}:{recipient.lower()}"
             delivery = record_and_send(
                 db,
                 recipient=recipient,
                 message_type="DAILY_MARKET_BRIEF",
                 subject=f"Bethel Daily Market Brief — {now:%Y-%m-%d}",
                 text_body=body,
-                deduplication_key=f"daily-market-brief:{now:%Y-%m-%d}:{recipient.lower()}",
+                deduplication_key=deduplication_key,
             )
+
+            # record_and_send deliberately deduplicates all prior deliveries. A
+            # failed delivery from an earlier run would therefore be returned
+            # forever even after SMTP is fixed. Retry only when the returned
+            # non-SENT record predates this run, preserving successful-send
+            # deduplication and leaving the shared Bethel emailer unchanged.
+            created_at = getattr(delivery, "created_at", None)
+            if (
+                delivery.status != "SENT"
+                and created_at is not None
+                and created_at < run_started_naive
+            ):
+                delivery.deduplication_key = None
+                db.flush()
+                delivery = record_and_send(
+                    db,
+                    recipient=recipient,
+                    message_type="DAILY_MARKET_BRIEF",
+                    subject=f"Bethel Daily Market Brief — {now:%Y-%m-%d}",
+                    text_body=body,
+                    deduplication_key=deduplication_key,
+                )
+
             if delivery.status == "SENT":
                 sent += 1
             else:
