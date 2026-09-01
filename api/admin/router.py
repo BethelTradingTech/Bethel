@@ -5,8 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 
 from api.auth.dependency import require_admin
+from api.admin.linkedin_routes import router as linkedin_router
 
 router = APIRouter(prefix="/admin/control", tags=["Admin Control"])
+router.include_router(linkedin_router)
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 SETTINGS_FILE = DATA_DIR / "admin_control_settings.json"
@@ -26,6 +28,7 @@ DEFAULT_SETTINGS = {
         "prelaunch_label": "PRE-LAUNCH NOTICE",
         "prelaunch_text": "Bethel is currently in its pre-launch and commercial readiness phase. Public registration and onboarding are open. Account activation remains subject to the applicable identity verification, compliance, legal, payment, trading-account linking, copier activation, and final Super Admin approval requirements.",
         "public_notice_text": "Bethel Quant Trading Technologies Limited is currently in its pre-launch and commercial readiness phase. The information, technology demonstrations, live trading broadcasts, performance records, and platform features presented on this website are provided to demonstrate the capabilities and ongoing development of the Bethel technology ecosystem. Public customer services and any activities requiring regulatory authorization will only be made available in applicable jurisdictions once the necessary legal, compliance, and regulatory requirements have been satisfied. Nothing presented on this website constitutes an offer, solicitation, investment recommendation, or guarantee of future trading performance.",
+        "privacy_policy_url": "https://betheltradingtechnologies.com/privacy-policy.html",
         "about_title": "About Us",
         "about_subtitle": "Our philosophy is built on transparent execution and mathematical discipline.",
         "about_paragraph_1": "Bethel Trading Technologies develops elite algorithmic trading systems designed to navigate today's volatile markets with precision.",
@@ -96,6 +99,7 @@ DEFAULT_SETTINGS = {
 CRITICAL_ADMIN_ROUTES = {
     "/admin/control/settings",
     "/admin/control/routes",
+    "/admin/control/integrations/linkedin/status",
     "/admin/investors",
     "/admin/operations/backups",
     "/admin/operations/security-events",
