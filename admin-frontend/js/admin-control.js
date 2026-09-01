@@ -116,6 +116,87 @@ admin-control-core.js and still owns these critical routes:
     }
   }
 
+  function installLinkedInManagement(){
+    const websiteView=document.getElementById("view-website");
+    const websiteForm=document.getElementById("website-form");
+    if(!websiteView||!websiteForm||document.getElementById("linkedin-platform-integration"))return;
+
+    const panel=document.createElement("article");
+    panel.id="linkedin-platform-integration";
+    panel.className="panel";
+    panel.style.marginTop="18px";
+    panel.innerHTML=`
+      <div class="section-heading">
+        <div>
+          <h2>LinkedIn Platform Integration</h2>
+          <p>Secure OAuth connection for Bethel Market Brief publishing. Client secrets and access tokens are never displayed here.</p>
+        </div>
+        <span id="linkedin-connection-badge" class="notice">Checking…</span>
+      </div>
+      <div class="detail-grid">
+        <div><small>Configuration</small><strong id="linkedin-configured">—</strong></div>
+        <div><small>Connection</small><strong id="linkedin-connected">—</strong></div>
+        <div><small>OAuth scopes</small><strong id="linkedin-scopes">—</strong></div>
+        <div><small>Token expiry</small><strong id="linkedin-token-expiry">—</strong></div>
+        <div class="wide"><small>Authorized callback URL</small><strong id="linkedin-redirect-uri" style="word-break:break-all">—</strong></div>
+      </div>
+      <div class="review-actions" style="margin-top:16px">
+        <button id="linkedin-connect" type="button">Connect LinkedIn</button>
+        <button id="linkedin-refresh" type="button">Refresh Status</button>
+        <button id="linkedin-disconnect" type="button" class="danger-button">Disconnect</button>
+      </div>
+      <p id="linkedin-result" class="notice" aria-live="polite">Community Management API permissions must be approved and LINKEDIN_OAUTH_SCOPES configured before connection can begin.</p>`;
+    websiteForm.insertAdjacentElement("afterend",panel);
+
+    const configured=document.getElementById("linkedin-configured");
+    const connected=document.getElementById("linkedin-connected");
+    const scopes=document.getElementById("linkedin-scopes");
+    const expiry=document.getElementById("linkedin-token-expiry");
+    const redirect=document.getElementById("linkedin-redirect-uri");
+    const badge=document.getElementById("linkedin-connection-badge");
+    const result=document.getElementById("linkedin-result");
+    const connectButton=document.getElementById("linkedin-connect");
+    const disconnectButton=document.getElementById("linkedin-disconnect");
+
+    function showResult(message,error=false){result.textContent=message;result.style.color=error?"#f87171":"#94a3b8"}
+    async function refreshLinkedInStatus(){
+      try{
+        const data=await apiGet("/admin/control/integrations/linkedin/status");
+        configured.textContent=data.configured?"Configured":"Missing credentials";
+        connected.textContent=data.connected?(data.token_expired?"Token expired":"Connected"):"Not connected";
+        scopes.textContent=(data.scopes_configured||[]).join(", ")||"Awaiting approved permissions";
+        expiry.textContent=data.token_expires_at?new Date(data.token_expires_at).toLocaleString():"—";
+        redirect.textContent=data.redirect_uri||"—";
+        badge.textContent=data.connected&&!data.token_expired?"Connected":(data.configured?"Ready / awaiting authorization":"Configuration required");
+        badge.style.color=data.connected&&!data.token_expired?"#34d399":"#fbbf24";
+        connectButton.disabled=!data.configured||!(data.scopes_configured||[]).length;
+        disconnectButton.disabled=!data.connected;
+        if(!(data.scopes_configured||[]).length)showResult("LinkedIn credentials are configured, but OAuth scopes are intentionally not set until LinkedIn approves the required Community Management permissions.");
+        else if(data.connected&&!data.token_expired)showResult("LinkedIn is connected and ready for approved Page operations.");
+        else if(data.token_expired)showResult("LinkedIn token has expired. Reconnect LinkedIn to authorize a new token.",true);
+        else showResult("LinkedIn OAuth scopes are configured. Click Connect LinkedIn to authorize Bethel.");
+      }catch(error){
+        configured.textContent="Unknown";connected.textContent="Unknown";badge.textContent="Status unavailable";badge.style.color="#f87171";showResult(error.message||"Unable to load LinkedIn status",true);
+      }
+    }
+
+    document.getElementById("linkedin-refresh").addEventListener("click",refreshLinkedInStatus);
+    connectButton.addEventListener("click",async()=>{
+      try{
+        showResult("Preparing LinkedIn authorization…");
+        const data=await apiGet("/admin/control/integrations/linkedin/connect");
+        if(!data.authorization_url)throw new Error("LinkedIn authorization URL was not returned.");
+        window.open(data.authorization_url,"linkedin-oauth","width=720,height=820,noopener,noreferrer");
+        showResult("Complete authorization in the LinkedIn window, then click Refresh Status.");
+      }catch(error){showResult(error.message||"Unable to start LinkedIn authorization",true)}
+    });
+    disconnectButton.addEventListener("click",async()=>{
+      if(!confirm("Disconnect LinkedIn from Bethel? This removes the stored access token."))return;
+      try{await apiPost("/admin/control/integrations/linkedin/disconnect",{});showResult("LinkedIn disconnected.");await refreshLinkedInStatus()}catch(error){showResult(error.message||"Unable to disconnect LinkedIn",true)}
+    });
+    refreshLinkedInStatus();
+  }
+
   const core=document.createElement("script");
   core.src="js/admin-control-core.js?v=20260827-disclosure-control";
   core.onload=async()=>{
@@ -133,6 +214,7 @@ admin-control-core.js and still owns these critical routes:
     async function loadPublicNoticeControl(){try{const data=await apiGet("/admin/control/settings");const website=data.website||{},controls=website.public_controls||{};toggle.checked=!!controls.show_public_notice_disclosure;text.value=website.public_notice_text||"";status.textContent=toggle.checked?"Public Notice Disclosure is currently ON.":"Public Notice Disclosure is currently OFF.";status.style.color=toggle.checked?"#34d399":"#94a3b8"}catch(error){status.textContent=error.message||"Unable to load Public Notice Disclosure settings";status.style.color="#f87171"}}
     toggle.addEventListener("change",()=>{status.textContent=toggle.checked?"Public Notice Disclosure will be enabled when you save.":"Public Notice Disclosure will be hidden when you save.";status.style.color=toggle.checked?"#34d399":"#fbbf24"});
     form.onsubmit=async event=>{event.preventDefault();const payload={};[...form.elements].forEach(el=>{if(!el.name||el.type==="submit"||el.id==="show-public-notice-disclosure")return;payload[el.name]=el.type==="checkbox"?el.checked:el.value});payload.public_controls={show_public_notice_disclosure:!!toggle.checked};try{const saveStatus=document.getElementById("save-status");if(saveStatus){saveStatus.textContent="Saving…";saveStatus.style.color="#10b981"}await apiPut("/admin/control/settings/website",payload);if(saveStatus){saveStatus.textContent="Website settings saved";setTimeout(()=>saveStatus.textContent="",5000)}status.textContent=toggle.checked?"Saved. Public Notice Disclosure is ON.":"Saved. Public Notice Disclosure is OFF.";status.style.color="#34d399"}catch(error){const saveStatus=document.getElementById("save-status");if(saveStatus){saveStatus.textContent=error.message||"Unable to save website settings";saveStatus.style.color="#ef4444"}status.textContent=error.message||"Unable to save Public Notice Disclosure settings";status.style.color="#f87171"}};
+    installLinkedInManagement();
     await loadPublicNoticeControl();
   };
   core.onerror=()=>console.error("Bethel admin core failed to load");
