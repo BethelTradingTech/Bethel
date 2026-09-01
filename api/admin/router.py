@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, Request
 
 from api.auth.dependency import require_admin
 from api.admin.linkedin_routes import router as linkedin_router
+from api.admin.tiktok_routes import router as tiktok_router
 
 router = APIRouter(prefix="/admin/control", tags=["Admin Control"])
 router.include_router(linkedin_router)
+router.include_router(tiktok_router)
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 SETTINGS_FILE = DATA_DIR / "admin_control_settings.json"
@@ -100,6 +102,7 @@ CRITICAL_ADMIN_ROUTES = {
     "/admin/control/settings",
     "/admin/control/routes",
     "/admin/control/integrations/linkedin/status",
+    "/admin/control/integrations/tiktok/status",
     "/admin/investors",
     "/admin/operations/backups",
     "/admin/operations/security-events",
