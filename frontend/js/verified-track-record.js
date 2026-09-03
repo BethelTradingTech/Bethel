@@ -7,6 +7,21 @@
   const liveSection = document.getElementById("public-live-mt5");
   if (!performanceSection) return;
 
+  // Defense in depth for older cached homepage bundles: once this script loads,
+  // legacy live-telemetry/broadcast pollers receive a local disabled response and
+  // stop sending those requests to the API. Monthly/yearly reporting is unaffected.
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    const url = typeof input === "string" ? input : String(input?.url || "");
+    if (url.includes("/connector/v1/public/live") || url.includes("/broadcast/v1/public/status")) {
+      return Promise.resolve(new Response(JSON.stringify({enabled:false,available:false}), {
+        status: 200,
+        headers: {"Content-Type":"application/json","Cache-Control":"no-store"}
+      }));
+    }
+    return nativeFetch(input, init);
+  };
+
   let loading = false;
   let settingsLoaded = false;
   let publicWebsite = {};
@@ -32,10 +47,9 @@
   const setVisible = (selector, visible) => document.querySelectorAll(selector).forEach(el => el.classList.toggle("public-admin-hidden", !visible));
   const setText = (selector, value) => { const el=document.querySelector(selector); if(el&&value!=null&&value!=="") el.textContent=String(value); };
   const fmtSignedPercent = (value, digits = 2) => { const n=Number(value); return Number.isFinite(n)?`${n>0?"+":""}${n.toFixed(digits)}%`:"—"; };
-  const fmtDate = value => { if(!value)return "—"; const raw=String(value),d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw)?`${raw}T00:00:00Z`:raw); return Number.isNaN(d.getTime())?raw:d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"}); };
 
   function buildUnifiedDisplay(){
-    performanceSection.innerHTML=`<div class="unified-live-title"><h2>Performance Reports</h2><p>Finalized monthly returns and year-to-date results based only on completed monthly reporting periods.</p></div><div id="unified-live-panel" class="unified-live-panel"><div class="returns-panel"><h3>Monthly & Yearly Returns</h3><div id="track-loading" class="track-loading">Loading return history…</div><div id="track-monthly" class="track-table-wrap" hidden></div></div></div>`;
+    performanceSection.innerHTML=`<div class="unified-live-title"><h2>VERIFIED PERFORMANCE RECORD</h2><p>Finalized monthly returns and year-to-date results based only on completed monthly reporting periods.</p></div><div id="unified-live-panel" class="unified-live-panel"><div class="returns-panel"><h3>Monthly & Yearly Returns</h3><div id="track-loading" class="track-loading">Loading return history…</div><div id="track-monthly" class="track-table-wrap" hidden></div></div></div>`;
     if(broadcastSection?.isConnected)broadcastSection.remove();
     if(liveSection?.isConnected)liveSection.remove();
   }
@@ -115,24 +129,23 @@
     }
   }
 
-  function renderMonthly(rows,historyStart,historyEnd){
+  function renderMonthly(rows,yearlyRows){
     const container=document.getElementById("track-monthly");if(!container)return;
-    const startPeriod=/^\d{4}-\d{2}/.test(String(historyStart||""))?String(historyStart).slice(0,7):null;
-    const endPeriod=/^\d{4}-\d{2}/.test(String(historyEnd||""))?String(historyEnd).slice(0,7):null;
-    const now=new Date(),currentPeriod=`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}`,lastDay=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,0)).getUTCDate(),monthEnd=now.getUTCDate()===lastDay;
+    const now=new Date(),currentPeriod=`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}`;
     const valid=(Array.isArray(rows)?rows:[])
       .filter(r=>/^\d{4}-\d{2}$/.test(String(r.period||""))&&Number.isFinite(Number(r.return_percent)))
-      .filter(r=>(!startPeriod||r.period>=startPeriod)&&(!endPeriod||r.period<=endPeriod))
-      .filter(r=>r.period<currentPeriod||(r.period===currentPeriod&&monthEnd))
+      .filter(r=>String(r.period)<currentPeriod)
       .sort((a,b)=>String(a.period).localeCompare(String(b.period)));
-    if(!valid.length){container.innerHTML='<span class="track-history-label">Monthly return history is not yet available for the active master.</span>';container.hidden=false;return}
+    if(!valid.length){container.innerHTML='<span class="track-history-label">Finalized monthly return history is not yet available for the selected report.</span>';container.hidden=false;return}
     const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const years=[...new Set(valid.map(r=>String(r.period).slice(0,4)))].sort(),byMonth=new Map(valid.map(r=>[String(r.period),Number(r.return_percent)])),table=document.createElement("table");
-    table.className="track-table";
+    const years=[...new Set(valid.map(r=>String(r.period).slice(0,4)))].sort();
+    const byMonth=new Map(valid.map(r=>[String(r.period),Number(r.return_percent)]));
+    const byYear=new Map((Array.isArray(yearlyRows)?yearlyRows:[]).filter(r=>/^\d{4}$/.test(String(r.period||""))&&Number.isFinite(Number(r.return_percent))).map(r=>[String(r.period),Number(r.return_percent)]));
+    const table=document.createElement("table");table.className="track-table";
     const thead=document.createElement("thead"),headerRow=document.createElement("tr");["Year",...months,"Year / YTD"].forEach(label=>{const th=document.createElement("th");th.textContent=label;headerRow.appendChild(th)});thead.appendChild(headerRow);table.appendChild(thead);
     const tbody=document.createElement("tbody");
-    years.forEach(year=>{const tr=document.createElement("tr"),yearCell=document.createElement("td");yearCell.textContent=year;tr.appendChild(yearCell);const yearValues=[];for(let month=1;month<=12;month+=1){const key=`${year}-${String(month).padStart(2,"0")}`,value=byMonth.get(key),td=document.createElement("td");if(Number.isFinite(value)){td.textContent=fmtSignedPercent(value);td.className=value>0?"track-positive":value<0?"track-negative":"track-neutral";yearValues.push(value/100)}else{td.textContent="—";td.className="track-neutral"}tr.appendChild(td)}const annual=yearValues.length?(yearValues.reduce((factor,r)=>factor*(1+r),1)-1)*100:NaN,total=document.createElement("td");total.textContent=Number.isFinite(annual)?fmtSignedPercent(annual):"—";total.className=annual>0?"track-positive":annual<0?"track-negative":"track-neutral";tr.appendChild(total);tbody.appendChild(tr)});
-    table.appendChild(tbody);container.replaceChildren(table);const note=document.createElement("div");note.className="track-history-label";note.style.marginTop=".65rem";note.textContent=`Finalized monthly returns · ${fmtDate(historyStart)} — ${fmtDate(historyEnd)}. Year/YTD updates when each monthly result is finalized.`;container.appendChild(note);container.hidden=false;
+    years.forEach(year=>{const tr=document.createElement("tr"),yearCell=document.createElement("td");yearCell.textContent=year;tr.appendChild(yearCell);for(let month=1;month<=12;month+=1){const key=`${year}-${String(month).padStart(2,"0")}`,value=byMonth.get(key),td=document.createElement("td");if(Number.isFinite(value)){td.textContent=fmtSignedPercent(value);td.className=value>0?"track-positive":value<0?"track-negative":"track-neutral"}else{td.textContent="—";td.className="track-neutral"}tr.appendChild(td)}const annual=byYear.get(year),total=document.createElement("td");total.textContent=Number.isFinite(annual)?fmtSignedPercent(annual):"—";total.className=annual>0?"track-positive":annual<0?"track-negative":"track-neutral";tr.appendChild(total);tbody.appendChild(tr)});
+    table.appendChild(tbody);container.replaceChildren(table);const note=document.createElement("div");note.className="track-history-label";note.style.marginTop=".65rem";note.textContent="Finalized monthly returns only. Year/YTD updates after each completed month is added.";container.appendChild(note);container.hidden=false;
   }
 
   async function fetchSummary(){const response=await fetch(`${API}/performance/public-summary?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error("summary unavailable");const data=await response.json();if(!data.available)throw new Error("return history unavailable");return data}
@@ -141,12 +154,11 @@
     if(!settingsLoaded||!control("show_monthly_yearly_returns",true)||loading)return;
     loading=true;
     try{
-      const data=await fetchSummary(),summaryAgain=await fetchSummary();
-      if(summaryAgain.account_number!==data.account_number)throw new Error("active master changed during refresh");
-      renderMonthly(data.monthly_returns||[],data.history_start,data.history_end);
+      const data=await fetchSummary();
+      renderMonthly(data.monthly_returns||[],data.yearly_returns||[]);
       const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true;
     }catch(_){
-      const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the active master record is refreshing."}
+      const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the selected report is refreshing."}
     }finally{loading=false}
   }
 
