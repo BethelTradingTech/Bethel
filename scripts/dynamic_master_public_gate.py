@@ -45,14 +45,17 @@ require("EquitySnapshot" not in master,
 
 # Public summary must use the public resolver and expose only finalized returns.
 public_summary = performance.split('@router.get("/public-summary")', 1)[1].split('@router.get("/public-history")', 1)[0]
+compact_summary = "".join(public_summary.split())
 for needle in (
     "_public_master_account()",
     "_finalized_monthly_returns",
     "_yearly_returns_from_monthly",
-    '"monthly_returns": monthly',
-    '"yearly_returns": yearly',
 ):
     require(needle in public_summary, f"public summary missing {needle!r}")
+require('"monthly_returns":monthly' in compact_summary,
+        "public summary must return finalized monthly returns")
+require('"yearly_returns":yearly' in compact_summary,
+        "public summary must return finalized yearly/YTD returns")
 
 for forbidden_key in (
     '"account_number"',
