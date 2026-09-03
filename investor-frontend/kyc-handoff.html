@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0f19">
+    <title>Bethel Identity Verification</title>
+    <link rel="stylesheet" href="css/investor.css?v=6">
+    <style>
+        body{margin:0;background:#0b0f19;color:#f3f4f6;font-family:Arial,sans-serif}
+        .handoff-shell{max-width:680px;margin:0 auto;padding:24px}
+        .handoff-card{background:#111827;border:1px solid #263244;border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+        .handoff-card h1{font-size:1.6rem;margin:.4rem 0 1rem}
+        .handoff-card p{line-height:1.55;color:#cbd5e1}
+        .security-note{padding:14px;border-radius:12px;background:#0f172a;border:1px solid #334155;margin:16px 0}
+        video{width:100%;border-radius:16px;background:#020617;aspect-ratio:3/4;object-fit:cover;transform:scaleX(-1)}
+        canvas{display:none}
+        button{width:100%;padding:14px 16px;border:0;border-radius:12px;font-weight:700;cursor:pointer;margin-top:12px}
+        .primary{background:#f5c451;color:#111827}
+        .secondary{background:#1f2937;color:#f9fafb;border:1px solid #475569}
+        .status{margin-top:16px;padding:12px;border-radius:10px;background:#0f172a;color:#dbeafe}
+        .error{color:#fecaca;border-color:#7f1d1d}
+        .success{color:#bbf7d0;border-color:#14532d}
+        .small{font-size:.88rem;color:#94a3b8}
+    </style>
+</head>
+<body>
+<main class="handoff-shell">
+    <section class="handoff-card">
+        <div class="small">Bethel Native Identity Verification</div>
+        <h1>Continue your live selfie on this device</h1>
+        <p>This secure link is tied only to your current KYC session. It does not sign this device into your Bethel account or provide dashboard access.</p>
+        <div class="security-note">Use your front-facing camera in good lighting. Keep your full face visible and do not use a photo of a photo, screen image, filter, or mask.</div>
+        <video id="camera" autoplay playsinline muted></video>
+        <canvas id="capture-canvas"></canvas>
+        <button id="start-camera" class="secondary" type="button">Enable front camera</button>
+        <button id="capture-selfie" class="primary" type="button" disabled>Capture live selfie</button>
+        <button id="retake-selfie" class="secondary" type="button" hidden>Retake selfie</button>
+        <button id="submit-selfie" class="primary" type="button" hidden>Send securely to my KYC session</button>
+        <div id="status" class="status" role="status">Open the camera to continue.</div>
+        <p class="small">The transfer link expires automatically. After the selfie is received, return to the original device to continue your verification.</p>
+    </section>
+</main>
+<script>
+(() => {
+    "use strict";
+    const API_ORIGIN = (location.hostname === "localhost" || location.hostname === "127.0.0.1")
+        ? `${location.protocol}//${location.hostname}:8000`
+        : (location.hostname === "api.betheltradingtechnologies.com" || location.hostname === "bethel-api.onrender.com")
+            ? location.origin
+            : "https://api.betheltradingtechnologies.com";
+    const token = new URLSearchParams(location.hash.replace(/^#/, "")).get("token") || "";
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("capture-canvas");
+    const startButton = document.getElementById("start-camera");
+    const captureButton = document.getElementById("capture-selfie");
+    const retakeButton = document.getElementById("retake-selfie");
+    const submitButton = document.getElementById("submit-selfie");
+    const status = document.getElementById("status");
+    let stream = null;
+    let capturedBlob = null;
+
+    function setStatus(message, type="") {
+        status.textContent = message;
+        status.className = `status ${type}`.trim();
+    }
+    function stopCamera() {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    async function startCamera() {
+        if (!token) {
+            setStatus("This device handoff link is missing or invalid.", "error");
+            return;
+        }
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:1080},height:{ideal:1440}},audio:false});
+            video.srcObject = stream;
+            captureButton.disabled = false;
+            startButton.hidden = true;
+            setStatus("Camera ready. Center your face and capture the live selfie.");
+        } catch (error) {
+            setStatus("Camera permission is required. Allow camera access in your browser and try again.", "error");
+        }
+    }
+    function capture() {
+        if (!stream || !video.videoWidth) {
+            setStatus("Camera is not ready yet.", "error");
+            return;
+        }
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext("2d");
+        context.translate(canvas.width, 0);
+        context.scale(-1, 1);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+            if (!blob) {
+                setStatus("Unable to capture the selfie. Please try again.", "error");
+                return;
+            }
+            capturedBlob = blob;
+            video.srcObject = null;
+            stopCamera();
+            video.poster = canvas.toDataURL("image/jpeg", .92);
+            captureButton.hidden = true;
+            retakeButton.hidden = false;
+            submitButton.hidden = false;
+            setStatus("Selfie captured. Review it, then send it securely.");
+        }, "image/jpeg", .92);
+    }
+    async function retake() {
+        capturedBlob = null;
+        video.removeAttribute("poster");
+        retakeButton.hidden = true;
+        submitButton.hidden = true;
+        captureButton.hidden = false;
+        captureButton.disabled = true;
+        startButton.hidden = false;
+        await startCamera();
+    }
+    async function submit() {
+        if (!capturedBlob || !token) return;
+        submitButton.disabled = true;
+        retakeButton.disabled = true;
+        setStatus("Sending your live selfie securely...");
+        try {
+            const body = new FormData();
+            body.append("token", token);
+            body.append("selfie", capturedBlob, "live-selfie.jpg");
+            const response = await fetch(`${API_ORIGIN}/kyc/native/handoff/capture`, {method:"POST",body});
+            let data = {};
+            try { data = await response.json(); } catch (_) {}
+            if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Unable to complete the device handoff.");
+            setStatus("Selfie received securely. Return to your original device; it will continue automatically.", "success");
+            submitButton.hidden = true;
+            retakeButton.hidden = true;
+            location.hash = "";
+        } catch (error) {
+            submitButton.disabled = false;
+            retakeButton.disabled = false;
+            setStatus(error.message || "Unable to complete the device handoff.", "error");
+        }
+    }
+
+    startButton.addEventListener("click", startCamera);
+    captureButton.addEventListener("click", capture);
+    retakeButton.addEventListener("click", retake);
+    submitButton.addEventListener("click", submit);
+    window.addEventListener("pagehide", stopCamera);
+    if (!token) setStatus("This device handoff link is missing or invalid.", "error");
+})();
+</script>
+</body>
+</html>
