@@ -1,12 +1,13 @@
 """Single source of truth for Bethel master-account selection.
 
-Public reporting is controlled explicitly from Super Admin. A public master must
-be deliberately selected and enabled before it can be exposed by public-facing
-features. Master accounts never become public merely because one posts a newer
-snapshot.
+Public reporting is controlled explicitly from Super Admin by the selected
+owner/master terminal. Live telemetry visibility is a separate setting: a master
+can remain the source for monthly/yearly public reports while live MT5 telemetry
+stays disabled. Master accounts never become public merely because one posts a
+newer snapshot.
 
 Internal analytics may still use BETHEL_MASTER_ACCOUNT as a bootstrap fallback
-when no explicit public selection exists, but runtime snapshot recency is never
+when no explicit master selection exists, but runtime snapshot recency is never
 used to switch the selected master automatically.
 """
 
@@ -21,13 +22,18 @@ from api.mt5_ingest.models import MasterTerminalRegistry, PublicMt5DisplaySettin
 
 
 def _selected_public_master_account(db: Session) -> Optional[str]:
-    """Return the explicitly selected public owner/master terminal, if valid."""
+    """Return the explicitly selected owner/master terminal, if valid.
+
+    The selected terminal remains authoritative for public monthly/yearly reports
+    even when live MT5 telemetry is disabled. The ``enabled`` flag on
+    PublicMt5DisplaySetting controls live telemetry publication only.
+    """
     setting = (
         db.query(PublicMt5DisplaySetting)
         .filter(PublicMt5DisplaySetting.id == 1)
         .first()
     )
-    if setting is None or not setting.enabled or setting.terminal_registry_id is None:
+    if setting is None or setting.terminal_registry_id is None:
         return None
 
     terminal = (
@@ -47,10 +53,10 @@ def _selected_public_master_account(db: Session) -> Optional[str]:
 
 
 def resolve_public_master_account(db: Session) -> Optional[str]:
-    """Resolve only the master explicitly approved for public reporting.
+    """Resolve only the master explicitly selected for public reporting.
 
     This function intentionally has no automatic fallback. If Super Admin has
-    not selected and enabled a public master, public reporting must fail closed.
+    not selected an eligible owner/master terminal, public reporting fails closed.
     """
     return _selected_public_master_account(db)
 
@@ -59,11 +65,10 @@ def resolve_active_master_account(db: Session) -> Optional[str]:
     """Resolve the company master for internal analytics without auto-switching.
 
     Resolution order:
-      1. Explicit Super Admin public-display selection.
+      1. Explicit Super Admin owner/master selection.
       2. BETHEL_MASTER_ACCOUNT as an internal/bootstrap fallback.
 
-    The former newest-snapshot fallback is deliberately removed. A different
-    master posting a newer snapshot can no longer change the active account.
+    Runtime snapshot recency is deliberately never used to choose an account.
     """
     selected = _selected_public_master_account(db)
     if selected:
