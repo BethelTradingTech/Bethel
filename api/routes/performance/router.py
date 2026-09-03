@@ -1,4 +1,6 @@
-"""Protected performance API for the dynamically resolved active master."""
+"""Protected performance API for Bethel master-account analytics."""
+
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
 
@@ -11,7 +13,7 @@ from api.services.analytics_v2 import get_audited_analytics
 from api.services.daily_performance import get_daily_performance
 from api.services.fxblue_banked_return import get_fxblue_banked_return_preview
 from api.services.ledger_var import get_signed_ledger_var
-from api.services.master_account import resolve_active_master_account
+from api.services.master_account import resolve_active_master_account, resolve_public_master_account
 from api.services.monthly_performance import get_monthly_performance
 from api.services.normalized_return_preview import get_normalized_return_preview
 from api.services.performance_engine import get_performance_analytics
@@ -30,6 +32,14 @@ def _active_master_account() -> str | None:
         db.close()
 
 
+def _public_master_account() -> str | None:
+    db = SessionLocal()
+    try:
+        return resolve_public_master_account(db)
+    finally:
+        db.close()
+
+
 def _round_metric(value, digits: int = 2):
     try:
         return round(float(value), digits) if value is not None else None
@@ -40,6 +50,40 @@ def _round_metric(value, digits: int = 2):
 def _mask_account(value: str) -> str:
     value = str(value or "")
     return ("•" * max(0, len(value) - 4)) + value[-4:]
+
+
+def _finalized_monthly_returns(rows) -> list[dict]:
+    """Return only completed calendar months for public reporting.
+
+    The current month is always excluded. It becomes eligible automatically on
+    the first day of the following month, preventing intramonth account activity
+    from changing the public report.
+    """
+    current_period = datetime.now(timezone.utc).strftime("%Y-%m")
+    finalized = []
+    for row in rows if isinstance(rows, list) else []:
+        period = str(row.get("period") or "")
+        if len(period) != 7 or period[4] != "-" or period >= current_period:
+            continue
+        try:
+            value = round(float(row.get("return_percent")), 2)
+        except (TypeError, ValueError):
+            continue
+        finalized.append({"period": period, "return_percent": value})
+    finalized.sort(key=lambda item: item["period"])
+    return finalized
+
+
+def _yearly_returns_from_monthly(monthly: list[dict]) -> list[dict]:
+    """Compound finalized monthly returns into completed-year/YTD figures."""
+    factors: dict[str, float] = {}
+    for row in monthly:
+        year = str(row["period"])[:4]
+        factors[year] = factors.get(year, 1.0) * (1.0 + float(row["return_percent"]) / 100.0)
+    return [
+        {"period": year, "return_percent": round((factor - 1.0) * 100.0, 2)}
+        for year, factor in sorted(factors.items())
+    ]
 
 
 def _apply_fxblue_total_return(data: dict) -> dict:
@@ -189,74 +233,31 @@ def _dashboard_values(data: dict) -> dict:
 
 @router.get("/public-summary")
 def public_performance_summary():
-    """Sanitized read-only track record for the public website and live display."""
-    data = _apply_fxblue_total_return(get_performance_analytics())
-    data = _apply_account_risk_profile(data)
-    if not isinstance(data, dict) or data.get("status") != "success":
-        return {"available": False, "read_only": True}
-    account = str(data.get("master_account") or "").strip()
+    """Public report containing finalized monthly returns and Year/YTD only."""
+    account = _public_master_account()
     if not account:
-        return {"available": False, "read_only": True}
+        return {"available": False, "read_only": True, "monthly_returns": [], "yearly_returns": []}
 
     try:
         profile = get_account_risk_profile(account)
     except Exception:
         profile = {"status": "not_available"}
-    profile_available = profile.get("status") == "available"
+    if profile.get("status") != "available":
+        return {"available": False, "read_only": True, "monthly_returns": [], "yearly_returns": []}
 
-    # Public headline performance uses the exact same dynamic values returned by
-    # Super Admin Performance & Analytics. Risk-only statistics still come from
-    # the reconciled risk profile. No public-only return or history calculation.
-    analytics_history_days = _round_metric(data.get("history_days"))
-
+    monthly = _finalized_monthly_returns(profile.get("monthly_returns", []))
+    yearly = _yearly_returns_from_monthly(monthly)
     return {
         "available": True,
         "read_only": True,
-        "verification_status": "RECONCILED" if profile_available else "PERFORMANCE DATA AVAILABLE",
-        "verification_scope": "Bethel signed active-master ledger" if profile_available else "Bethel recorded active-master history",
-        "account_number": _mask_account(account),
-        "starting_balance": _round_metric(data.get("starting_capital")),
-        "current_balance": _round_metric(data.get("current_balance")),
-        "current_equity": _round_metric(data.get("current_equity")),
-        "total_return_percent": _round_metric(data.get("total_return_percent")),
-        "banked_return_percent": _round_metric(data.get("banked_return_percent")),
-        "daily_return_percent": _round_metric(data.get("daily_return_percent")),
-        "weekly_return_percent": _round_metric(data.get("weekly_return_percent")),
-        "monthly_return_percent": _round_metric(data.get("monthly_return_percent")),
-        "annualized_return_percent": _round_metric(profile.get("annualized_return_percent")) if profile_available else None,
-        "history_days": analytics_history_days,
-        "trading_days": int(round(float(analytics_history_days))) if analytics_history_days is not None else 0,
-        "history_weekdays": int(profile.get("history_weekdays") or 0) if profile_available else None,
-        "history_start": profile.get("history_start") if profile_available else None,
-        "history_end": profile.get("history_end") if profile_available else None,
-        "total_trades": int(data.get("total_trades") or 0),
-        "closed_deals": int(profile.get("closed_deals") or 0) if profile_available else None,
-        "win_rate": _round_metric(data.get("win_rate")),
-        "maximum_drawdown_percent": _round_metric(data.get("maximum_drawdown_percent")),
-        "current_drawdown_percent": _round_metric(profile.get("current_drawdown_percent")) if profile_available else None,
-        "profit_factor": _round_metric(data.get("profit_factor")),
-        "annualized_volatility_percent": _round_metric(profile.get("annualized_volatility_percent")) if profile_available else _round_metric(data.get("volatility")),
-        "sharpe_ratio": _round_metric(profile.get("sharpe_ratio")) if profile_available else _round_metric(data.get("sharpe_ratio")),
-        "sortino_ratio": _round_metric(profile.get("sortino_ratio")) if profile_available else _round_metric(data.get("sortino_ratio")),
-        "consistency_score": _round_metric(profile.get("consistency_score")) if profile_available else _round_metric(data.get("consistency_score")),
-        "risk_level": profile.get("risk_level") if profile_available else data.get("risk_level"),
-        "performance_grade": profile.get("performance_grade") if profile_available else data.get("performance_grade"),
-        "all_time_high_return_percent": _round_metric(profile.get("all_time_high_return_percent")) if profile_available else None,
-        "all_time_high_date": profile.get("all_time_high_date") if profile_available else None,
-        "days_since_all_time_high": int(profile.get("days_since_all_time_high") or 0) if profile_available else None,
-        "worst_day_percent": _round_metric(profile.get("worst_day_percent")) if profile_available else None,
-        "worst_week_percent": _round_metric(profile.get("worst_week_percent")) if profile_available else None,
-        "worst_month_percent": _round_metric(profile.get("worst_month_percent")) if profile_available else None,
-        "monthly_returns": profile.get("monthly_returns", []) if profile_available else [],
-        "yearly_returns": profile.get("yearly_returns", []) if profile_available else [],
-        "currency": data.get("currency") or "USD",
-        "methodology": "Headline balance, return and history metrics mirror Super Admin Performance & Analytics for the active master. Risk statistics and calendar month/year returns are reconstructed from signed active-master deals and cash flows. Total return may incorporate the configured FX Blue banked-return reconciliation when available.",
+        "monthly_returns": monthly,
+        "yearly_returns": yearly,
     }
 
 
 @router.get("/public-history")
-def public_performance_history():
-    """Sanitized active-master balance/equity history for the public chart."""
+def public_performance_history(request: Request, _admin=Depends(require_admin)):
+    """Legacy balance/equity history retained for authenticated admin use only."""
     account = _active_master_account()
     if not account:
         return {"available": False, "read_only": True, "points": []}
