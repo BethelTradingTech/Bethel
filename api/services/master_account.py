@@ -1,10 +1,13 @@
-"""Single dynamic source of truth for the selected MT5 master account.
+"""Single source of truth for Bethel master-account selection.
 
-The public master selected in Super Admin is authoritative while that public
-selection is enabled. No account number is hard-coded. The selected terminal
-continues to drive analytics, history and public performance until an admin
-changes the selection. Runtime snapshot discovery remains a fallback for
-cold-start/legacy operation when no valid public selection exists.
+Public reporting is controlled explicitly from Super Admin. A public master must
+be deliberately selected and enabled before it can be exposed by public-facing
+features. Master accounts never become public merely because one posts a newer
+snapshot.
+
+Internal analytics may still use BETHEL_MASTER_ACCOUNT as a bootstrap fallback
+when no explicit public selection exists, but runtime snapshot recency is never
+used to switch the selected master automatically.
 """
 
 from __future__ import annotations
@@ -14,18 +17,11 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from api.models import EquitySnapshot
 from api.mt5_ingest.models import MasterTerminalRegistry, PublicMt5DisplaySetting
 
 
 def _selected_public_master_account(db: Session) -> Optional[str]:
-    """Return the explicitly selected public owner/master terminal, if valid.
-
-    The selection is persistent database state. It does not change simply because
-    another master posts a newer snapshot. This is what keeps the website,
-    monthly returns and yearly returns attached to the account selected by Admin
-    until Admin deliberately selects a different terminal.
-    """
+    """Return the explicitly selected public owner/master terminal, if valid."""
     setting = (
         db.query(PublicMt5DisplaySetting)
         .filter(PublicMt5DisplaySetting.id == 1)
@@ -50,44 +46,28 @@ def _selected_public_master_account(db: Session) -> Optional[str]:
     return account or None
 
 
+def resolve_public_master_account(db: Session) -> Optional[str]:
+    """Resolve only the master explicitly approved for public reporting.
+
+    This function intentionally has no automatic fallback. If Super Admin has
+    not selected and enabled a public master, public reporting must fail closed.
+    """
+    return _selected_public_master_account(db)
+
+
 def resolve_active_master_account(db: Session) -> Optional[str]:
-    """Resolve the selected company master without hard-coding any account.
+    """Resolve the company master for internal analytics without auto-switching.
 
     Resolution order:
       1. Explicit Super Admin public-display selection.
-      2. Newest signed snapshot from an active owner/master terminal.
-      3. BETHEL_MASTER_ACCOUNT only as a cold-start/bootstrap fallback.
+      2. BETHEL_MASTER_ACCOUNT as an internal/bootstrap fallback.
 
-    Therefore, once Admin selects a master for public display, that same account
-    remains the source for its balance/equity, monthly returns, yearly returns and
-    performance history until Admin changes the selection.
+    The former newest-snapshot fallback is deliberately removed. A different
+    master posting a newer snapshot can no longer change the active account.
     """
     selected = _selected_public_master_account(db)
     if selected:
         return selected
-
-    owner_accounts = [
-        str(row[0]).strip()
-        for row in db.query(MasterTerminalRegistry.account_number).filter(
-            MasterTerminalRegistry.active.is_(True),
-            MasterTerminalRegistry.subscriber_id.is_(None),
-            MasterTerminalRegistry.account_number.isnot(None),
-        ).all()
-        if str(row[0] or "").strip()
-    ]
-
-    query = db.query(EquitySnapshot).filter(EquitySnapshot.account_number.isnot(None))
-    if owner_accounts:
-        query = query.filter(EquitySnapshot.account_number.in_(owner_accounts))
-
-    latest = query.order_by(
-        EquitySnapshot.timestamp.desc(),
-        EquitySnapshot.id.desc(),
-    ).first()
-    if latest is not None:
-        account = str(latest.account_number or "").strip()
-        if account:
-            return account
 
     configured = (os.getenv("BETHEL_MASTER_ACCOUNT") or "").strip()
     return configured or None
