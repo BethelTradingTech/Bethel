@@ -22,7 +22,6 @@
     .returns-panel{background:rgba(255,255,255,.018);border:1px solid var(--border-color);border-radius:12px;padding:1rem;overflow:hidden}.returns-panel h3{font-size:1rem;margin-bottom:.75rem;text-align:left}
     .track-table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}.track-table{width:100%;border-collapse:collapse;min-width:1050px;font-size:.8rem}.track-table th,.track-table td{padding:.55rem .6rem;border-bottom:1px solid var(--border-color);text-align:center;white-space:nowrap}.track-table th:first-child,.track-table td:first-child{text-align:left;font-weight:700}.track-table th:last-child,.track-table td:last-child{font-weight:800}
     .track-positive{color:#34d399}.track-negative{color:#fb7185}.track-neutral{color:var(--text-secondary)}.track-loading{color:var(--text-secondary);padding:1rem 0}.track-error{color:#fca5a5;padding:1rem 0}.track-history-label{color:var(--text-secondary);font-size:.78rem}
-    .unified-live-panel .public-broadcast-shell,.unified-live-panel .live-mt5-shell{max-width:none;margin:0;width:100%}.unified-live-panel .public-broadcast-shell{border:1px solid rgba(16,185,129,.35);box-shadow:none}.unified-live-panel .live-mt5-shell{padding:1rem}#broadcast-slot[hidden],#telemetry-slot[hidden]{display:none!important}
     #public-notice-disclosure{max-width:980px;margin:-3.6rem auto 3rem;padding:1rem 1.2rem;border:1px solid rgba(96,165,250,.34);background:rgba(30,64,175,.10);border-radius:12px;color:#d1d5db;font-size:.82rem;line-height:1.6;text-align:left}#public-notice-disclosure strong{display:block;color:#bfdbfe;margin-bottom:.35rem;letter-spacing:.04em}
     #admin-site-closed{position:fixed;inset:0;z-index:99999;background:#0b0f19;color:#f3f4f6;display:flex;align-items:center;justify-content:center;padding:2rem;text-align:center}#admin-site-closed .box{max-width:680px;background:#111827;border:1px solid #243044;border-radius:18px;padding:2rem}#admin-site-closed h1{font-size:2rem;margin-bottom:1rem}#admin-site-closed p{color:#9ca3af}
     @media(max-width:600px){.unified-live-title h2{font-size:1.35rem}.unified-live-title p{font-size:.8rem}.unified-live-panel{padding:.6rem;border-width:1px}.returns-panel{padding:.6rem}.track-table{font-size:.72rem;min-width:900px}.track-table th,.track-table td{padding:.45rem .5rem}#public-notice-disclosure{margin:-2.4rem 1rem 2rem}}
@@ -34,29 +33,11 @@
   const setText = (selector, value) => { const el=document.querySelector(selector); if(el&&value!=null&&value!=="") el.textContent=String(value); };
   const fmtSignedPercent = (value, digits = 2) => { const n=Number(value); return Number.isFinite(n)?`${n>0?"+":""}${n.toFixed(digits)}%`:"—"; };
   const fmtDate = value => { if(!value)return "—"; const raw=String(value),d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw)?`${raw}T00:00:00Z`:raw); return Number.isNaN(d.getTime())?raw:d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"}); };
-  const fmtMoney = (value,currency="USD") => { const n=Number(value); if(!Number.isFinite(n))return "—"; try{return new Intl.NumberFormat(undefined,{style:"currency",currency:String(currency||"USD").toUpperCase(),minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}catch(_){return `${String(currency||"USD").toUpperCase()} ${n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`}};
 
   function buildUnifiedDisplay(){
-    const broadcastShell=broadcastSection?.querySelector(".public-broadcast-shell");
-    const liveShell=liveSection?.querySelector(".live-mt5-shell");
-    performanceSection.innerHTML=`<div class="unified-live-title"><h2>LIVE TRADE BROADCAST FROM BETHEL TERMINAL 1</h2><p>Live read-only Bethel Terminal 1 broadcast and account telemetry, followed by the active master's monthly and yearly return record.</p></div><div id="unified-live-panel" class="unified-live-panel"><div id="broadcast-slot" hidden></div><div id="telemetry-slot" hidden></div><div class="returns-panel"><h3>Monthly & Yearly Returns</h3><div id="track-loading" class="track-loading">Loading return history…</div><div id="track-monthly" class="track-table-wrap" hidden></div></div></div>`;
-    const broadcastSlot=document.getElementById("broadcast-slot"),telemetrySlot=document.getElementById("telemetry-slot");
-    if(broadcastShell&&broadcastSlot)broadcastSlot.appendChild(broadcastShell);
-    if(liveShell&&telemetrySlot)telemetrySlot.appendChild(liveShell);
+    performanceSection.innerHTML=`<div class="unified-live-title"><h2>Performance Reports</h2><p>Finalized monthly returns and year-to-date results based only on completed monthly reporting periods.</p></div><div id="unified-live-panel" class="unified-live-panel"><div class="returns-panel"><h3>Monthly & Yearly Returns</h3><div id="track-loading" class="track-loading">Loading return history…</div><div id="track-monthly" class="track-table-wrap" hidden></div></div></div>`;
     if(broadcastSection?.isConnected)broadcastSection.remove();
     if(liveSection?.isConnected)liveSection.remove();
-    ensureStartingBalanceMetric();
-  }
-
-  function ensureStartingBalanceMetric(){
-    const grid=document.querySelector("#telemetry-slot .live-mt5-grid");
-    if(!grid||document.getElementById("public-mt5-starting-balance"))return;
-    const metric=document.createElement("div");
-    metric.className="live-mt5-metric";
-    metric.id="public-starting-balance-metric";
-    metric.innerHTML='<small>Starting Balance</small><strong id="public-mt5-starting-balance">—</strong>';
-    const balance=grid.querySelector("#public-mt5-balance")?.closest(".live-mt5-metric");
-    if(balance?.nextSibling)grid.insertBefore(metric,balance.nextSibling);else grid.prepend(metric);
   }
 
   function removeLegacyPrelaunchNotices(){
@@ -111,8 +92,8 @@
     setText("#contact .contact-info h3",publicWebsite.contact_title);setText("#contact .contact-info > p",publicWebsite.contact_description);const email=document.querySelector('#contact a[href^="mailto:"]');if(email&&publicWebsite.contact_email){email.textContent=publicWebsite.contact_email;email.href=`mailto:${publicWebsite.contact_email}`}
     const socialMap={"LinkedIn":publicWebsite.linkedin_url,"Facebook":publicWebsite.facebook_url,"Instagram":publicWebsite.instagram_url,"X (Twitter)":publicWebsite.x_url,"TikTok":publicWebsite.tiktok_url,"YouTube":publicWebsite.youtube_url,"WhatsApp Business":publicWebsite.whatsapp_url};document.querySelectorAll("#contact .social-item").forEach(a=>{const url=socialMap[a.title];if(url)a.href=url});
     const disclosure=document.querySelector("footer .disclaimer");if(disclosure&&publicWebsite.risk_disclosure)disclosure.textContent=publicWebsite.risk_disclosure;
-    setText(".unified-live-title h2",publicWebsite.live_title);setText(".unified-live-title p",publicWebsite.live_description);setText(".returns-panel h3",publicWebsite.returns_title);ensurePublicNoticeDisclosure();ensureStartingBalanceMetric();setVisible("#public-starting-balance-metric",control("show_starting_balance",true));
-    const anyPerformance=control("show_live_broadcast",true)||control("show_live_telemetry",true)||control("show_monthly_yearly_returns",true);performanceSection.classList.toggle("public-admin-hidden",!anyPerformance);document.querySelector(".returns-panel")?.classList.toggle("public-admin-hidden",!control("show_monthly_yearly_returns",true));
+    setText(".returns-panel h3",publicWebsite.returns_title);ensurePublicNoticeDisclosure();
+    const showReturns=control("show_monthly_yearly_returns",true);performanceSection.classList.toggle("public-admin-hidden",!showReturns);document.querySelector(".returns-panel")?.classList.toggle("public-admin-hidden",!showReturns);
   }
 
   async function loadPublicSettings(){
@@ -125,54 +106,54 @@
       publicSystem=data.system||{};
       settingsLoaded=true;
       applyPublicSettings();
-      await syncPublicVisibility();
       await loadReturns();
     }catch(_){
       settingsLoaded=false;
       performanceSection.classList.add("public-admin-hidden");
-      const broadcastSlot=document.getElementById("broadcast-slot"),telemetrySlot=document.getElementById("telemetry-slot");
-      if(broadcastSlot)broadcastSlot.hidden=true;
-      if(telemetrySlot)telemetrySlot.hidden=true;
       document.getElementById("public-notice-disclosure")?.remove();
       removeLegacyPrelaunchNotices();
     }
   }
 
   function renderMonthly(rows,historyStart,historyEnd){
-    const container=document.getElementById("track-monthly");if(!container)return;const startPeriod=/^\d{4}-\d{2}/.test(String(historyStart||""))?String(historyStart).slice(0,7):null,endPeriod=/^\d{4}-\d{2}/.test(String(historyEnd||""))?String(historyEnd).slice(0,7):null;
-    const valid=(Array.isArray(rows)?rows:[]).filter(r=>/^\d{4}-\d{2}$/.test(String(r.period||""))&&Number.isFinite(Number(r.return_percent))).filter(r=>(!startPeriod||r.period>=startPeriod)&&(!endPeriod||r.period<=endPeriod)).sort((a,b)=>String(a.period).localeCompare(String(b.period)));
+    const container=document.getElementById("track-monthly");if(!container)return;
+    const startPeriod=/^\d{4}-\d{2}/.test(String(historyStart||""))?String(historyStart).slice(0,7):null;
+    const endPeriod=/^\d{4}-\d{2}/.test(String(historyEnd||""))?String(historyEnd).slice(0,7):null;
+    const now=new Date(),currentPeriod=`${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,"0")}`,lastDay=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,0)).getUTCDate(),monthEnd=now.getUTCDate()===lastDay;
+    const valid=(Array.isArray(rows)?rows:[])
+      .filter(r=>/^\d{4}-\d{2}$/.test(String(r.period||""))&&Number.isFinite(Number(r.return_percent)))
+      .filter(r=>(!startPeriod||r.period>=startPeriod)&&(!endPeriod||r.period<=endPeriod))
+      .filter(r=>r.period<currentPeriod||(r.period===currentPeriod&&monthEnd))
+      .sort((a,b)=>String(a.period).localeCompare(String(b.period)));
     if(!valid.length){container.innerHTML='<span class="track-history-label">Monthly return history is not yet available for the active master.</span>';container.hidden=false;return}
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const years=[...new Set(valid.map(r=>String(r.period).slice(0,4)))].sort(),byMonth=new Map(valid.map(r=>[String(r.period),Number(r.return_percent)])),table=document.createElement("table");table.className="track-table";const thead=document.createElement("thead"),headerRow=document.createElement("tr");["Year", ...months, "Year"].forEach(label=>{const th=document.createElement("th");th.textContent=label;headerRow.appendChild(th)});thead.appendChild(headerRow);table.appendChild(thead);const tbody=document.createElement("tbody");
-    years.forEach(year=>{const tr=document.createElement("tr"),yearCell=document.createElement("td");yearCell.textContent=year;tr.appendChild(yearCell);const yearValues=[];for(let month=1;month<=12;month+=1){const key=`${year}-${String(month).padStart(2,"0")}`,value=byMonth.get(key),td=document.createElement("td");if(Number.isFinite(value)){td.textContent=fmtSignedPercent(value);td.className=value>0?"track-positive":value<0?"track-negative":"track-neutral";yearValues.push(value/100)}else{td.textContent="—";td.className="track-neutral"}tr.appendChild(td)}const annual=yearValues.length?(yearValues.reduce((factor,r)=>factor*(1+r),1)-1)*100:NaN,total=document.createElement("td");total.textContent=Number.isFinite(annual)?fmtSignedPercent(annual):"—";total.className=annual>0?"track-positive":annual<0?"track-negative":"track-neutral";tr.appendChild(total);tbody.appendChild(tr)});table.appendChild(tbody);container.replaceChildren(table);const note=document.createElement("div");note.className="track-history-label";note.style.marginTop=".65rem";note.textContent=`Active-master returns · ${fmtDate(historyStart)} — ${fmtDate(historyEnd)}.`;container.appendChild(note);container.hidden=false;
-  }
-
-  function renderStartingBalance(data){
-    ensureStartingBalanceMetric();
-    const metric=document.getElementById("public-starting-balance-metric"),value=document.getElementById("public-mt5-starting-balance");
-    if(metric)metric.classList.toggle("public-admin-hidden",!control("show_starting_balance",true));
-    if(value)value.textContent=fmtMoney(data?.starting_balance,data?.currency||"USD");
+    const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const years=[...new Set(valid.map(r=>String(r.period).slice(0,4)))].sort(),byMonth=new Map(valid.map(r=>[String(r.period),Number(r.return_percent)])),table=document.createElement("table");
+    table.className="track-table";
+    const thead=document.createElement("thead"),headerRow=document.createElement("tr");["Year",...months,"Year / YTD"].forEach(label=>{const th=document.createElement("th");th.textContent=label;headerRow.appendChild(th)});thead.appendChild(headerRow);table.appendChild(thead);
+    const tbody=document.createElement("tbody");
+    years.forEach(year=>{const tr=document.createElement("tr"),yearCell=document.createElement("td");yearCell.textContent=year;tr.appendChild(yearCell);const yearValues=[];for(let month=1;month<=12;month+=1){const key=`${year}-${String(month).padStart(2,"0")}`,value=byMonth.get(key),td=document.createElement("td");if(Number.isFinite(value)){td.textContent=fmtSignedPercent(value);td.className=value>0?"track-positive":value<0?"track-negative":"track-neutral";yearValues.push(value/100)}else{td.textContent="—";td.className="track-neutral"}tr.appendChild(td)}const annual=yearValues.length?(yearValues.reduce((factor,r)=>factor*(1+r),1)-1)*100:NaN,total=document.createElement("td");total.textContent=Number.isFinite(annual)?fmtSignedPercent(annual):"—";total.className=annual>0?"track-positive":annual<0?"track-negative":"track-neutral";tr.appendChild(total);tbody.appendChild(tr)});
+    table.appendChild(tbody);container.replaceChildren(table);const note=document.createElement("div");note.className="track-history-label";note.style.marginTop=".65rem";note.textContent=`Finalized monthly returns · ${fmtDate(historyStart)} — ${fmtDate(historyEnd)}. Year/YTD updates when each monthly result is finalized.`;container.appendChild(note);container.hidden=false;
   }
 
   async function fetchSummary(){const response=await fetch(`${API}/performance/public-summary?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}});if(!response.ok)throw new Error("summary unavailable");const data=await response.json();if(!data.available)throw new Error("return history unavailable");return data}
 
-  async function syncPublicVisibility(){
-    const broadcastSlot=document.getElementById("broadcast-slot"),telemetrySlot=document.getElementById("telemetry-slot");
-    if(!settingsLoaded){if(broadcastSlot)broadcastSlot.hidden=true;if(telemetrySlot)telemetrySlot.hidden=true;return}
-    try{const [broadcastResponse,telemetryResponse]=await Promise.all([fetch(`${API}/broadcast/v1/public/status?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}}),fetch(`${API}/connector/v1/public/live?ts=${Date.now()}`,{cache:"no-store",headers:{Accept:"application/json"}})]),broadcast=broadcastResponse.ok?await broadcastResponse.json():null,telemetry=telemetryResponse.ok?await telemetryResponse.json():null;if(broadcastSlot)broadcastSlot.hidden=!(control("show_live_broadcast",true)&&broadcast&&broadcast.enabled&&broadcast.hls_url);if(telemetrySlot)telemetrySlot.hidden=!(control("show_live_telemetry",true)&&telemetry&&telemetry.enabled)}catch(_){if(broadcastSlot)broadcastSlot.hidden=true;if(telemetrySlot)telemetrySlot.hidden=true}
-  }
-
   async function loadReturns(){
-    if(!settingsLoaded)return;
-    const wantsReturns=control("show_monthly_yearly_returns",true),wantsStarting=control("show_starting_balance",true);
-    if((!wantsReturns&&!wantsStarting)||loading)return;loading=true;try{const data=await fetchSummary(),summaryAgain=await fetchSummary();if(summaryAgain.account_number !== data.account_number)throw new Error("active master changed during refresh");renderStartingBalance(data);if(wantsReturns){renderMonthly(data.monthly_returns||[],data.history_start,data.history_end);const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true}}catch(_){if(wantsReturns){const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the active master record is refreshing."}}}finally{loading=false}
+    if(!settingsLoaded||!control("show_monthly_yearly_returns",true)||loading)return;
+    loading=true;
+    try{
+      const data=await fetchSummary(),summaryAgain=await fetchSummary();
+      if(summaryAgain.account_number!==data.account_number)throw new Error("active master changed during refresh");
+      renderMonthly(data.monthly_returns||[],data.history_start,data.history_end);
+      const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true;
+    }catch(_){
+      const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the active master record is refreshing."}
+    }finally{loading=false}
   }
 
   buildUnifiedDisplay();
   removeLegacyPrelaunchNotices();
   performanceSection.classList.add("public-admin-hidden");
   loadPublicSettings();
-  setInterval(syncPublicVisibility,5000);
   setInterval(loadPublicSettings,10000);
   setInterval(loadReturns,15000);
 })();
