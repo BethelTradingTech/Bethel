@@ -41,6 +41,7 @@ PUBLIC_DAILY_MARKET_BRIEF_PATH = "/public/daily-market-brief/latest"
 NOTIFICATIONS_PATH = "/admin/notifications"
 LEGAL_DOCUMENTS_PATH = "/legal/documents"
 NATIVE_KYC_READINESS_PATH = "/kyc/native/readiness"
+NATIVE_KYC_HANDOFF_PATH = "/kyc/{subscriber_id}/native/handoff"
 NATIVE_KYC_ADMIN_REVIEW_PATH = "/admin/kyc/native/{subscriber_id}"
 PROMO_ADMIN_PATH = "/admin/pricing/promos"
 
@@ -181,6 +182,7 @@ print("Profit Share API disabled - subscription-first commercial model")
 try:
     from api.kyc import native_models as native_kyc_models
     from api.kyc.admin_review_routes import router as native_kyc_admin_review_router
+    from api.kyc.handoff_routes import router as native_kyc_handoff_router
     from api.kyc.native_engine import readiness as native_kyc_readiness
     from api.kyc.native_routes import router as native_kyc_router
 
@@ -188,6 +190,9 @@ try:
     if not _route_exists(NATIVE_KYC_READINESS_PATH):
         app.include_router(native_kyc_router)
         print("Bethel Native KYC API Loaded (isolated Render entry point)")
+    if not _route_exists(NATIVE_KYC_HANDOFF_PATH):
+        app.include_router(native_kyc_handoff_router)
+        print("Bethel Native KYC device handoff loaded")
     if not _route_exists(NATIVE_KYC_ADMIN_REVIEW_PATH):
         app.include_router(native_kyc_admin_review_router)
         print("Bethel Native KYC Compliance Review API Loaded")
