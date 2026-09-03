@@ -1,14 +1,12 @@
-"""Regression contract for Bethel's public monthly/yearly return display.
+"""Regression contract for Bethel's public finalized monthly/yearly return display.
 
-Product ownership explicitly approved a simplified public presentation:
-- Keep the Darwinex-style calendar matrix: Year + Jan..Dec + Year.
-- Remove Super Admin-style performance analytics from the public renderer.
-- Keep return values dynamic and scoped to the active owner/master account.
-- Refresh automatically and reject mixed-account data during master switches.
-- Never pin a real MT5 account number in browser or master-resolution code.
-
-Internal analytics remain available in Super Admin; this contract only governs
-what is rendered on the public website.
+Current public-reporting contract:
+- Show monthly and Year/YTD returns only.
+- Keep the Jan-Dec calendar matrix.
+- Exclude the current unfinished month.
+- Calculate Year/YTD from finalized monthly returns in the backend.
+- Use only the owner/master terminal explicitly selected by Super Admin.
+- Never expose live account telemetry or account numbers in the browser.
 """
 
 from pathlib import Path
@@ -25,17 +23,17 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(message)
 
 
-# Fixed public presentation contract: monthly/yearly returns only.
-require('const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]' in FRONTEND,
-        "Public returns must keep Jan-Dec calendar columns")
-require('["Year", ...months, "Year"]' in FRONTEND,
-        "Public returns must keep Year | Jan..Dec | Year matrix")
-require("yearValues.reduce((factor,r)=>factor*(1+r),1)" in FRONTEND,
-        "Annual return column must remain compounded from monthly returns")
-require("track-positive" in FRONTEND and "track-negative" in FRONTEND,
-        "Monthly matrix must distinguish positive and negative periods")
+compact_frontend = "".join(FRONTEND.split())
+
+# Public presentation: monthly and Year/YTD returns only.
+for month in ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"):
+    require(f'"{month}"' in FRONTEND, f"Public returns must keep {month} calendar column")
+require('"Year/YTD"' in FRONTEND or '"Year / YTD"' in FRONTEND,
+        "Public returns must retain a Year/YTD column")
 require("Monthly & Yearly Returns" in FRONTEND,
         "Public performance area must retain the monthly/yearly returns heading")
+require("track-positive" in FRONTEND and "track-negative" in FRONTEND,
+        "Monthly matrix must distinguish positive and negative periods")
 
 # Internal Super Admin-style analytics must not be rendered publicly.
 for forbidden_id in (
@@ -64,29 +62,57 @@ for forbidden_id in (
     require(forbidden_id not in FRONTEND,
             f"Public renderer must not expose internal analytics element {forbidden_id!r}")
 
-# Returns must stay dynamic and active-master scoped.
+# Public data must come from the privacy-reduced backend endpoint.
 require('/performance/public-summary' in FRONTEND,
-        "Public returns must load from the dynamic performance summary API")
+        "Public returns must load from the public performance summary API")
 require("data.monthly_returns" in FRONTEND,
-        "Public returns must use backend monthly return history")
+        "Public returns must use backend finalized monthly return history")
+require("data.yearly_returns" in FRONTEND,
+        "Public returns must use backend Year/YTD history")
 require('cache:"no-store"' in FRONTEND,
         "Public returns must bypass stale browser caching")
-require("summaryAgain.account_number !== data.account_number" in FRONTEND,
-        "Public returns must reject mixed-account data during master switches")
-compact_frontend = "".join(FRONTEND.split())
 require("setInterval(loadReturns,15000)" in compact_frontend,
         "Public returns must auto-refresh every 15 seconds")
 
-# Backend remains dynamically resolved even though detailed analytics are not shown.
-require("MasterTerminalRegistry.subscriber_id.is_(None)" in RESOLVER,
-        "Active master resolver must prefer owner/master terminals")
-require("resolve_active_master_account" in PERFORMANCE,
-        "Performance API must use the dynamic active-master resolver")
+# Browser must defensively exclude the unfinished current month.
+require("currentPeriod" in FRONTEND and ".filter(r=>String(r.period)<currentPeriod)" in compact_frontend,
+        "Public renderer must exclude the unfinished current month")
 
-# Guard against future accidental account-number pinning in the resolver or browser.
+# Backend must use explicit public-master selection and finalize months server-side.
+require("resolve_public_master_account" in PERFORMANCE,
+        "Public performance API must use the explicit public-master resolver")
+require("_finalized_monthly_returns" in PERFORMANCE,
+        "Public performance API must filter unfinished monthly periods")
+require("_yearly_returns_from_monthly" in PERFORMANCE,
+        "Year/YTD must be calculated from finalized monthly returns in the backend")
+require('"monthly_returns": monthly' in PERFORMANCE and '"yearly_returns": yearly' in PERFORMANCE,
+        "Public summary must return only finalized monthly and yearly return series")
+
+# Explicit Super Admin selection must remain owner/master-only and fail closed publicly.
+require("MasterTerminalRegistry.subscriber_id.is_(None)" in RESOLVER,
+        "Public master resolver must restrict selection to owner/master terminals")
+require("def resolve_public_master_account" in RESOLVER,
+        "Public master resolver must exist")
+require("return _selected_public_master_account(db)" in RESOLVER,
+        "Public master resolver must use only the explicit Super Admin selection")
+
+# Public browser and resolver must never pin real MT5 account numbers.
 for source_name, source in (("resolver", RESOLVER), ("public renderer", FRONTEND)):
     account_literals = re.findall(r'(?<![A-Za-z0-9_])[1-9][0-9]{6,11}(?![A-Za-z0-9_])', source)
     require(not account_literals,
             f"{source_name} contains hard-coded account-like values: {account_literals}")
 
-print("Public monthly/yearly returns-only dynamic-master contract OK")
+# Public summary must not deliberately expose account identity or live telemetry.
+public_summary_block = PERFORMANCE.split('@router.get("/public-summary")', 1)[1].split('@router.get("/public-history")', 1)[0]
+for forbidden_key in (
+    '"account_number"',
+    '"master_account"',
+    '"current_balance"',
+    '"current_equity"',
+    '"floating_profit_loss"',
+    '"open_positions"',
+):
+    require(forbidden_key not in public_summary_block,
+            f"Public summary must not expose {forbidden_key}")
+
+print("Public finalized monthly/Year-YTD privacy contract OK")
