@@ -85,8 +85,8 @@ require("_finalized_monthly_returns" in PERFORMANCE,
         "Public performance API must filter unfinished monthly periods")
 require("_yearly_returns_from_monthly" in PERFORMANCE,
         "Year/YTD must be calculated from finalized monthly returns in the backend")
-require('"monthly_returns": monthly' in PERFORMANCE and '"yearly_returns": yearly' in PERFORMANCE,
-        "Public summary must return only finalized monthly and yearly return series")
+require('"monthly_returns":monthly' in "".join(PERFORMANCE.split()) and '"yearly_returns":yearly' in "".join(PERFORMANCE.split()),
+        "Public summary must return finalized monthly and yearly return series")
 
 # Explicit Super Admin selection must remain owner/master-only and fail closed publicly.
 require("MasterTerminalRegistry.subscriber_id.is_(None)" in RESOLVER,
