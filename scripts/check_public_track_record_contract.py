@@ -24,6 +24,7 @@ def require(condition: bool, message: str) -> None:
 
 
 compact_frontend = "".join(FRONTEND.split())
+compact_performance = "".join(PERFORMANCE.split())
 
 # Public presentation: monthly and Year/YTD returns only.
 for month in ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"):
@@ -85,7 +86,7 @@ require("_finalized_monthly_returns" in PERFORMANCE,
         "Public performance API must filter unfinished monthly periods")
 require("_yearly_returns_from_monthly" in PERFORMANCE,
         "Year/YTD must be calculated from finalized monthly returns in the backend")
-require('"monthly_returns":monthly' in "".join(PERFORMANCE.split()) and '"yearly_returns":yearly' in "".join(PERFORMANCE.split()),
+require('"monthly_returns":monthly' in compact_performance and '"yearly_returns":yearly' in compact_performance,
         "Public summary must return finalized monthly and yearly return series")
 
 # Explicit Super Admin selection must remain owner/master-only and fail closed publicly.
