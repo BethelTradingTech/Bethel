@@ -102,15 +102,32 @@ PUBLIC_REGISTRATION_ENABLED = os.getenv(
     "false",
 ).strip().lower() == "true"
 
+# The public website is report-only. These legacy endpoints may remain mounted
+# for compatibility with older frontend bundles, but they must never expose live
+# account activity to unauthenticated visitors.
+BLOCKED_PUBLIC_ACTIVITY_PATHS = {
+    "/connector/v1/public/live",
+    "/broadcast/v1/public/status",
+}
+
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    path = request.url.path.rstrip("/") or "/"
+
+    if path in BLOCKED_PUBLIC_ACTIVITY_PATHS:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Not found"},
+            headers={"Cache-Control": "no-store"},
+        )
+
     # Funding-readiness / pre-launch gate: existing users and admin-created
     # subscribers continue to work, but unauthenticated public account creation
     # is closed unless deliberately re-enabled by configuration.
     if (
         request.method.upper() == "POST"
-        and request.url.path.rstrip("/") == "/copytrading/auth/register"
+        and path == "/copytrading/auth/register"
         and not PUBLIC_REGISTRATION_ENABLED
     ):
         return JSONResponse(
