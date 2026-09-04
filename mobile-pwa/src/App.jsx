@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import Sidebar from "./components/Sidebar";
@@ -19,6 +20,31 @@ import "./App.css";
 
 function Protected({ children }) {
   return isAuthenticated() ? children : <Navigate to="/login" replace />;
+}
+
+
+function NetworkStatus() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  if (online) return null;
+
+  return (
+    <div className="offline-banner" role="status" aria-live="polite">
+      Offline mode — previously loaded screens remain available. Live data, account linking,
+      payments and other server actions resume when your internet connection returns.
+    </div>
+  );
 }
 
 
@@ -47,6 +73,7 @@ function PortalLayout() {
 export default function App() {
   return (
     <BrowserRouter>
+      <NetworkStatus />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

@@ -44,11 +44,19 @@ export async function selectPlan(subscriberId, planId) {
 
 export async function connectMT5(subscriberId, data) {
   return (
-    await api.post(
-      `/copytrading/onboarding/connect-mt5/${subscriberId}`,
-      data
-    )
+    await api.post(`/broker-accounts/link/${subscriberId}`, {
+      platform: "MT5",
+      broker: data.broker,
+      login: data.mt5_account,
+      server: data.server,
+      account_type: data.account_type,
+      starting_capital_usd: Number(data.starting_capital_usd)
+    })
   ).data;
+}
+
+export async function getBrokerAccount(subscriberId) {
+  return (await api.get(`/broker-accounts/subscriber/${subscriberId}`)).data;
 }
 
 export async function getOnboardingStatus(subscriberId) {
