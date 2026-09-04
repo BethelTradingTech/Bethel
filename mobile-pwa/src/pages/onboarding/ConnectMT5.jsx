@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { connectMT5 } from "../../services/api";
 import { getSubscriberId } from "../../services/auth";
@@ -14,6 +14,18 @@ export default function ConnectMT5() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [online, setOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -22,6 +34,12 @@ export default function ConnectMT5() {
   async function submit(event) {
     event.preventDefault();
     setError("");
+
+    if (!navigator.onLine) {
+      setError("You are offline. Reconnect to the internet to submit this MT5 account.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await connectMT5(getSubscriberId(), form);
@@ -102,8 +120,15 @@ export default function ConnectMT5() {
           Live trading remains disabled until the required approvals are complete.
         </p>
 
-        <button disabled={submitting}>
-          {submitting ? "Connecting…" : "Connect account"}
+        {!online && (
+          <p className="form-notice">
+            Offline mode is available for opening the app and previously loaded screens,
+            but this account can only be submitted when internet access returns.
+          </p>
+        )}
+
+        <button disabled={submitting || !online}>
+          {submitting ? "Connecting…" : online ? "Connect account" : "Connect when online"}
         </button>
         {error && <p className="form-error">{error}</p>}
       </form>
