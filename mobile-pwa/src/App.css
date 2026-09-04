@@ -348,9 +348,14 @@ font-size:22px;
 
 .onboarding-shell {
   min-height:100vh;
+  min-height:100dvh;
   display:grid;
   place-items:center;
   padding:24px;
+  padding-top:calc(24px + env(safe-area-inset-top));
+  padding-right:calc(24px + env(safe-area-inset-right));
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  padding-left:calc(24px + env(safe-area-inset-left));
   background:linear-gradient(145deg,#07111f,#111827);
 }
 
@@ -368,18 +373,24 @@ font-size:22px;
   font-weight:600;
 }
 
-.onboarding-card input {
+.onboarding-card input,
+.onboarding-card select {
   width:100%;
+  min-height:44px;
   padding:13px;
   border:1px solid #cbd5e1;
   border-radius:9px;
+  background:white;
+  color:#111827;
   font:inherit;
+  font-size:16px;
 }
 
 .onboarding-card button,
 .button-link {
   display:inline-block;
   width:100%;
+  min-height:44px;
   margin-top:20px;
   padding:13px;
   border:0;
@@ -390,6 +401,12 @@ font-size:22px;
   text-align:center;
   text-decoration:none;
   cursor:pointer;
+  touch-action:manipulation;
+}
+
+.onboarding-card button:disabled {
+  cursor:not-allowed;
+  opacity:.65;
 }
 
 .eyebrow {
@@ -425,4 +442,19 @@ font-size:22px;
 .status-list {
   padding-left:20px;
   line-height:1.9;
+}
+
+@media(max-width:480px){
+  .onboarding-shell {
+    place-items:start center;
+    padding-top:calc(16px + env(safe-area-inset-top));
+    padding-right:calc(12px + env(safe-area-inset-right));
+    padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    padding-left:calc(12px + env(safe-area-inset-left));
+  }
+
+  .onboarding-card {
+    padding:22px 18px;
+    border-radius:14px;
+  }
 }
