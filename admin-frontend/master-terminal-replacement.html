@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Replace Master MT5 Account · Bethel</title>
+<link rel="stylesheet" href="css/admin-control.css?v=20260802-copier1">
+<style>
+body{padding:24px;background:#07111f;color:#e5eefb}.replace-shell{max-width:1200px;margin:0 auto}.replace-head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}.replace-head a{color:#34d399}.panel{margin-bottom:18px}.replacement-grid{display:grid;gap:12px}.replacement-row{display:grid;grid-template-columns:1.5fr 1fr 1fr 1.2fr auto;gap:12px;align-items:end;padding:14px;border:1px solid rgba(148,163,184,.18);border-radius:10px}.replacement-row label{display:block}.replacement-row input{width:100%}.replacement-row small{display:block;opacity:.75;margin-top:4px}.public-lock{font-weight:700}.result{min-height:22px;margin-top:12px}@media(max-width:900px){.replacement-row{grid-template-columns:1fr}.replace-head{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<main class="replace-shell">
+  <div class="replace-head">
+    <div><h1>Replace Master MT5 Account</h1><p>Super Admin account replacement. Connector identity is preserved; historical performance remains attached to the original MT5 account.</p></div>
+    <a href="/admin-frontend/">← Back to Management Control</a>
+  </div>
+  <article class="panel">
+    <div class="section-heading"><div><h2>Owner / Master Terminals</h2><p>Only the registered MT5 account changes. This does not restart MT5, change connector secrets, move historical deals, or change the public website selection.</p></div><button id="reload" type="button">Reload</button></div>
+    <div id="rows" class="replacement-grid"><p>Loading terminals…</p></div>
+    <p id="result" class="notice result" aria-live="polite"></p>
+  </article>
+</main>
+<script src="js/auth.js?v=20260802-superadmin1"></script>
+<script src="js/api.js?v=20260802-copier1"></script>
+<script>
+if(typeof requireAuthentication==="function"&&!requireAuthentication()){throw new Error("Authentication required")}
+const rows=document.getElementById("rows"),result=document.getElementById("result");
+const esc=v=>String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
+async function load(){
+ result.textContent="";rows.innerHTML="<p>Loading terminals…</p>";
+ try{
+  const data=await apiGet("/admin/master-performance/terminals");
+  rows.innerHTML=(data.terminals||[]).map(t=>`<div class="replacement-row" data-id="${Number(t.registry_id)}" data-current="${esc(t.account_number)}">
+   <div><strong>${esc(t.label||t.connector_id)}</strong><small>${esc(t.connector_id)}</small></div>
+   <div><small>Current MT5 account</small><strong>${esc(t.account_number)}</strong></div>
+   <div><small>Connection</small><strong>${esc(t.connection_status)}</strong></div>
+   <label>Replacement account<input class="new-account" inputmode="numeric" pattern="[0-9]+" maxlength="32" placeholder="New MT5 account" ${t.is_public?"disabled":""}></label>
+   ${t.is_public?'<span class="public-lock">PUBLIC · LOCKED</span>':'<button class="replace" type="button">Replace account</button>'}
+  </div>`).join("")||"<p>No owner/master terminals found.</p>";
+  document.querySelectorAll(".replace").forEach(button=>button.addEventListener("click",replaceAccount));
+ }catch(e){rows.innerHTML=`<p>${esc(e.message||"Unable to load terminals")}</p>`}
+}
+async function replaceAccount(event){
+ const row=event.currentTarget.closest(".replacement-row"),input=row.querySelector(".new-account");
+ const registryId=Number(row.dataset.id),current=row.dataset.current,newAccount=input.value.trim();
+ if(!/^\d{5,32}$/.test(newAccount)){result.textContent="Enter a valid numeric MT5 account number.";return}
+ if(newAccount===current){result.textContent="Replacement account is the same as the current account.";return}
+ if(!confirm(`Replace MT5 account ${current} with ${newAccount}?\n\nConnector identity will stay the same. Historical performance will NOT be moved.`))return;
+ event.currentTarget.disabled=true;result.textContent=`Replacing ${current} → ${newAccount}…`;
+ try{
+  const response=await apiRequest(`/admin/master-performance/terminals/${registryId}/account`,{method:"PUT",body:JSON.stringify({new_account_number:newAccount,expected_current_account_number:current,confirm:true})});
+  result.textContent=`${response.connector_id}: ${response.old_account_number} → ${response.new_account_number}. Waiting for the running connector's next signed snapshot.`;
+  await new Promise(r=>setTimeout(r,2500));await load();
+ }catch(e){result.textContent=e.message||"Account replacement failed";event.currentTarget.disabled=false}
+}
+document.getElementById("reload").onclick=load;load();
+</script>
+</body>
+</html>
