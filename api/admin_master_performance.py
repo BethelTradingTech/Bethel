@@ -1,0 +1,200 @@
+from collections import defaultdict
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from api.auth.dependency import require_super_admin
+from api.database import SessionLocal
+from api.models import EquitySnapshot
+from api.mt5_ingest.models import (
+    ConnectorCashFlow,
+    ConnectorDeal,
+    ConnectorPosition,
+    ConnectorStatus,
+    MasterTerminalRegistry,
+    PublicMt5DisplaySetting,
+)
+
+router = APIRouter(prefix="/admin/master-performance", tags=["Super Admin Master Performance"])
+
+
+def _now_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _round(value, places=2):
+    return round(float(value or 0), places)
+
+
+def _month_key(value):
+    return value.strftime("%Y-%m")
+
+
+def _terminal(db, registry_id: int):
+    terminal = db.query(MasterTerminalRegistry).filter(
+        MasterTerminalRegistry.id == registry_id,
+        MasterTerminalRegistry.active.is_(True),
+        MasterTerminalRegistry.subscriber_id.is_(None),
+    ).first()
+    if terminal is None:
+        raise HTTPException(404, "Owner/master terminal not found")
+    return terminal
+
+
+def _monthly_returns(snapshots, cash_flows):
+    snapshots_by_month = defaultdict(list)
+    cash_by_month = defaultdict(float)
+    for row in snapshots:
+        snapshots_by_month[_month_key(row.timestamp)].append(row)
+    for row in cash_flows:
+        cash_by_month[_month_key(row.occurred_at)] += float(row.amount or 0)
+
+    rows = []
+    for key in sorted(snapshots_by_month):
+        month = snapshots_by_month[key]
+        first = month[0]
+        last = month[-1]
+        start_equity = float(first.equity or 0)
+        end_equity = float(last.equity or 0)
+        net_cash_flow = cash_by_month.get(key, 0.0)
+        trading_change = end_equity - start_equity - net_cash_flow
+        pct = (trading_change / start_equity * 100.0) if start_equity > 0 else None
+        rows.append({
+            "month": key,
+            "start_equity": _round(start_equity),
+            "end_equity": _round(end_equity),
+            "net_cash_flow": _round(net_cash_flow),
+            "trading_change": _round(trading_change),
+            "return_percent": _round(pct) if pct is not None else None,
+        })
+    return rows
+
+
+def _yearly_returns(monthly):
+    grouped = defaultdict(list)
+    for row in monthly:
+        grouped[row["month"][:4]].append(row)
+    result = []
+    for year in sorted(grouped):
+        rows = grouped[year]
+        compounded = 1.0
+        usable = False
+        months = {}
+        for row in rows:
+            month_number = int(row["month"][5:7])
+            value = row["return_percent"]
+            months[str(month_number)] = value
+            if value is not None:
+                compounded *= 1.0 + (float(value) / 100.0)
+                usable = True
+        result.append({
+            "year": int(year),
+            "months": months,
+            "ytd_return_percent": _round((compounded - 1.0) * 100.0) if usable else None,
+        })
+    return result
+
+
+@router.get("/terminals")
+def master_performance_terminals(_admin=Depends(require_super_admin)):
+    db = SessionLocal()
+    try:
+        setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
+        public_id = setting.terminal_registry_id if setting and setting.enabled else None
+        terminals = db.query(MasterTerminalRegistry).filter(
+            MasterTerminalRegistry.active.is_(True),
+            MasterTerminalRegistry.subscriber_id.is_(None),
+        ).order_by(MasterTerminalRegistry.label.asc()).all()
+        result = []
+        for terminal in terminals:
+            status = db.query(ConnectorStatus).filter(ConnectorStatus.connector_id == terminal.connector_id).first()
+            age = max(0, int((_now_naive() - status.received_at).total_seconds())) if status else None
+            result.append({
+                "registry_id": terminal.id,
+                "connector_id": terminal.connector_id,
+                "label": terminal.label,
+                "account_number": terminal.account_number,
+                "connection_status": "ONLINE" if status and age <= 150 else ("STALE" if status else "OFFLINE"),
+                "account_mode": status.mode if status else None,
+                "currency": status.currency if status else None,
+                "balance": _round(status.balance) if status else None,
+                "equity": _round(status.equity) if status else None,
+                "floating_profit": _round(status.floating_profit) if status else None,
+                "last_seen": status.received_at.isoformat() + "Z" if status else None,
+                "is_public": terminal.id == public_id,
+            })
+        return {"read_only": True, "public_terminal_registry_id": public_id, "terminals": result}
+    finally:
+        db.close()
+
+
+@router.get("/{registry_id}")
+def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
+    db = SessionLocal()
+    try:
+        terminal = _terminal(db, registry_id)
+        status = db.query(ConnectorStatus).filter(ConnectorStatus.connector_id == terminal.connector_id).first()
+        snapshots = db.query(EquitySnapshot).filter(
+            EquitySnapshot.account_number == terminal.account_number
+        ).order_by(EquitySnapshot.timestamp.asc()).all()
+        deals = db.query(ConnectorDeal).filter(
+            ConnectorDeal.connector_id == terminal.connector_id,
+            ConnectorDeal.account_number == terminal.account_number,
+        ).order_by(ConnectorDeal.closed_at.asc()).all()
+        cash_flows = db.query(ConnectorCashFlow).filter(
+            ConnectorCashFlow.connector_id == terminal.connector_id,
+            ConnectorCashFlow.account_number == terminal.account_number,
+        ).order_by(ConnectorCashFlow.occurred_at.asc()).all()
+        positions = db.query(ConnectorPosition).filter(
+            ConnectorPosition.connector_id == terminal.connector_id
+        ).all()
+        setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
+
+        monthly = _monthly_returns(snapshots, cash_flows)
+        yearly = _yearly_returns(monthly)
+        wins = sum(1 for deal in deals if float(deal.profit or 0) + float(deal.commission or 0) + float(deal.swap or 0) + float(deal.fee or 0) > 0)
+        losses = sum(1 for deal in deals if float(deal.profit or 0) + float(deal.commission or 0) + float(deal.swap or 0) + float(deal.fee or 0) < 0)
+        gross_profit = sum(max(0.0, float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)) for d in deals)
+        gross_loss = abs(sum(min(0.0, float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)) for d in deals))
+        net_closed = sum(float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0) for d in deals)
+        deposits = sum(float(c.amount or 0) for c in cash_flows if float(c.amount or 0) > 0)
+        withdrawals = abs(sum(float(c.amount or 0) for c in cash_flows if float(c.amount or 0) < 0))
+        age = max(0, int((_now_naive() - status.received_at).total_seconds())) if status else None
+
+        return {
+            "read_only": True,
+            "terminal": {
+                "registry_id": terminal.id,
+                "connector_id": terminal.connector_id,
+                "label": terminal.label,
+                "account_number": terminal.account_number,
+                "is_public": bool(setting and setting.enabled and setting.terminal_registry_id == terminal.id),
+            },
+            "live": {
+                "connection_status": "ONLINE" if status and age <= 150 else ("STALE" if status else "OFFLINE"),
+                "account_mode": status.mode if status else None,
+                "currency": status.currency if status else None,
+                "balance": _round(status.balance) if status else None,
+                "equity": _round(status.equity) if status else None,
+                "floating_profit": _round(status.floating_profit) if status else None,
+                "open_position_count": len(positions),
+                "last_seen": status.received_at.isoformat() + "Z" if status else None,
+            },
+            "history": {
+                "snapshot_count": len(snapshots),
+                "closed_deals": len(deals),
+                "cash_flow_events": len(cash_flows),
+                "net_closed_trading_pl": _round(net_closed),
+                "deposits": _round(deposits),
+                "withdrawals": _round(withdrawals),
+                "wins": wins,
+                "losses": losses,
+                "win_rate_percent": _round((wins / (wins + losses) * 100.0) if wins + losses else 0),
+                "profit_factor": _round(gross_profit / gross_loss) if gross_loss > 0 else None,
+            },
+            "monthly_returns": monthly,
+            "yearly_returns": yearly,
+            "return_method": "time-period equity change adjusted for recorded MT5 cash-flow events; YTD compounds monthly returns",
+        }
+    finally:
+        db.close()
