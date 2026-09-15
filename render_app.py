@@ -15,6 +15,7 @@ from sqlalchemy import inspect, text
 from main import app
 from api.auth.dependency import require_admin
 from api.mt5_ingest.routes import router as mt5_ingest_router
+from api.admin_master_performance import router as master_performance_router
 from api.broadcast.routes import router as broadcast_router
 from api.copyhub.live_activation_fix import router as live_activation_router
 from api.copyhub.models import CopyDiagnosticIncident, PackageMasterRoute
@@ -31,6 +32,7 @@ from api.traffic.routes import router as traffic_router
 
 
 SNAPSHOT_PATH = "/connector/v1/snapshot"
+MASTER_PERFORMANCE_PATH = "/admin/master-performance/terminals"
 BROADCAST_WORKER_CONFIG_PATH = "/broadcast/v1/worker/config"
 COPIER_ACTIVATION_PATH = "/copyhub/v1/receiver/activate"
 PACKAGE_COPIER_STATUS_PATH = "/copyhub/v2/admin/status"
@@ -88,6 +90,10 @@ def _ensure_activation_fee_state() -> None:
 if not _route_exists(SNAPSHOT_PATH):
     app.include_router(mt5_ingest_router)
     print("MT5 Connector API Loaded (isolated Render entry point)")
+
+if not _route_exists(MASTER_PERFORMANCE_PATH):
+    app.include_router(master_performance_router)
+    print("Super Admin multi-master performance API loaded")
 
 if not _route_exists(BROADCAST_WORKER_CONFIG_PATH):
     app.include_router(broadcast_router)

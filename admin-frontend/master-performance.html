@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Master Account Performance · Bethel</title>
+<link rel="stylesheet" href="css/admin-control.css">
+<style>
+body{background:#07111f;color:#e5eef9}.performance-shell{max-width:1500px;margin:auto;padding:24px}.terminal-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:18px 0}.terminal-tab{background:#101c2e;border:1px solid #243a55;border-radius:10px;padding:12px;text-align:left;color:#e5eef9}.terminal-tab.active{border-color:#10b981;box-shadow:0 0 0 1px #10b981}.terminal-tab small{display:block;color:#94a3b8}.terminal-tab .public{color:#34d399;font-weight:700}.performance-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:18px 0}.performance-metrics>div{background:#101c2e;border:1px solid #20334c;border-radius:10px;padding:14px}.performance-metrics small{display:block;color:#94a3b8;margin-bottom:6px}.performance-metrics strong{font-size:1.15rem}.performance-table{width:100%;border-collapse:collapse}.performance-table th,.performance-table td{padding:9px;border-bottom:1px solid #20334c;text-align:right}.performance-table th:first-child,.performance-table td:first-child{text-align:left}.positive{color:#34d399}.negative{color:#f87171}.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.notice-box{background:#0d1726;border:1px solid #36516b;border-radius:10px;padding:12px;color:#94a3b8}.public-badge{color:#34d399}.back-link{color:#34d399;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="performance-shell">
+ <div class="toolbar"><div><a class="back-link" href="/admin-frontend/">← Super Admin</a><h1>Master Account Performance</h1><p>Read-only account-scoped performance for every connected owner/master terminal.</p></div><button id="refresh" type="button">Refresh</button></div>
+ <div class="notice-box">Viewing an account here does not change the public website. The current public performance account remains selected through the existing Public MT5 Display control.</div>
+ <div id="terminal-tabs" class="terminal-tabs"><p>Loading terminals…</p></div>
+ <section id="performance-panel" class="panel" hidden>
+  <div class="section-heading"><div><h2 id="account-title">Account</h2><p id="account-subtitle"></p></div><span id="account-public" class="public-badge"></span></div>
+  <div id="live-metrics" class="performance-metrics"></div>
+  <h3>Trading History</h3><div id="history-metrics" class="performance-metrics"></div>
+  <h3>Monthly &amp; Yearly Returns</h3>
+  <div class="table-wrap"><table class="performance-table"><thead><tr><th>Year</th><th>Jan</th><th>Feb</th><th>Mar</th><th>Apr</th><th>May</th><th>Jun</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th><th>YTD</th></tr></thead><tbody id="returns-body"></tbody></table></div>
+  <p id="return-method" class="notice"></p>
+ </section>
+ <p id="error" class="notice"></p>
+</div>
+<script src="js/auth.js"></script><script src="js/api.js"></script>
+<script>
+(function(){
+ const tabs=document.getElementById('terminal-tabs'),panel=document.getElementById('performance-panel'),error=document.getElementById('error');let selected=null;
+ const money=(v,c='USD')=>v==null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:c||'USD'}).format(Number(v));
+ const pct=v=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(2)}%`;
+ const cls=v=>v==null?'':Number(v)>=0?'positive':'negative';
+ async function loadTerminals(){try{error.textContent='';const data=await apiGet('/admin/master-performance/terminals');const rows=data.terminals||[];tabs.innerHTML=rows.map(r=>`<button class="terminal-tab" data-id="${r.registry_id}"><strong>${r.label}</strong><small>${r.account_number} · ${r.connection_status}</small>${r.is_public?'<small class="public">PUBLIC WEBSITE</small>':''}</button>`).join('')||'<p>No owner/master terminals available.</p>';tabs.querySelectorAll('button').forEach(b=>b.onclick=()=>loadPerformance(Number(b.dataset.id)));if(rows.length){const keep=rows.find(r=>r.registry_id===selected)||rows.find(r=>r.is_public)||rows[0];loadPerformance(keep.registry_id)}}catch(e){error.textContent=e.message||'Unable to load terminals'}}
+ async function loadPerformance(id){try{selected=id;tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',Number(b.dataset.id)===id));const d=await apiGet(`/admin/master-performance/${id}`),t=d.terminal,l=d.live,h=d.history,c=l.currency||'USD';document.getElementById('account-title').textContent=`${t.label} · ${t.account_number}`;document.getElementById('account-subtitle').textContent=`${t.connector_id} · ${l.connection_status} · ${l.account_mode||'—'} · READ ONLY`;document.getElementById('account-public').textContent=t.is_public?'CURRENT PUBLIC WEBSITE ACCOUNT':'ADMIN VIEW ONLY';document.getElementById('live-metrics').innerHTML=`<div><small>Balance</small><strong>${money(l.balance,c)}</strong></div><div><small>Equity</small><strong>${money(l.equity,c)}</strong></div><div><small>Floating P/L</small><strong>${money(l.floating_profit,c)}</strong></div><div><small>Open Positions</small><strong>${l.open_position_count}</strong></div><div><small>Last Snapshot</small><strong>${l.last_seen?new Date(l.last_seen).toLocaleString():'—'}</strong></div>`;document.getElementById('history-metrics').innerHTML=`<div><small>Closed Deals</small><strong>${h.closed_deals}</strong></div><div><small>Net Closed Trading P/L</small><strong>${money(h.net_closed_trading_pl,c)}</strong></div><div><small>Deposits</small><strong>${money(h.deposits,c)}</strong></div><div><small>Withdrawals</small><strong>${money(h.withdrawals,c)}</strong></div><div><small>Win Rate</small><strong>${pct(h.win_rate_percent)}</strong></div><div><small>Profit Factor</small><strong>${h.profit_factor??'—'}</strong></div><div><small>Snapshots</small><strong>${h.snapshot_count}</strong></div><div><small>Cash-flow Events</small><strong>${h.cash_flow_events}</strong></div>`;document.getElementById('returns-body').innerHTML=(d.yearly_returns||[]).map(y=>`<tr><td>${y.year}</td>${Array.from({length:12},(_,i)=>`<td class="${cls(y.months[String(i+1)])}">${pct(y.months[String(i+1)])}</td>`).join('')}<td class="${cls(y.ytd_return_percent)}"><strong>${pct(y.ytd_return_percent)}</strong></td></tr>`).join('')||'<tr><td colspan="14">No account-scoped return history available yet.</td></tr>';document.getElementById('return-method').textContent=d.return_method||'';panel.hidden=false}catch(e){error.textContent=e.message||'Unable to load account performance'}}
+ document.getElementById('refresh').onclick=loadTerminals;loadTerminals();
+})();
+</script>
+</body></html>
