@@ -54,12 +54,26 @@ def _validated_status(db, terminal):
 
 
 def _monthly_returns(snapshots, cash_flows):
+    """Return finalized calendar-month performance only.
+
+    The current UTC calendar month is deliberately excluded for every master
+    account. Its snapshots and cash-flow events continue to be collected, but
+    the month does not become reportable until the first day of the following
+    month. This matches the public performance reporting rule.
+    """
+    current_period = datetime.now(timezone.utc).strftime("%Y-%m")
     snapshots_by_month = defaultdict(list)
     cash_by_month = defaultdict(float)
     for row in snapshots:
-        snapshots_by_month[_month_key(row.timestamp)].append(row)
+        key = _month_key(row.timestamp)
+        if key >= current_period:
+            continue
+        snapshots_by_month[key].append(row)
     for row in cash_flows:
-        cash_by_month[_month_key(row.occurred_at)] += float(row.amount or 0)
+        key = _month_key(row.occurred_at)
+        if key >= current_period:
+            continue
+        cash_by_month[key] += float(row.amount or 0)
 
     rows = []
     for key in sorted(snapshots_by_month):
@@ -208,7 +222,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             },
             "monthly_returns": monthly,
             "yearly_returns": yearly,
-            "return_method": "time-period equity change adjusted for recorded MT5 cash-flow events; YTD compounds monthly returns",
+            "return_method": "finalized calendar months only; time-period equity change adjusted for recorded MT5 cash-flow events; YTD compounds finalized monthly returns",
         }
     finally:
         db.close()
