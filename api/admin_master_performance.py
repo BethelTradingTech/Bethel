@@ -2,6 +2,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from api.auth.dependency import require_super_admin
 from api.database import SessionLocal
@@ -144,6 +145,12 @@ def _yearly_returns(monthly):
     return result
 
 
+class TerminalAccountReplacement(BaseModel):
+    new_account_number: str = Field(min_length=5, max_length=32, pattern=r"^[0-9]+$")
+    expected_current_account_number: str = Field(min_length=5, max_length=32, pattern=r"^[0-9]+$")
+    confirm: bool = False
+
+
 @router.get("/terminals")
 def master_performance_terminals(_admin=Depends(require_super_admin)):
     db = SessionLocal()
@@ -173,6 +180,95 @@ def master_performance_terminals(_admin=Depends(require_super_admin)):
                 "is_public": terminal.id == public_id,
             })
         return {"read_only": True, "public_terminal_registry_id": public_id, "terminals": result}
+    finally:
+        db.close()
+
+
+@router.put("/terminals/{registry_id}/account")
+def replace_master_terminal_account(
+    registry_id: int,
+    data: TerminalAccountReplacement,
+    _admin=Depends(require_super_admin),
+):
+    """Replace the MT5 account bound to an existing owner/master connector.
+
+    Connector identity is preserved. Historical snapshots/deals/cash flows remain
+    account-scoped and are not reassigned. Live connector cache is cleared so old
+    account telemetry cannot be displayed under the replacement account while the
+    connector sends its first accepted snapshot.
+    """
+    if not data.confirm:
+        raise HTTPException(400, "Explicit confirmation is required")
+
+    new_account = data.new_account_number.strip()
+    expected_account = data.expected_current_account_number.strip()
+    db = SessionLocal()
+    try:
+        terminal = _terminal(db, registry_id)
+        current_account = str(terminal.account_number or "").strip()
+        if current_account != expected_account:
+            raise HTTPException(
+                409,
+                f"Terminal account changed since this page was loaded; current account is {current_account}",
+            )
+        if new_account == current_account:
+            return {
+                "status": "unchanged",
+                "registry_id": terminal.id,
+                "connector_id": terminal.connector_id,
+                "old_account_number": current_account,
+                "new_account_number": new_account,
+            }
+
+        conflict = db.query(MasterTerminalRegistry).filter(
+            MasterTerminalRegistry.id != terminal.id,
+            MasterTerminalRegistry.account_number == new_account,
+            MasterTerminalRegistry.active.is_(True),
+        ).first()
+        if conflict is not None:
+            raise HTTPException(
+                409,
+                f"MT5 account {new_account} is already assigned to active connector {conflict.connector_id}",
+            )
+
+        public_setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
+        if public_setting and public_setting.enabled and public_setting.terminal_registry_id == terminal.id:
+            raise HTTPException(
+                409,
+                "This terminal is currently selected for the public website. Disable or change the public MT5 display before replacing its account.",
+            )
+
+        terminal.account_number = new_account
+        terminal.updated_at = _now_naive()
+
+        # These tables are current/live cache, not historical performance records.
+        # Clear them so the old account cannot appear under the replacement registry.
+        db.query(ConnectorPosition).filter(
+            ConnectorPosition.connector_id == terminal.connector_id
+        ).delete(synchronize_session=False)
+        db.query(ConnectorStatus).filter(
+            ConnectorStatus.connector_id == terminal.connector_id
+        ).delete(synchronize_session=False)
+
+        db.commit()
+        return {
+            "status": "replaced",
+            "read_only": True,
+            "registry_id": terminal.id,
+            "connector_id": terminal.connector_id,
+            "label": terminal.label,
+            "old_account_number": current_account,
+            "new_account_number": new_account,
+            "history_reassigned": False,
+            "public_display_changed": False,
+            "message": "Registry updated. The running connector may now submit telemetry for the replacement MT5 account.",
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
