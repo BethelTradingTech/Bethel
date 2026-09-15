@@ -41,6 +41,18 @@ def _terminal(db, registry_id: int):
     return terminal
 
 
+def _validated_status(db, terminal):
+    """Return connector telemetry only when it belongs to the registry account."""
+    status = db.query(ConnectorStatus).filter(
+        ConnectorStatus.connector_id == terminal.connector_id
+    ).first()
+    if status is None:
+        return None
+    if str(status.account_number or "").strip() != str(terminal.account_number or "").strip():
+        return None
+    return status
+
+
 def _monthly_returns(snapshots, cash_flows):
     snapshots_by_month = defaultdict(list)
     cash_by_month = defaultdict(float)
@@ -76,11 +88,10 @@ def _yearly_returns(monthly):
         grouped[row["month"][:4]].append(row)
     result = []
     for year in sorted(grouped):
-        rows = grouped[year]
         compounded = 1.0
         usable = False
         months = {}
-        for row in rows:
+        for row in grouped[year]:
             month_number = int(row["month"][5:7])
             value = row["return_percent"]
             months[str(month_number)] = value
@@ -107,7 +118,7 @@ def master_performance_terminals(_admin=Depends(require_super_admin)):
         ).order_by(MasterTerminalRegistry.label.asc()).all()
         result = []
         for terminal in terminals:
-            status = db.query(ConnectorStatus).filter(ConnectorStatus.connector_id == terminal.connector_id).first()
+            status = _validated_status(db, terminal)
             age = max(0, int((_now_naive() - status.received_at).total_seconds())) if status else None
             result.append({
                 "registry_id": terminal.id,
@@ -133,7 +144,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
     db = SessionLocal()
     try:
         terminal = _terminal(db, registry_id)
-        status = db.query(ConnectorStatus).filter(ConnectorStatus.connector_id == terminal.connector_id).first()
+        status = _validated_status(db, terminal)
         snapshots = db.query(EquitySnapshot).filter(
             EquitySnapshot.account_number == terminal.account_number
         ).order_by(EquitySnapshot.timestamp.asc()).all()
@@ -145,18 +156,21 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             ConnectorCashFlow.connector_id == terminal.connector_id,
             ConnectorCashFlow.account_number == terminal.account_number,
         ).order_by(ConnectorCashFlow.occurred_at.asc()).all()
-        positions = db.query(ConnectorPosition).filter(
-            ConnectorPosition.connector_id == terminal.connector_id
-        ).all()
+        positions = []
+        if status is not None:
+            positions = db.query(ConnectorPosition).filter(
+                ConnectorPosition.connector_id == terminal.connector_id
+            ).all()
         setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
 
         monthly = _monthly_returns(snapshots, cash_flows)
         yearly = _yearly_returns(monthly)
-        wins = sum(1 for deal in deals if float(deal.profit or 0) + float(deal.commission or 0) + float(deal.swap or 0) + float(deal.fee or 0) > 0)
-        losses = sum(1 for deal in deals if float(deal.profit or 0) + float(deal.commission or 0) + float(deal.swap or 0) + float(deal.fee or 0) < 0)
-        gross_profit = sum(max(0.0, float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)) for d in deals)
-        gross_loss = abs(sum(min(0.0, float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)) for d in deals))
-        net_closed = sum(float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0) for d in deals)
+        pnl = lambda d: float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)
+        wins = sum(1 for deal in deals if pnl(deal) > 0)
+        losses = sum(1 for deal in deals if pnl(deal) < 0)
+        gross_profit = sum(max(0.0, pnl(d)) for d in deals)
+        gross_loss = abs(sum(min(0.0, pnl(d)) for d in deals))
+        net_closed = sum(pnl(d) for d in deals)
         deposits = sum(float(c.amount or 0) for c in cash_flows if float(c.amount or 0) > 0)
         withdrawals = abs(sum(float(c.amount or 0) for c in cash_flows if float(c.amount or 0) < 0))
         age = max(0, int((_now_naive() - status.received_at).total_seconds())) if status else None
