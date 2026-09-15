@@ -14,6 +14,7 @@ from api.mt5_ingest.models import (
     MasterTerminalRegistry,
     PublicMt5DisplaySetting,
 )
+from api.services.account_risk_profile import get_account_risk_profile
 
 router = APIRouter(prefix="/admin/master-performance", tags=["Super Admin Master Performance"])
 
@@ -54,12 +55,11 @@ def _validated_status(db, terminal):
 
 
 def _monthly_returns(snapshots, cash_flows):
-    """Return finalized calendar-month performance only.
+    """Legacy snapshot calculation retained for compatibility/tests only.
 
-    The current UTC calendar month is deliberately excluded for every master
-    account. Its snapshots and cash-flow events continue to be collected, but
-    the month does not become reportable until the first day of the following
-    month. This matches the public performance reporting rule.
+    Super Admin reporting uses the signed account risk-profile history below so
+    that it has the same full-history source and finalized-month rule as public
+    performance reporting.
     """
     current_period = datetime.now(timezone.utc).strftime("%Y-%m")
     snapshots_by_month = defaultdict(list)
@@ -93,6 +93,30 @@ def _monthly_returns(snapshots, cash_flows):
             "trading_change": _round(trading_change),
             "return_percent": _round(pct) if pct is not None else None,
         })
+    return rows
+
+
+def _finalized_profile_monthly(account_number):
+    """Use the same signed full-history engine and completed-month rule as public reporting."""
+    current_period = datetime.now(timezone.utc).strftime("%Y-%m")
+    try:
+        profile = get_account_risk_profile(str(account_number or "").strip())
+    except Exception:
+        return []
+    if not isinstance(profile, dict) or profile.get("status") != "available":
+        return []
+
+    rows = []
+    for row in profile.get("monthly_returns", []) if isinstance(profile.get("monthly_returns"), list) else []:
+        period = str(row.get("period") or "")
+        if len(period) != 7 or period[4] != "-" or period >= current_period:
+            continue
+        try:
+            value = round(float(row.get("return_percent")), 2)
+        except (TypeError, ValueError):
+            continue
+        rows.append({"month": period, "return_percent": value})
+    rows.sort(key=lambda item: item["month"])
     return rows
 
 
@@ -177,7 +201,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             ).all()
         setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
 
-        monthly = _monthly_returns(snapshots, cash_flows)
+        monthly = _finalized_profile_monthly(terminal.account_number)
         yearly = _yearly_returns(monthly)
         pnl = lambda d: float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)
         wins = sum(1 for deal in deals if pnl(deal) > 0)
@@ -222,7 +246,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             },
             "monthly_returns": monthly,
             "yearly_returns": yearly,
-            "return_method": "finalized calendar months only; time-period equity change adjusted for recorded MT5 cash-flow events; YTD compounds finalized monthly returns",
+            "return_method": "signed account full-history cash-flow-neutral returns; finalized calendar months only; YTD compounds finalized monthly returns",
         }
     finally:
         db.close()
