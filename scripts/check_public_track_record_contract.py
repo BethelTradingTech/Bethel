@@ -74,6 +74,10 @@ require('cache:"no-store"' in FRONTEND,
         "Public returns must bypass stale browser caching")
 require("setInterval(loadReturns,15000)" in compact_frontend,
         "Public returns must auto-refresh every 15 seconds")
+require("container.replaceChildren()" in FRONTEND and "container.hidden=true" in compact_frontend,
+        "Public returns must clear stale figures when verification becomes unavailable")
+require("No unverified or previously cached figures are displayed." in FRONTEND,
+        "Public returns failure state must explicitly confirm that stale figures are hidden")
 
 # Browser must defensively exclude the unfinished current month.
 require("currentPeriod" in FRONTEND and ".filter(r=>String(r.period)<currentPeriod)" in compact_frontend,
