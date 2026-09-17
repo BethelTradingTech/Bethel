@@ -25,6 +25,16 @@ def test_small_broker_residual_is_normalized_to_zero():
     assert result["tolerance"] > 13.56
 
 
+def test_current_master_broker_residual_is_within_bounded_tolerance():
+    # Current public master: 100,000 funding + 35,553.06 signed net P/L
+    # versus 135,418.69 broker balance leaves a 134.37 adjustment (9.9 bps).
+    result = resolve_opening_balance(135418.69, 135553.06)
+    assert result["status"] == "available"
+    assert round(result["raw_opening_balance"], 2) == -134.37
+    assert result["opening_balance"] == 0.0
+    assert result["tolerance"] > 134.37
+
+
 def test_material_negative_opening_balance_still_fails_closed():
     result = resolve_opening_balance(100000.0, 101000.0)
     assert result["status"] == "not_available"
