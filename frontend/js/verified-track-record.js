@@ -158,7 +158,11 @@
       renderMonthly(data.monthly_returns||[],data.yearly_returns||[]);
       const loadingEl=document.getElementById("track-loading");if(loadingEl)loadingEl.hidden=true;
     }catch(_){
-      const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Monthly and yearly returns are temporarily unavailable while the selected report is refreshing."}
+      // Fail closed: never leave previously fetched figures visible when the
+      // selected master report can no longer be verified.
+      const container=document.getElementById("track-monthly");
+      if(container){container.replaceChildren();container.hidden=true}
+      const loadingEl=document.getElementById("track-loading");if(loadingEl){loadingEl.className="track-error";loadingEl.hidden=false;loadingEl.textContent="Verified monthly and yearly returns are currently unavailable. No unverified or previously cached figures are displayed."}
     }finally{loading=false}
   }
 
