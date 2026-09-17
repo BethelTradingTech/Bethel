@@ -1,4 +1,5 @@
 (function(){
+ if(!document.querySelector('script[src*="language-selector.js"]')){const languageScript=document.createElement("script");languageScript.src="js/language-selector.js?v=20260916";languageScript.defer=true;document.head.appendChild(languageScript);}
  const API="https://api.betheltradingtechnologies.com/public/reviews";
  const root=document.createElement("section");
  root.className="bethel-reviews";
