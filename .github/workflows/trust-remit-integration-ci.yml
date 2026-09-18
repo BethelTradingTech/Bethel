@@ -1,0 +1,27 @@
+name: Trust Remit Integration CI
+
+on:
+  push:
+    branches: [feature/trust-remit-integration]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  integration-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install integration dependencies
+        run: pip install "fastapi>=0.115,<1.0" "sqlalchemy>=2.0,<3.0" "pydantic>=2.9,<3.0"
+      - name: Compile integration
+        run: python -m compileall -q api/integrations/trust_remit
+      - name: Import integration modules
+        env:
+          TRUST_REMIT_SERVICE_SECRET: ci-only-service-secret-with-at-least-32-characters
+        run: python -c "from api.integrations.trust_remit.routes import router; print(router.prefix)"
