@@ -38,7 +38,7 @@ jobs:
           name: BethelCopierSetup
           path: installer/output/BethelCopierSetup.exe
       - name: Publish public testing release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: copier-v1.0.1
           name: Bethel Copier v1.0.1 Public Test
