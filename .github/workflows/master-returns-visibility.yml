@@ -1,0 +1,35 @@
+name: Master Returns Visibility
+on:
+  pull_request:
+    paths:
+      - "api/admin_master_performance.py"
+      - "admin-frontend/master-performance.html"
+      - "tests/test_master_returns_visibility.py"
+      - ".github/workflows/master-returns-visibility.yml"
+permissions:
+  contents: read
+jobs:
+  returns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: python -m pytest tests/test_master_returns_visibility.py -v
+      - run: python -m py_compile api/admin_master_performance.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check inline dashboard script syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("admin-frontend/master-performance.html").read_text()
+          scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
+          assert scripts
+          Path("/tmp/master-performance.js").write_text("\n".join(scripts))
+          PY
+          node --check /tmp/master-performance.js
