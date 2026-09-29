@@ -97,28 +97,52 @@ def _monthly_returns(snapshots, cash_flows):
     return rows
 
 
-def _finalized_profile_monthly(account_number):
-    """Use the same signed full-history engine and completed-month rule as public reporting."""
-    current_period = datetime.now(timezone.utc).strftime("%Y-%m")
+def _profile_return_report(account_number, now=None):
+    """Expose calculation status and provisional months without inventing returns."""
+    current_period = (now or datetime.now(timezone.utc)).strftime("%Y-%m")
     try:
         profile = get_account_risk_profile(str(account_number or "").strip())
     except Exception:
-        return []
+        import logging
+        logging.getLogger(__name__).exception("Master return calculation failed")
+        return {"status": "error", "reason": "calculation_failed",
+                "monthly_returns": [], "provisional_monthly_returns": []}
     if not isinstance(profile, dict) or profile.get("status") != "available":
-        return []
+        return {"status": "not_available",
+                "reason": profile.get("reason", "history_unavailable") if isinstance(profile, dict) else "history_unavailable",
+                "monthly_returns": [], "provisional_monthly_returns": []}
 
-    rows = []
-    for row in profile.get("monthly_returns", []) if isinstance(profile.get("monthly_returns"), list) else []:
-        period = str(row.get("period") or "")
-        if len(period) != 7 or period[4] != "-" or period >= current_period:
+    import math
+    finalized, provisional = [], []
+    source = profile.get("monthly_returns")
+    for row in source if isinstance(source, list) else []:
+        if not isinstance(row, dict):
             continue
+        period = str(row.get("period") or "")
         try:
-            value = round(float(row.get("return_percent")), 2)
+            datetime.strptime(period, "%Y-%m")
+            if len(period) != 7:
+                continue
+            value = float(row.get("return_percent"))
+            if not math.isfinite(value):
+                continue
         except (TypeError, ValueError):
             continue
-        rows.append({"month": period, "return_percent": value})
-    rows.sort(key=lambda item: item["month"])
-    return rows
+        item = {"month": period, "return_percent": round(value, 2)}
+        if period < current_period:
+            finalized.append(item)
+        elif period == current_period:
+            provisional.append(item)
+    finalized.sort(key=lambda item: item["month"])
+    provisional.sort(key=lambda item: item["month"])
+    return {"status": "available",
+            "reason": None if finalized else "no_finalized_months",
+            "monthly_returns": finalized, "provisional_monthly_returns": provisional}
+
+
+def _finalized_profile_monthly(account_number):
+    """Compatibility wrapper: finalized returns retain their existing contract."""
+    return _profile_return_report(account_number)["monthly_returns"]
 
 
 def _yearly_returns(monthly):
@@ -297,7 +321,8 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             ).all()
         setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
 
-        monthly = _finalized_profile_monthly(terminal.account_number)
+        return_report = _profile_return_report(terminal.account_number)
+        monthly = return_report["monthly_returns"]
         yearly = _yearly_returns(monthly)
         pnl = lambda d: float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)
         wins = sum(1 for deal in deals if pnl(deal) > 0)
@@ -342,6 +367,9 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             },
             "monthly_returns": monthly,
             "yearly_returns": yearly,
+            "returns_status": return_report["status"],
+            "returns_reason": return_report["reason"],
+            "provisional_monthly_returns": return_report["provisional_monthly_returns"],
             "return_method": "signed account full-history cash-flow-neutral returns; finalized calendar months only; YTD compounds finalized monthly returns",
         }
     finally:
