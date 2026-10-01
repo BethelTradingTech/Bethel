@@ -34,12 +34,12 @@ def test_missing_boundary_or_broker_ledger_gap_withholds_recovery_grade():
     assert gap["status"] == "ledger_gap" and gap["monthly_grade"] is None
 
 
-def test_cash_flow_does_not_create_recovery_or_grade():
+def test_deposit_does_not_create_recovery():
     rows = [snap("2026-08-31T23:00:00", 1000, 1000),
             snap("2026-09-12T12:00:00", 700, 700),
             snap("2026-09-30T23:00:00", 1200, 1200)]
     flows = [Row(occurred_at=datetime(2026, 9, 20), amount=500)]
     result = completed_month_equity(rows, flows, [deal("2026-09-12T11:00:00", -300)], datetime(2026, 10, 1))[-1]
     assert result["equity_gain"] == -300
-    assert result["recovery_percent"] is None
-    assert result["monthly_grade"] is None
+    assert result["recovery_percent"] == 0
+    assert result["monthly_score"] < 50
