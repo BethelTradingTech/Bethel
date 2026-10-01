@@ -17,8 +17,8 @@ def test_recovery_improves_grade_without_rewriting_monthly_gain():
     low = snap("2026-09-12T12:00:00", 700, 700)
     partial = snap("2026-09-30T23:00:00", 800, 800)
     full = snap("2026-09-30T23:00:00", 1100, 1100)
-    early = completed_month_equity([start, low, partial], [], [deal("2026-09-12T11:00:00", -300), deal("2026-09-30T12:00:00", 100)], datetime(2026, 10, 1))[-1]
-    recovered = completed_month_equity([start, low, full], [], [deal("2026-09-12T11:00:00", -300), deal("2026-09-30T12:00:00", 400)], datetime(2026, 10, 1))[-1]
+    early = completed_month_equity([start, low, partial], [], [deal("2026-09-12T11:00:00", -300), deal("2026-09-30T12:00:00", 100)], datetime(2026, 10, 1), monthly_returns=[{"month":"2026-09","return_percent":-20}])[-1]
+    recovered = completed_month_equity([start, low, full], [], [deal("2026-09-12T11:00:00", -300), deal("2026-09-30T12:00:00", 400)], datetime(2026, 10, 1), monthly_returns=[{"month":"2026-09","return_percent":-20}])[-1]
     assert early["equity_gain"] == -200
     assert recovered["equity_gain"] == 100
     assert recovered["recovery_percent"] == 100
@@ -39,7 +39,18 @@ def test_deposit_does_not_create_recovery():
             snap("2026-09-12T12:00:00", 700, 700),
             snap("2026-09-30T23:00:00", 1200, 1200)]
     flows = [Row(occurred_at=datetime(2026, 9, 20), amount=500)]
-    result = completed_month_equity(rows, flows, [deal("2026-09-12T11:00:00", -300)], datetime(2026, 10, 1))[-1]
+    result = completed_month_equity(rows, flows, [deal("2026-09-12T11:00:00", -300)], datetime(2026, 10, 1), monthly_returns=[{"month":"2026-09","return_percent":-30}])[-1]
     assert result["equity_gain"] == -300
     assert result["recovery_percent"] == 0
     assert result["monthly_score"] < 50
+
+
+def test_positive_dollar_gain_cannot_hide_large_negative_return():
+    rows = [snap("2026-08-31T23:00:00", 1000, 1000),
+            snap("2026-09-12T12:00:00", 700, 700),
+            snap("2026-09-30T23:00:00", 1500, 1500)]
+    flow = [Row(occurred_at=datetime(2026, 9, 20), amount=400)]
+    result = completed_month_equity(rows, flow, [deal("2026-09-12T11:00:00", -300), deal("2026-09-30T12:00:00", 400)], datetime(2026, 10, 1), monthly_returns=[{"month":"2026-09","return_percent":-88}])[-1]
+    assert result["equity_gain"] == 100
+    assert result["recovery_percent"] == 100
+    assert result["monthly_grade"] == "E"
