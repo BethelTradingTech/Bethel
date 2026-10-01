@@ -97,47 +97,76 @@ def _monthly_returns(snapshots, cash_flows):
     return rows
 
 
-def _profile_return_report(account_number, now=None):
+def _profile_return_report(account_number, now=None, lock_completed_months=False):
     """Expose calculation status and provisional months without inventing returns."""
-    current_period = (now or datetime.now(timezone.utc)).strftime("%Y-%m")
+    instant = now or datetime.now(timezone.utc)
+    current_period = instant.strftime("%Y-%m")
+    current_start = datetime(instant.year, instant.month, 1)
+    account = str(account_number or "").strip()
     try:
-        profile = get_account_risk_profile(str(account_number or "").strip())
+        profile = get_account_risk_profile(account)
+        finalized_profile = (
+            get_account_risk_profile(account, as_of=current_start)
+            if lock_completed_months else profile
+        )
     except Exception:
         import logging
         logging.getLogger(__name__).exception("Master return calculation failed")
         return {"status": "error", "reason": "calculation_failed",
-                "monthly_returns": [], "provisional_monthly_returns": []}
-    if not isinstance(profile, dict) or profile.get("status") != "available":
+                "monthly_returns": [], "provisional_monthly_returns": [],
+                "provisional_reason": "calculation_failed"}
+    if not isinstance(finalized_profile, dict) or finalized_profile.get("status") != "available":
         return {"status": "not_available",
-                "reason": profile.get("reason", "history_unavailable") if isinstance(profile, dict) else "history_unavailable",
-                "monthly_returns": [], "provisional_monthly_returns": []}
+                "reason": finalized_profile.get("reason", "history_unavailable") if isinstance(finalized_profile, dict) else "history_unavailable",
+                "monthly_returns": [], "provisional_monthly_returns": [],
+                "provisional_reason": profile.get("reason") if isinstance(profile, dict) else "history_unavailable"}
+
+    if lock_completed_months:
+        from datetime import timedelta
+        last_completed_day = (current_start - timedelta(days=1)).date().isoformat()
+        if finalized_profile.get("history_end") != last_completed_day:
+            return {"status": "not_available", "reason": "month_end_snapshot_missing",
+                    "monthly_returns": [], "provisional_monthly_returns": [],
+                    "provisional_reason": None}
 
     import math
     finalized, provisional = [], []
-    source = profile.get("monthly_returns")
-    for row in source if isinstance(source, list) else []:
-        if not isinstance(row, dict):
-            continue
-        period = str(row.get("period") or "")
-        try:
-            datetime.strptime(period, "%Y-%m")
-            if len(period) != 7:
+    def valid_rows(source, period_predicate):
+        result = []
+        for row in source if isinstance(source, list) else []:
+            if not isinstance(row, dict):
                 continue
-            value = float(row.get("return_percent"))
-            if not math.isfinite(value):
+            period = str(row.get("period") or "")
+            try:
+                datetime.strptime(period, "%Y-%m")
+                if len(period) != 7 or not period_predicate(period):
+                    continue
+                value = float(row.get("return_percent"))
+                if not math.isfinite(value):
+                    continue
+            except (TypeError, ValueError):
                 continue
-        except (TypeError, ValueError):
-            continue
-        item = {"month": period, "return_percent": round(value, 2)}
-        if period < current_period:
-            finalized.append(item)
-        elif period == current_period:
-            provisional.append(item)
-    finalized.sort(key=lambda item: item["month"])
-    provisional.sort(key=lambda item: item["month"])
+            result.append({"month": period, "return_percent": round(value, 2)})
+        return sorted(result, key=lambda item: item["month"])
+
+    finalized = valid_rows(finalized_profile.get("monthly_returns"), lambda period: period < current_period)
+    provisional_reason = None
+    if isinstance(profile, dict) and profile.get("status") == "available":
+        if lock_completed_months:
+            old_opening = finalized_profile.get("raw_opening_balance")
+            new_opening = profile.get("raw_opening_balance")
+            tolerance = max(float(finalized_profile.get("reconciliation_tolerance") or 0),
+                            float(profile.get("reconciliation_tolerance") or 0))
+            if old_opening is None or new_opening is None or abs(float(new_opening) - float(old_opening)) > tolerance:
+                provisional_reason = "current_month_ledger_unreconciled"
+        if provisional_reason is None:
+            provisional = valid_rows(profile.get("monthly_returns"), lambda period: period == current_period)
+    else:
+        provisional_reason = profile.get("reason", "history_unavailable") if isinstance(profile, dict) else "history_unavailable"
     return {"status": "available",
             "reason": None if finalized else "no_finalized_months",
-            "monthly_returns": finalized, "provisional_monthly_returns": provisional}
+            "monthly_returns": finalized, "provisional_monthly_returns": provisional,
+            "provisional_reason": provisional_reason}
 
 
 def _finalized_profile_monthly(account_number):
@@ -321,7 +350,11 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             ).all()
         setting = db.query(PublicMt5DisplaySetting).filter(PublicMt5DisplaySetting.id == 1).first()
 
-        return_report = _profile_return_report(terminal.account_number)
+        return_report = _profile_return_report(
+            terminal.account_number,
+            # Account 01's existing demo/public calculation is deliberately unchanged.
+            lock_completed_months=str(terminal.account_number) != "49617874",
+        )
         monthly = return_report["monthly_returns"]
         yearly = _yearly_returns(monthly)
         pnl = lambda d: float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)
@@ -370,7 +403,12 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             "returns_status": return_report["status"],
             "returns_reason": return_report["reason"],
             "provisional_monthly_returns": return_report["provisional_monthly_returns"],
-            "return_method": "signed account full-history cash-flow-neutral returns; finalized calendar months only; YTD compounds finalized monthly returns",
+            "provisional_reason": return_report.get("provisional_reason"),
+            "return_method": (
+                "signed account full-history cash-flow-neutral returns; finalized calendar months only; YTD compounds finalized monthly returns"
+                if str(terminal.account_number) == "49617874" else
+                "signed account cash-flow-neutral returns; completed months anchored to the last month-end snapshot; YTD compounds finalized monthly returns"
+            ),
         }
     finally:
         db.close()
