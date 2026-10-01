@@ -1,0 +1,21 @@
+name: Connector History Backfill
+on:
+  pull_request:
+    paths:
+      - "connector/mt5_readonly_connector.py"
+      - "api/mt5_ingest/routes.py"
+      - "tests/test_connector_history_backfill.py"
+      - ".github/workflows/connector-history-backfill.yml"
+permissions:
+  contents: read
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: python -m pytest tests/test_connector_history_backfill.py -v
+      - run: python -m py_compile connector/mt5_readonly_connector.py api/mt5_ingest/routes.py
