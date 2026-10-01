@@ -5,13 +5,14 @@ from datetime import datetime, timedelta, timezone
 import math
 
 
-def completed_month_equity(snapshots, flows, deals, now=None):
+def completed_month_equity(snapshots, flows, deals, now=None, monthly_returns=None):
     """Use observed boundary equity; never infer an absent opening or closing quote.
 
     Recovery uses an equity curve adjusted for recorded funding. This describes
     account recovery; it is not Darwinex D-Score.
     """
     current = (now or datetime.now(timezone.utc)).strftime("%Y-%m")
+    returns = {row["month"]: row["return_percent"] for row in (monthly_returns or [])}
     ordered = sorted(snapshots, key=lambda s: (s.timestamp, s.id))
     by_month = defaultdict(list)
     for snapshot in ordered:
@@ -56,10 +57,11 @@ def completed_month_equity(snapshots, flows, deals, now=None):
             recovered = max(0.0, adjusted[-1] - adjusted[low_index])
             row["recovery_percent"] = round(min(100.0, recovered / drawdown * 100.0), 2)
             row["recovery_grade"] = "strong" if recovered >= drawdown else "partial" if recovered > 0 else "none"
-        if row["status"] == "observed_boundaries" and float(opening.equity) > 0:
-            # A transparent Bethel monthly grade: return sets the base; recovery
-            # can improve it by at most 15 points without changing the return.
-            monthly_return = gain / float(opening.equity) * 100.0
+        if row["status"] == "observed_boundaries" and month in returns:
+            # Grade the displayed cash-flow-neutral return, not the dollar gain.
+            # A deposit following a loss can leave a positive dollar gain and
+            # negative time-weighted return; grading the gain would contradict it.
+            monthly_return = float(returns[month])
             base = 50.0 + 35.0 * math.tanh(monthly_return / 20.0)
             penalty = 15.0 * min(1.0, drawdown / max(prior_peak, 0.01))
             bonus = 15.0 * float(row["recovery_percent"] or 0.0) / 100.0
