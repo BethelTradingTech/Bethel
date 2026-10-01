@@ -3,8 +3,11 @@ on:
   pull_request:
     paths:
       - "api/admin_master_performance.py"
+      - "api/services/account_risk_profile.py"
+      - "api/services/monthly_equity_performance.py"
       - "admin-frontend/master-performance.html"
       - "tests/test_master_returns_visibility.py"
+      - "tests/test_monthly_equity_performance.py"
       - ".github/workflows/master-returns-visibility.yml"
 permissions:
   contents: read
@@ -17,8 +20,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest
-      - run: python -m pytest tests/test_master_returns_visibility.py -v
-      - run: python -m py_compile api/admin_master_performance.py
+      - run: python -m pytest tests/test_master_returns_visibility.py tests/test_monthly_equity_performance.py -v
+      - run: python -m py_compile api/admin_master_performance.py api/services/account_risk_profile.py api/services/monthly_equity_performance.py
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

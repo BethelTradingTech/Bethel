@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 import math
 from typing import Iterable
 
@@ -190,37 +190,36 @@ def _grade(score: float) -> str:
     return "E"
 
 
-def get_account_risk_profile(account_number: str) -> dict:
+def get_account_risk_profile(account_number: str, as_of: datetime | None = None) -> dict:
     account_number = str(account_number or "").strip()
     if not account_number:
         return {"status": "not_available", "reason": "no_active_master_account"}
 
     db = SessionLocal()
     try:
-        latest = (
-            db.query(EquitySnapshot)
-            .filter(EquitySnapshot.account_number == account_number)
-            .order_by(EquitySnapshot.timestamp.desc(), EquitySnapshot.id.desc())
-            .first()
+        snapshot_query = db.query(EquitySnapshot).filter(
+            EquitySnapshot.account_number == account_number
         )
-        deals = (
-            db.query(ConnectorDeal)
-            .filter(
-                ConnectorDeal.account_number == account_number,
-                ConnectorDeal.closed_at.isnot(None),
-            )
-            .order_by(ConnectorDeal.closed_at.asc(), ConnectorDeal.id.asc())
-            .all()
+        if as_of is not None:
+            snapshot_query = snapshot_query.filter(EquitySnapshot.timestamp < as_of)
+        latest = snapshot_query.order_by(
+            EquitySnapshot.timestamp.desc(), EquitySnapshot.id.desc()
+        ).first()
+        deal_query = db.query(ConnectorDeal).filter(
+            ConnectorDeal.account_number == account_number,
+            ConnectorDeal.closed_at.isnot(None),
         )
-        flows = (
-            db.query(ConnectorCashFlow)
-            .filter(
-                ConnectorCashFlow.account_number == account_number,
-                ConnectorCashFlow.occurred_at.isnot(None),
-            )
-            .order_by(ConnectorCashFlow.occurred_at.asc(), ConnectorCashFlow.id.asc())
-            .all()
+        flow_query = db.query(ConnectorCashFlow).filter(
+            ConnectorCashFlow.account_number == account_number,
+            ConnectorCashFlow.occurred_at.isnot(None),
         )
+        if as_of is not None and latest is not None:
+            # Freeze completed months at their last recorded snapshot. A later
+            # broker adjustment must not be carried backward into September.
+            deal_query = deal_query.filter(ConnectorDeal.closed_at <= latest.timestamp)
+            flow_query = flow_query.filter(ConnectorCashFlow.occurred_at <= latest.timestamp)
+        deals = deal_query.order_by(ConnectorDeal.closed_at.asc(), ConnectorDeal.id.asc()).all()
+        flows = flow_query.order_by(ConnectorCashFlow.occurred_at.asc(), ConnectorCashFlow.id.asc()).all()
         if latest is None or not deals:
             return {
                 "status": "not_available",

@@ -3,14 +3,17 @@ import ast
 from datetime import datetime, timezone
 from pathlib import Path
 
-def report(profile=None, error=False):
+def report(profile=None, error=False, finalized_profile=None):
     source = ast.parse(Path("api/admin_master_performance.py").read_text())
     function = next(node for node in source.body if isinstance(node, ast.FunctionDef)
                     and node.name == "_profile_return_report")
-    def get_profile(account):
+    def get_profile(account, as_of=None):
         assert account == "12345"
         if error:
             raise RuntimeError("test failure")
+        if as_of is not None:
+            assert as_of == datetime(2026, 10, 1)
+            return finalized_profile
         return profile
     namespace = {"datetime": datetime, "timezone": timezone,
                  "get_account_risk_profile": get_profile}
@@ -55,3 +58,41 @@ def test_invalid_and_future_rows_are_excluded():
     result = report({"status": "available", "monthly_returns": rows})(
         "12345", now=datetime(2026, 9, 29, tzinfo=timezone.utc))
     assert result["monthly_returns"] == result["provisional_monthly_returns"] == []
+
+def test_october_adjustment_cannot_rewrite_finalized_september():
+    september = {"status": "available", "history_end": "2026-09-30",
+                 "raw_opening_balance": 0, "reconciliation_tolerance": 5,
+                 "monthly_returns": [{"period": "2026-08", "return_percent": 2},
+                                     {"period": "2026-09", "return_percent": -32.65}]}
+    october = {"status": "available", "raw_opening_balance": 235.46,
+               "reconciliation_tolerance": 6,
+               "monthly_returns": [{"period": "2026-08", "return_percent": 8},
+                                   {"period": "2026-09", "return_percent": -72.94},
+                                   {"period": "2026-10", "return_percent": 1}]}
+    result = report(october, finalized_profile=september)(
+        "12345", now=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        lock_completed_months=True)
+    assert result["monthly_returns"] == [
+        {"month": "2026-08", "return_percent": 2},
+        {"month": "2026-09", "return_percent": -32.65}]
+    assert result["provisional_monthly_returns"] == []
+    assert result["provisional_reason"] == "current_month_ledger_unreconciled"
+
+def test_invalid_september_is_not_rescued_by_october_credit():
+    september = {"status": "not_available", "reason": "invalid_signed_daily_return"}
+    october = {"status": "available", "monthly_returns": [
+        {"period": "2026-09", "return_percent": -72.94}]}
+    result = report(october, finalized_profile=september)(
+        "12345", now=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        lock_completed_months=True)
+    assert result["monthly_returns"] == []
+    assert result["reason"] == "invalid_signed_daily_return"
+
+def test_missing_month_end_snapshot_does_not_finalise_partial_month():
+    september = {"status": "available", "history_end": "2026-09-28",
+                 "monthly_returns": [{"period": "2026-09", "return_percent": 10}]}
+    result = report(september, finalized_profile=september)(
+        "12345", now=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        lock_completed_months=True)
+    assert result["monthly_returns"] == []
+    assert result["reason"] == "month_end_snapshot_missing"
