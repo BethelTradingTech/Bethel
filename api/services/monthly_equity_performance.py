@@ -8,8 +8,8 @@ import math
 def completed_month_equity(snapshots, flows, deals, now=None):
     """Use observed boundary equity; never infer an absent opening or closing quote.
 
-    Recovery is measured only after the lowest observed equity, and only when no
-    cash flow occurred after that low. It is descriptive, not Darwinex D-Score.
+    Recovery uses an equity curve adjusted for recorded funding. This describes
+    account recovery; it is not Darwinex D-Score.
     """
     current = (now or datetime.now(timezone.utc)).strftime("%Y-%m")
     ordered = sorted(snapshots, key=lambda s: (s.timestamp, s.id))
@@ -47,15 +47,16 @@ def completed_month_equity(snapshots, flows, deals, now=None):
         if abs(balance_gap) > max(0.02, abs(float(close.balance)) * 0.0015):
             row["status"] = "ledger_gap"
         curve = [opening] + [s for s in by_month[month] if opening.timestamp < s.timestamp <= close.timestamp]
-        low_index = min(range(len(curve)), key=lambda i: float(curve[i].equity))
-        low = curve[low_index]
-        prior_peak = max(float(s.equity) for s in curve[:low_index + 1])
-        drawdown = prior_peak - float(low.equity)
-        if drawdown > 0 and not period_flows and row["status"] == "observed_boundaries":
-            recovered = max(0.0, float(close.equity) - float(low.equity))
+        adjusted = [float(s.equity) - sum(float(f.amount or 0) for f in period_flows
+                    if f.occurred_at <= s.timestamp) for s in curve]
+        low_index = min(range(len(curve)), key=lambda i: adjusted[i])
+        prior_peak = max(adjusted[:low_index + 1])
+        drawdown = prior_peak - adjusted[low_index]
+        if drawdown > 0 and row["status"] == "observed_boundaries":
+            recovered = max(0.0, adjusted[-1] - adjusted[low_index])
             row["recovery_percent"] = round(min(100.0, recovered / drawdown * 100.0), 2)
             row["recovery_grade"] = "strong" if recovered >= drawdown else "partial" if recovered > 0 else "none"
-        if not period_flows and row["status"] == "observed_boundaries" and float(opening.equity) > 0:
+        if row["status"] == "observed_boundaries" and float(opening.equity) > 0:
             # A transparent Bethel monthly grade: return sets the base; recovery
             # can improve it by at most 15 points without changing the return.
             monthly_return = gain / float(opening.equity) * 100.0
