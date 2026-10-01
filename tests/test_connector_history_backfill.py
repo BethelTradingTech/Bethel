@@ -23,7 +23,7 @@ def test_first_sync_imports_all_deals_in_bounded_batches_then_uses_recent_window
     deal = SimpleNamespace(entry=1, type=0, symbol="EURUSD", volume=0.1,
                            ticket=1, position_id=1, order=1, price=1.2,
                            profit=1, commission=0, swap=0, fee=0, time=1760000000)
-    history = [SimpleNamespace(**{**vars(deal), "ticket": i}) for i in range(1, 1202)]
+    history = [SimpleNamespace(**{**vars(deal), "ticket": i}) for i in range(1, 5202)]
     windows, batches = [], []
     def fetch(start, end):
         windows.append((start, end))
@@ -35,8 +35,8 @@ def test_first_sync_imports_all_deals_in_bounded_batches_then_uses_recent_window
     ns["send"] = lambda batch, route: batches.append((batch, route))
     ns["sync_all_history"]("12345")
     assert windows[0][0] <= datetime.now(timezone.utc) - timedelta(days=3649)
-    assert sum(len(batch["closed_deals"]) for batch, _ in batches) == 1201
-    assert len(batches) == 3 and all(route == "history" for _, route in batches)
+    assert sum(len(batch["closed_deals"]) for batch, _ in batches) == 5201
+    assert len(batches) == 11 and all(route == "history" for _, route in batches)
     assert all(len(batch["closed_deals"]) <= 500 and batch["account_number"] == "12345" for batch, _ in batches)
     windows.clear()
     ns["sync_all_history"]("12345")
