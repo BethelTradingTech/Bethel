@@ -5,6 +5,38 @@ from datetime import datetime, timedelta, timezone
 import math
 
 
+def realized_month_recovery(deals):
+    """Dollar recovery of the deepest closed-P/L drawdown within one month.
+
+    Funding is excluded. The curve starts at zero P/L, not account capital,
+    so a depleted and subsequently funded account still has a valid result.
+    Equal-time exits are grouped because the database cannot establish their
+    broker execution order. This is not an equity return or Darwinex D-Score.
+    """
+    changes = defaultdict(float)
+    for deal in deals:
+        changes[deal.closed_at] += sum(float(getattr(deal, key) or 0)
+                                       for key in ("profit", "commission", "swap", "fee"))
+    total = peak = deepest = trough = 0.0
+    for when in sorted(changes):
+        total += changes[when]
+        peak = max(peak, total)
+        drawdown = peak - total
+        if drawdown > deepest:
+            deepest, trough = drawdown, total
+    net = round(total, 2)
+    recovered = max(0.0, total - trough) if deepest > 0 else 0.0
+    return {
+        "monthly_profit_result": "profit" if net > 0 else "loss" if net < 0 else "break_even",
+        "realized_drawdown_amount": round(deepest, 2),
+        "realized_recovered_amount": round(recovered, 2),
+        "dollar_loss_recovery_percent": round(recovered / deepest * 100, 2) if deepest > 0 else None,
+        "dollar_loss_recovery_status": ("fully_recovered" if recovered >= deepest else
+                                        "partial" if recovered > 0 else "none") if deepest > 0 else "no_drawdown",
+        "realized_profit_basis": "imported closed-deal profit, commission, swap and fee; funding excluded",
+    }
+
+
 def completed_month_equity(snapshots, flows, deals, now=None, monthly_returns=None):
     """Use observed boundary equity; never infer an absent opening or closing quote.
 
@@ -17,6 +49,8 @@ def completed_month_equity(snapshots, flows, deals, now=None, monthly_returns=No
     by_month = defaultdict(list)
     for snapshot in ordered:
         by_month[snapshot.timestamp.strftime("%Y-%m")].append(snapshot)
+    for deal in deals:
+        by_month[deal.closed_at.strftime("%Y-%m")]
     result = []
     for month in sorted(key for key in by_month if key < current):
         start = datetime.strptime(month, "%Y-%m")
@@ -30,6 +64,7 @@ def completed_month_equity(snapshots, flows, deals, now=None, monthly_returns=No
                "equity_gain": None, "recovery_percent": None,
                "recovery_grade": None, "monthly_grade": None,
                "status": "boundary_snapshot_missing"}
+        row.update(realized_month_recovery(month_deals))
         if not prior or not closing:
             result.append(row)
             continue
