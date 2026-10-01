@@ -357,7 +357,8 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             lock_completed_months=str(terminal.account_number) != "49617874",
         )
         monthly = return_report["monthly_returns"]
-        equity_months = (completed_month_equity(snapshots, cash_flows, deals)
+        equity_months = (completed_month_equity(snapshots, cash_flows, deals,
+                                               monthly_returns=monthly)
                          if str(terminal.account_number) != "49617874" else [])
         if equity_months:
             verified_months = {row["month"] for row in equity_months
