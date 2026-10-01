@@ -92,6 +92,12 @@ class Snapshot(BaseModel):
     cash_flows: list[CashFlow] = Field(default_factory=list, max_length=5000)
 
 
+class HistoryBatch(BaseModel):
+    account_number: str = Field(min_length=5, max_length=32)
+    closed_deals: list[ClosedDeal] = Field(default_factory=list, max_length=1000)
+    cash_flows: list[CashFlow] = Field(default_factory=list, max_length=1000)
+
+
 def _verify(request: Request, body: bytes) -> tuple[str, str]:
     secret = os.getenv("MT5_CONNECTOR_SECRET", "")
     if len(secret) < 64:
@@ -119,6 +125,68 @@ def _verify(request: Request, body: bytes) -> tuple[str, str]:
     if not hmac.compare_digest(expected, supplied):
         raise HTTPException(401, "Invalid connector signature")
     return connector_id, nonce
+
+
+@router.post("/history", status_code=202)
+async def ingest_history_batch(request: Request):
+    """Idempotent signed backfill, scoped to a registered account and connector."""
+    body = await request.body()
+    connector_id, nonce = _verify(request, body)
+    try:
+        payload = HistoryBatch.model_validate(json.loads(body))
+    except Exception:
+        raise HTTPException(422, "Invalid history batch")
+    db = SessionLocal()
+    try:
+        registry = db.query(MasterTerminalRegistry).filter(
+            MasterTerminalRegistry.connector_id == connector_id,
+            MasterTerminalRegistry.active.is_(True),
+        ).first()
+        if registry is None or registry.account_number != payload.account_number:
+            raise HTTPException(403, "History account does not match the active terminal")
+        db.add(ConnectorNonce(connector_id=connector_id, nonce=nonce))
+        db.flush()
+        deal_tickets = [d.deal_ticket for d in payload.closed_deals]
+        flow_tickets = [f.deal_ticket for f in payload.cash_flows]
+        existing_deals = {ticket for (ticket,) in db.query(ConnectorDeal.deal_ticket).filter(
+            ConnectorDeal.connector_id == connector_id,
+            ConnectorDeal.deal_ticket.in_(deal_tickets),
+        ).all()} if deal_tickets else set()
+        existing_flows = {ticket for (ticket,) in db.query(ConnectorCashFlow.deal_ticket).filter(
+            ConnectorCashFlow.connector_id == connector_id,
+            ConnectorCashFlow.deal_ticket.in_(flow_tickets),
+        ).all()} if flow_tickets else set()
+        for deal in payload.closed_deals:
+            if deal.deal_ticket in existing_deals:
+                continue
+            when = deal.closed_at.replace(tzinfo=deal.closed_at.tzinfo or timezone.utc)
+            db.add(ConnectorDeal(
+                connector_id=connector_id, account_number=payload.account_number,
+                deal_ticket=deal.deal_ticket, position_id=deal.position_id,
+                order_id=deal.order_id, symbol=deal.symbol, deal_type=deal.deal_type,
+                volume=deal.volume, price=deal.price, profit=deal.profit,
+                commission=deal.commission, swap=deal.swap, fee=deal.fee,
+                closed_at=when.astimezone(timezone.utc).replace(tzinfo=None),
+            ))
+            existing_deals.add(deal.deal_ticket)
+        for flow in payload.cash_flows:
+            if flow.deal_ticket in existing_flows:
+                continue
+            when = flow.occurred_at.replace(tzinfo=flow.occurred_at.tzinfo or timezone.utc)
+            db.add(ConnectorCashFlow(
+                connector_id=connector_id, account_number=payload.account_number,
+                deal_ticket=flow.deal_ticket, event_type=flow.event_type,
+                amount=flow.amount,
+                occurred_at=when.astimezone(timezone.utc).replace(tzinfo=None),
+            ))
+            existing_flows.add(flow.deal_ticket)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Replay or duplicate history rejected")
+    finally:
+        db.close()
+    return {"status": "accepted", "read_only": True}
 
 
 

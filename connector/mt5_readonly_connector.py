@@ -13,16 +13,16 @@ TERMINAL_PATH = os.getenv("BETHEL_MT5_TERMINAL_PATH", "").strip()
 INTERVAL = max(int(os.getenv("MT5_SNAPSHOT_INTERVAL", "60")), 30)
 HISTORY_INTERVAL = max(int(os.getenv("MT5_HISTORY_INTERVAL", "900")), 300)
 HISTORY_DAYS = max(int(os.getenv("MT5_HISTORY_DAYS", "3650")), 1)
-MAX_CLOSED_DEALS = min(max(int(os.getenv("MT5_MAX_CLOSED_DEALS", "5000")), 100), 5000)
+HISTORY_BATCH_SIZE = 500
 LOG_PATH = os.getenv("BETHEL_CONNECTOR_LOG", "")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=[logging.StreamHandler()] + ([logging.FileHandler(LOG_PATH, encoding="utf-8")] if LOG_PATH else []))
 logger = logging.getLogger("bethel.mt5.connector")
 session = requests.Session()
 last_history_sync = 0.0
+history_backfilled_for = None
 
 
 def snapshot():
-    global last_history_sync
     if len(SECRET) < 64:
         raise RuntimeError("MT5_CONNECTOR_SECRET must contain at least 64 characters")
     initialized = mt5.initialize(path=TERMINAL_PATH) if TERMINAL_PATH else mt5.initialize()
@@ -49,22 +49,19 @@ def snapshot():
         "opened_at": datetime.fromtimestamp(position.time, timezone.utc).isoformat(),
     } for position in open_positions]
 
-    closed_deals = []
-    cash_flows = []
-    now_timestamp = time.time()
-    if now_timestamp - last_history_sync >= HISTORY_INTERVAL:
-        date_to = datetime.now(timezone.utc)
-        date_from = date_to - timedelta(days=HISTORY_DAYS)
-        history = mt5.history_deals_get(date_from, date_to)
-        if history is None:
-            raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
+    return {
+        "account_number": str(account.login), "server": account.server,
+        "currency": account.currency, "balance": account.balance,
+        "equity": account.equity, "floating_profit": account.profit,
+        "observed_at": datetime.now(timezone.utc).isoformat(), "mode": mode,
+        "positions": positions, "closed_deals": [], "cash_flows": [],
+    }
 
-        exit_entries = {mt5.DEAL_ENTRY_OUT, mt5.DEAL_ENTRY_OUT_BY, mt5.DEAL_ENTRY_INOUT}
-        eligible = [
-            deal for deal in history
-            if deal.entry in exit_entries and deal.symbol and deal.volume > 0
-        ][-MAX_CLOSED_DEALS:]
-        closed_deals = [{
+
+def _history_rows(history):
+    exit_entries = {mt5.DEAL_ENTRY_OUT, mt5.DEAL_ENTRY_OUT_BY, mt5.DEAL_ENTRY_INOUT}
+    eligible = [deal for deal in history if deal.entry in exit_entries and deal.symbol and deal.volume > 0]
+    closed_deals = [{
             "deal_ticket": str(deal.ticket),
             "position_id": str(deal.position_id),
             "order_id": str(deal.order),
@@ -77,44 +74,54 @@ def snapshot():
             "swap": deal.swap,
             "fee": getattr(deal, "fee", 0.0),
             "closed_at": datetime.fromtimestamp(deal.time, timezone.utc).isoformat(),
-        } for deal in eligible]
+    } for deal in eligible]
 
-        cash_type_names = {
+    cash_type_names = {
             mt5.DEAL_TYPE_BALANCE: "BALANCE",
             mt5.DEAL_TYPE_CREDIT: "CREDIT",
             mt5.DEAL_TYPE_BONUS: "BONUS",
             mt5.DEAL_TYPE_CORRECTION: "CORRECTION",
-        }
-        cash_flows = [{
+    }
+    cash_flows = [{
             "deal_ticket": str(deal.ticket),
             "event_type": cash_type_names[deal.type],
             "amount": float(deal.profit),
             "occurred_at": datetime.fromtimestamp(deal.time, timezone.utc).isoformat(),
-        } for deal in history if deal.type in cash_type_names]
-
-        last_history_sync = now_timestamp
-        logger.info(
-            "prepared %s closed deals and %s cash-flow events for signed sync",
-            len(closed_deals),
-            len(cash_flows),
-        )
-
-    return {
-        "account_number": str(account.login), "server": account.server,
-        "currency": account.currency, "balance": account.balance,
-        "equity": account.equity, "floating_profit": account.profit,
-        "observed_at": datetime.now(timezone.utc).isoformat(), "mode": mode,
-        "positions": positions,
-        "closed_deals": closed_deals,
-        "cash_flows": cash_flows,
-    }
+    } for deal in history if deal.type in cash_type_names]
+    return closed_deals, cash_flows
 
 
-def send(payload):
+def sync_all_history(account_number):
+    """Backfill all available MT5 deal history in bounded, idempotent batches."""
+    global last_history_sync, history_backfilled_for
+    end = datetime.now(timezone.utc)
+    full_backfill = history_backfilled_for != account_number
+    start = end - timedelta(days=HISTORY_DAYS if full_backfill else 7)
+    total_deals = total_flows = 0
+    while start < end:
+        stop = min(start + timedelta(days=365), end)
+        history = mt5.history_deals_get(start, stop)
+        if history is None:
+            raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
+        deals, flows = _history_rows(history)
+        for offset in range(0, max(len(deals), len(flows)), HISTORY_BATCH_SIZE):
+            batch_deals = deals[offset:offset + HISTORY_BATCH_SIZE]
+            batch_flows = flows[offset:offset + HISTORY_BATCH_SIZE]
+            send({"account_number": account_number,
+                  "closed_deals": batch_deals, "cash_flows": batch_flows}, route="history")
+            total_deals += len(batch_deals)
+            total_flows += len(batch_flows)
+        start = stop
+    last_history_sync = time.time()
+    history_backfilled_for = account_number
+    logger.info("history synced account=%s deals=%s cash_flows=%s", account_number, total_deals, total_flows)
+
+
+def send(payload, route="snapshot"):
     body = json.dumps(payload, separators=(",", ":")).encode()
     timestamp, nonce = str(int(time.time())), secrets.token_urlsafe(24)
     signature = hmac.new(SECRET.encode(), timestamp.encode()+b"\n"+nonce.encode()+b"\n"+body, hashlib.sha256).hexdigest()
-    response = session.post(API + "/connector/v1/snapshot", data=body, timeout=60, headers={
+    response = session.post(API + "/connector/v1/" + route, data=body, timeout=60, headers={
         "Content-Type":"application/json", "X-Bethel-Connector-Id":CONNECTOR_ID,
         "X-Bethel-Timestamp":timestamp, "X-Bethel-Nonce":nonce, "X-Bethel-Signature":signature,
     })
@@ -129,6 +136,8 @@ if __name__ == "__main__":
         try:
             payload = snapshot()
             send(payload)
+            if time.time() - last_history_sync >= HISTORY_INTERVAL:
+                sync_all_history(payload["account_number"])
             failures = 0
             details = []
             if payload["closed_deals"]:
