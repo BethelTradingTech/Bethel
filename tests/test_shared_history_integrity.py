@@ -232,3 +232,14 @@ def test_complete_loss_month_remains_visible_after_next_month_restart():
         {"period": "2026-09", "return_percent": -100},
         {"period": "2026-10", "return_percent": 100}]
     assert finalized["funding_restart_count"] == 1
+
+
+def test_funded_month_without_closed_trades_is_zero_and_does_not_block_later_history():
+    calculate = calculator(datetime(2026, 9, 30, 23, 59), 110,
+        [(datetime(2026, 9, 5), 10)], [(datetime(2026, 8, 31), 100)])
+    finalized = calculate.__globals__["get_finalized_account_profile"](
+        "12345", now=datetime(2026, 10, 2))
+    assert finalized["status"] == "available"
+    assert finalized["monthly_returns"] == [
+        {"period": "2026-08", "return_percent": 0},
+        {"period": "2026-09", "return_percent": 10}]

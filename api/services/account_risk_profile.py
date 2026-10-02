@@ -236,7 +236,7 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
             flow_query = flow_query.filter(ConnectorCashFlow.occurred_at <= event_cutoff)
         deals = deal_query.order_by(ConnectorDeal.closed_at.asc(), ConnectorDeal.id.asc()).all()
         flows = flow_query.order_by(ConnectorCashFlow.occurred_at.asc(), ConnectorCashFlow.id.asc()).all()
-        if latest is None or not deals:
+        if latest is None or (not deals and not (as_of is not None and flows)):
             return {
                 "status": "not_available",
                 "reason": "signed_master_history_not_available",
@@ -251,7 +251,7 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
             deals = [deal for deal in deals if deal.closed_at < as_of]
             flows = [flow for flow in flows if flow.occurred_at < as_of]
             effective_timestamp = as_of - timedelta(microseconds=1)
-            if not deals:
+            if not deals and not flows:
                 return {"status": "not_available", "reason": "signed_master_history_not_available",
                         "master_account": account_number}
         elif as_of is not None and latest.timestamp.date() == (as_of - timedelta(microseconds=1)).date():
