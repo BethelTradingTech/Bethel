@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from api.auth.dependency import require_admin
 from api.database import SessionLocal
 from api.models import EquitySnapshot
-from api.services.account_risk_profile import get_account_risk_profile
+from api.services.account_risk_profile import get_account_risk_profile, get_finalized_account_profile
 from api.services.analytics_comparison import get_analytics_comparison
 from api.services.analytics_v2 import get_audited_analytics
 from api.services.daily_performance import get_daily_performance
@@ -244,7 +244,7 @@ def public_performance_summary():
         return {"available": False, "read_only": True, "monthly_returns": [], "yearly_returns": []}
 
     try:
-        profile = get_account_risk_profile(account)
+        profile = get_finalized_account_profile(account)
     except Exception:
         profile = {"status": "not_available"}
     if profile.get("status") != "available":

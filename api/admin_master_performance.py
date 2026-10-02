@@ -15,7 +15,7 @@ from api.mt5_ingest.models import (
     MasterTerminalRegistry,
     PublicMt5DisplaySetting,
 )
-from api.services.account_risk_profile import get_account_risk_profile
+from api.services.account_risk_profile import get_account_risk_profile, get_finalized_account_profile
 
 router = APIRouter(prefix="/admin/master-performance", tags=["Super Admin Master Performance"])
 
@@ -106,7 +106,7 @@ def _profile_return_report(account_number, now=None, lock_completed_months=False
     try:
         profile = get_account_risk_profile(account)
         finalized_profile = (
-            get_account_risk_profile(account, as_of=current_start)
+            get_finalized_account_profile(account, now=instant)
             if lock_completed_months else profile
         )
     except Exception:
@@ -172,7 +172,7 @@ def _profile_return_report(account_number, now=None, lock_completed_months=False
 
 def _finalized_profile_monthly(account_number):
     """Compatibility wrapper: finalized returns retain their existing contract."""
-    return _profile_return_report(account_number)["monthly_returns"]
+    return _profile_return_report(account_number, lock_completed_months=True)["monthly_returns"]
 
 
 def _yearly_returns(monthly, performance_start=None):
@@ -357,7 +357,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
         return_report = _profile_return_report(
             terminal.account_number,
             # Use the existing public/account-01 policy for every account.
-            lock_completed_months=False,
+            lock_completed_months=True,
         )
         monthly = return_report["monthly_returns"]
         yearly = _yearly_returns(monthly, return_report.get("performance_start"))
