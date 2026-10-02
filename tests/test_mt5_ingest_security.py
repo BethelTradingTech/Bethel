@@ -134,3 +134,26 @@ def test_cost_ticket_is_idempotent_and_invalid_trade_dimensions_are_rejected(mon
 def test_unsigned_request_is_rejected(monkeypatch):
     monkeypatch.setenv("MT5_CONNECTOR_SECRET", SECRET)
     assert client.post("/connector/v1/snapshot", json={}).status_code == 401
+
+
+def test_clock_correction_preserves_values_and_legacy_cannot_reverse_it(monkeypatch):
+    from datetime import timedelta
+    ticket = "clock-correction-regression"
+    old = datetime.now(timezone.utc)
+    payload = dict(account_number=ACCOUNT, server="HFMGlobalMarkets-Demo", currency="USD",
+        balance=10000, equity=10000, floating_profit=0, observed_at=old.isoformat(), mode="DEMO",
+        closed_deals=[dict(deal_ticket=ticket, position_id="555", order_id="777", symbol="EURUSD",
+            deal_type="SELL", volume=.1, price=1.1, profit=10, closed_at=old.isoformat())])
+    assert signed_request(monkeypatch,payload,nonce="clock-test-first-abcdefghijklmnop").status_code == 202
+    corrected = old-timedelta(hours=3)
+    payload["closed_deals"][0].update(closed_at=corrected.isoformat(),broker_time_normalized=True)
+    assert signed_request(monkeypatch,payload,nonce="clock-test-correct-abcdefghijklmn").status_code == 202
+    payload["closed_deals"][0].update(closed_at=old.isoformat(),broker_time_normalized=False)
+    assert signed_request(monkeypatch,payload,nonce="clock-test-legacy-abcdefghijklmno").status_code == 202
+    with routes.SessionLocal() as db:
+        rows = db.query(ConnectorDeal).filter_by(deal_ticket=ticket).all()
+        assert len(rows) == 1
+        assert rows[0].closed_at == corrected.replace(tzinfo=None)
+        assert rows[0].profit == 10
+    payload["closed_deals"][0].update(broker_time_normalized=True,profit=999)
+    assert signed_request(monkeypatch,payload,nonce="clock-test-reject-abcdefghijklmno").status_code == 409

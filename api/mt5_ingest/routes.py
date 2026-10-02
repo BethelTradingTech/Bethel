@@ -69,6 +69,7 @@ class ClosedDeal(BaseModel):
     swap: float = Field(allow_inf_nan=False, default=0)
     fee: float = Field(allow_inf_nan=False, default=0)
     closed_at: datetime
+    broker_time_normalized: bool = False
 
     @model_validator(mode="after")
     def validate_trade_or_cost(self):
@@ -85,6 +86,7 @@ class CashFlow(BaseModel):
     event_type: str = Field(pattern="^(BALANCE|CREDIT|BONUS|CORRECTION)$")
     amount: float = Field(allow_inf_nan=False)
     occurred_at: datetime
+    broker_time_normalized: bool = False
 
 
 class Snapshot(BaseModel):
@@ -105,6 +107,24 @@ class HistoryBatch(BaseModel):
     account_number: str = Field(min_length=5, max_length=32)
     closed_deals: list[ClosedDeal] = Field(default_factory=list, max_length=1000)
     cash_flows: list[CashFlow] = Field(default_factory=list, max_length=1000)
+
+
+def _correct_imported_clock(db, model, connector_id, account_number, item, time_field, value_fields):
+    """Correct only the timestamp of an identical, authenticated broker ticket."""
+    if not item.broker_time_normalized:
+        return
+    row = db.query(model).filter_by(connector_id=connector_id,
+        account_number=account_number, deal_ticket=item.deal_ticket).first()
+    if row is None:
+        return
+    for name in value_fields:
+        if getattr(row, name) != getattr(item, name):
+            raise HTTPException(409, "Clock correction differs from the stored transaction")
+    when = getattr(item, time_field)
+    when = when.replace(tzinfo=when.tzinfo or timezone.utc).astimezone(timezone.utc).replace(tzinfo=None)
+    if abs((getattr(row, time_field) - when).total_seconds()) > 14 * 3600:
+        raise HTTPException(409, "Clock correction exceeds timezone bounds")
+    setattr(row, time_field, when)
 
 
 def _verify(request: Request, body: bytes) -> tuple[str, str]:
@@ -167,6 +187,7 @@ async def ingest_history_batch(request: Request):
         ).all()} if flow_tickets else set()
         for deal in payload.closed_deals:
             if deal.deal_ticket in existing_deals:
+                _correct_imported_clock(db, ConnectorDeal, connector_id, payload.account_number, deal, "closed_at", ("position_id", "order_id", "symbol", "deal_type", "volume", "price", "profit", "commission", "swap", "fee"))
                 continue
             when = deal.closed_at.replace(tzinfo=deal.closed_at.tzinfo or timezone.utc)
             db.add(ConnectorDeal(
@@ -180,6 +201,7 @@ async def ingest_history_batch(request: Request):
             existing_deals.add(deal.deal_ticket)
         for flow in payload.cash_flows:
             if flow.deal_ticket in existing_flows:
+                _correct_imported_clock(db, ConnectorCashFlow, connector_id, payload.account_number, flow, "occurred_at", ("event_type", "amount"))
                 continue
             when = flow.occurred_at.replace(tzinfo=flow.occurred_at.tzinfo or timezone.utc)
             db.add(ConnectorCashFlow(
@@ -429,6 +451,7 @@ async def ingest_snapshot(request: Request):
             }
             for deal in payload.closed_deals:
                 if deal.deal_ticket in existing:
+                    _correct_imported_clock(db, ConnectorDeal, connector_id, payload.account_number, deal, "closed_at", ("position_id", "order_id", "symbol", "deal_type", "volume", "price", "profit", "commission", "swap", "fee"))
                     continue
                 closed_at = deal.closed_at
                 if closed_at.tzinfo is None:
@@ -463,6 +486,7 @@ async def ingest_snapshot(request: Request):
             }
             for item in payload.cash_flows:
                 if item.deal_ticket in existing_cash:
+                    _correct_imported_clock(db, ConnectorCashFlow, connector_id, payload.account_number, item, "occurred_at", ("event_type", "amount"))
                     continue
                 occurred_at = item.occurred_at
                 if occurred_at.tzinfo is None:

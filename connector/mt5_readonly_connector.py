@@ -58,6 +58,42 @@ def snapshot():
     }
 
 
+def _broker_offset(raw_time):
+    """Resolve server wall time without tying the policy to an account number."""
+    account = mt5.account_info()
+    if account is None:
+        raise RuntimeError("MT5 account is unavailable during clock conversion")
+    configured = os.getenv("BETHEL_MT5_SERVER_TIMEZONE", "").strip()
+    wall = datetime.fromtimestamp(raw_time, timezone.utc).replace(tzinfo=None)
+    if configured:
+        from zoneinfo import ZoneInfo
+        return wall.replace(tzinfo=ZoneInfo(configured)).utcoffset().total_seconds()
+    if "roboforex" in account.server.casefold():
+        # RoboForex uses EET/EEST, with European (not US) DST dates.
+        def last_sunday(month):
+            day = datetime(wall.year, month + 1, 1) - timedelta(days=1)
+            return day - timedelta(days=(day.weekday() + 1) % 7)
+        spring = last_sunday(3).replace(hour=3)
+        autumn = last_sunday(10).replace(hour=4)
+        return 10800 if spring <= wall < autumn else 7200
+    # Other brokers must supply their historical timezone explicitly.
+    raise RuntimeError("Set BETHEL_MT5_SERVER_TIMEZONE for this broker before importing history")
+
+
+def _deal_utc(deal):
+    raw = (getattr(deal, "time_msc", 0) or deal.time * 1000) / 1000
+    return datetime.fromtimestamp(raw - _broker_offset(raw), timezone.utc).isoformat()
+
+
+def _history_window(start, end):
+    # Request a padded server-time range, then filter in actual UTC. This
+    # handles different offsets at opposite ends of a DST transition.
+    history = mt5.history_deals_get(start - timedelta(days=1), end + timedelta(days=1))
+    if history is None:
+        raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
+    return [d for d in history if start <= datetime.fromisoformat(_deal_utc(d)) < end]
+
+
 def _history_rows(history):
     exit_entries = {mt5.DEAL_ENTRY_OUT, mt5.DEAL_ENTRY_OUT_BY, mt5.DEAL_ENTRY_INOUT}
     eligible = [deal for deal in history if deal.entry in exit_entries and deal.symbol and deal.volume > 0
@@ -74,10 +110,7 @@ def _history_rows(history):
             "commission": deal.commission,
             "swap": deal.swap,
             "fee": getattr(deal, "fee", 0.0),
-            "closed_at": datetime.fromtimestamp(
-                (getattr(deal, "time_msc", 0) or deal.time * 1000) / 1000,
-                timezone.utc,
-            ).isoformat(),
+            "closed_at": _deal_utc(deal), "broker_time_normalized": True,
     } for deal in eligible]
 
     # Keep separate charges under their original MT5 tickets. They affect
@@ -105,10 +138,7 @@ def _history_rows(history):
             "order_id": str(deal.order), "symbol": deal.symbol or "LEDGER",
             "deal_type": "COST", "volume": 0.0, "price": 0.0,
             "profit": profit, "commission": commission, "swap": swap, "fee": fee,
-            "closed_at": datetime.fromtimestamp(
-                (getattr(deal, "time_msc", 0) or deal.time * 1000) / 1000,
-                timezone.utc,
-            ).isoformat(),
+            "closed_at": _deal_utc(deal), "broker_time_normalized": True,
         })
 
     cash_type_names = {
@@ -121,10 +151,7 @@ def _history_rows(history):
             "deal_ticket": str(deal.ticket),
             "event_type": cash_type_names[deal.type],
             "amount": float(deal.profit),
-            "occurred_at": datetime.fromtimestamp(
-                (getattr(deal, "time_msc", 0) or deal.time * 1000) / 1000,
-                timezone.utc,
-            ).isoformat(),
+            "occurred_at": _deal_utc(deal), "broker_time_normalized": True,
     } for deal in history if deal.type in cash_type_names]
     return closed_deals, cash_flows
 
@@ -138,7 +165,7 @@ def sync_all_history(account_number):
     total_deals = total_flows = 0
     while start < end:
         stop = min(start + timedelta(days=365), end)
-        history = mt5.history_deals_get(start, stop)
+        history = _history_window(start, stop)
         if history is None:
             raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
         deals, flows = _history_rows(history)
@@ -160,7 +187,7 @@ def snapshot_with_history():
     for _ in range(3):
         payload = snapshot()
         end = datetime.fromisoformat(payload["observed_at"])
-        history = mt5.history_deals_get(end - timedelta(days=7), end)
+        history = _history_window(end - timedelta(days=7), end)
         if history is None:
             raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
         payload["closed_deals"], payload["cash_flows"] = _history_rows(history)
