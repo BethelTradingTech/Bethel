@@ -16,7 +16,6 @@ from api.mt5_ingest.models import (
     PublicMt5DisplaySetting,
 )
 from api.services.account_risk_profile import get_account_risk_profile
-from api.services.monthly_equity_performance import completed_month_equity
 
 router = APIRouter(prefix="/admin/master-performance", tags=["Super Admin Master Performance"])
 
@@ -357,15 +356,6 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             lock_completed_months=str(terminal.account_number) != "49617874",
         )
         monthly = return_report["monthly_returns"]
-        equity_months = (completed_month_equity(snapshots, cash_flows, deals,
-                                               monthly_returns=monthly)
-                         if str(terminal.account_number) != "49617874" else [])
-        if equity_months:
-            verified_months = {row["month"] for row in equity_months
-                               if row["status"] == "observed_boundaries"}
-            monthly = [row for row in monthly if row["month"] in verified_months]
-            if not monthly and return_report["status"] == "available":
-                return_report["reason"] = "month_boundary_unverified"
         yearly = _yearly_returns(monthly)
         pnl = lambda d: float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)
         wins = sum(1 for deal in deals if pnl(deal) > 0)
@@ -409,7 +399,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
                 "profit_factor": _round(gross_profit / gross_loss) if gross_loss > 0 else None,
             },
             "monthly_returns": monthly,
-            "monthly_equity_history": equity_months,
+            "monthly_equity_history": [],
             "yearly_returns": yearly,
             "returns_status": return_report["status"],
             "returns_reason": return_report["reason"],
