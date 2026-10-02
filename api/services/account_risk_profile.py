@@ -5,7 +5,8 @@ snapshot. No account number, expected risk label, expected grade, balance, retur
 consistency score, or result is embedded here.
 
 Balance-risk analytics use cash-flow-neutral daily realized returns across the
-full weekday history window, including flat days. Consistency measures how evenly
+full weekday history window, including flat days and actual weekend trading days.
+Consistency measures how evenly
 positive daily returns are distributed rather than inheriting snapshot-frequency
 statistics from another engine.
 """
@@ -146,10 +147,11 @@ def _track_record_stats(daily: list[DailyReturn]) -> dict:
     }
 
 
-def _weekday_range(start_day, end_day):
+def _return_days(start_day, end_day, trade_days):
+    """Keep flat weekdays and every actual trading day, including weekends."""
     day = start_day
     while day <= end_day:
-        if day.weekday() < 5:
+        if day.weekday() < 5 or day in trade_days:
             yield day
         day += timedelta(days=1)
 
@@ -213,9 +215,9 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
             ConnectorCashFlow.account_number == account_number,
             ConnectorCashFlow.occurred_at.isnot(None),
         )
-        if as_of is not None and latest is not None:
-            # Freeze completed months at their last recorded snapshot. A later
-            # broker adjustment must not be carried backward into September.
+        if latest is not None:
+            # Balance and transactions must describe the same instant, including
+            # live profiles where history can arrive before the next snapshot.
             deal_query = deal_query.filter(ConnectorDeal.closed_at <= latest.timestamp)
             flow_query = flow_query.filter(ConnectorCashFlow.occurred_at <= latest.timestamp)
         deals = deal_query.order_by(ConnectorDeal.closed_at.asc(), ConnectorDeal.id.asc()).all()
@@ -235,7 +237,8 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
             total_change += amount
         for deal in deals:
             amount = _deal_net(deal)
-            events.append((deal.closed_at, 1, amount, "deal", int(deal.id or 0)))
+            kind = "cost" if getattr(deal, "deal_type", None) == "COST" else "deal"
+            events.append((deal.closed_at, 1, amount, kind, int(deal.id or 0)))
             total_change += amount
         events.sort(key=lambda row: (row[0], row[1], row[4]))
 
@@ -251,10 +254,28 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
             }
 
         balance = float(opening["opening_balance"])
+        flows_by_id = {int(flow.id or 0): flow for flow in flows}
         daily_factor = defaultdict(lambda: 1.0)
         daily_trade_count = defaultdict(int)
+        performance_start = min(event[0].date() for event in events)
+        awaiting_funding = False
+        restart_count = 0
         for when, _, amount, kind, _id in events:
             if kind == "flow":
+                balance += amount
+                if (awaiting_funding and amount > 0 and balance > 0
+                        and getattr(flows_by_id.get(_id), "event_type", "BALANCE") == "BALANCE"):
+                    # Keep prior completed months, but restart the month containing
+                    # fresh funding. Risk statistics describe the new funded period.
+                    for day in list(daily_factor):
+                        if (day.year, day.month) == (when.year, when.month):
+                            del daily_factor[day]
+                            daily_trade_count.pop(day, None)
+                    performance_start = when.date()
+                    awaiting_funding = False
+                    restart_count += 1
+                continue
+            if awaiting_funding:
                 balance += amount
                 continue
             if balance <= 0:
@@ -264,14 +285,20 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
                     "master_account": account_number,
                 }
             factor = 1.0 + (amount / balance)
-            if not math.isfinite(factor) or factor <= 0:
+            if not math.isfinite(factor):
                 return {
                     "status": "not_available",
                     "reason": "invalid_signed_daily_return",
                     "master_account": account_number,
                 }
+            if factor <= 0:
+                daily_factor[when.date()] = 0.0
+                daily_trade_count[when.date()] += int(kind == "deal")
+                balance += amount
+                awaiting_funding = True
+                continue
             daily_factor[when.date()] *= factor
-            daily_trade_count[when.date()] += 1
+            daily_trade_count[when.date()] += int(kind == "deal")
             balance += amount
 
         reconciliation_gap = current_balance - balance
@@ -290,12 +317,17 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
                 "reconciliation_tolerance": round(tolerance, 6),
             }
 
+        if awaiting_funding:
+            return {"status": "not_available", "reason": "trading_capital_exhausted_awaiting_funding",
+                    "master_account": account_number}
         history_start = min(event[0].date() for event in events)
         history_end = latest.timestamp.date()
         daily = [
             DailyReturn(day=day, value=float(daily_factor[day] - 1.0))
-            for day in _weekday_range(history_start, history_end)
+            for day in _return_days(history_start, history_end, daily_trade_count)
         ]
+        report_daily = daily
+        daily = [row for row in daily if row.day >= performance_start]
         values = np.asarray([row.value for row in daily], dtype=float)
         values = values[np.isfinite(values)]
         if len(values) == 0:
@@ -324,6 +356,12 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
         trade_days = sum(1 for row in daily if daily_trade_count[row.day] > 0)
         consistency_score = _profit_distribution_consistency(values)
         track_record = _track_record_stats(daily)
+        # Earlier months remain visible; a restart month uses only its newest
+        # funded segment. Never compound the previous capital epoch into it.
+        track_record["monthly_returns"] = _labeled_period_returns(
+            report_daily, lambda d: (d.year, d.month),
+            lambda key: f"{key[0]:04d}-{key[1]:02d}",
+        )
 
         tail_5 = abs(float(np.percentile(values, 5))) * 100.0
         raw_pressure = (
@@ -352,10 +390,12 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
             "master_account": account_number,
             "source": "signed_account_cash_flow_neutral_full_weekday_balance_returns",
             "history_start": history_start.isoformat(),
+            "performance_start": performance_start.isoformat(),
+            "funding_restart_count": restart_count,
             "history_end": history_end.isoformat(),
             "history_weekdays": int(len(values)),
             "trading_days": int(trade_days),
-            "closed_deals": int(len(deals)),
+            "closed_deals": sum(getattr(deal, "deal_type", None) != "COST" for deal in deals),
             "cash_flow_events": int(len(flows)),
             "raw_opening_balance": round(float(opening["raw_opening_balance"]), 6),
             "opening_balance": round(float(opening["opening_balance"]), 6),

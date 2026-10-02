@@ -166,6 +166,7 @@ def _profile_return_report(account_number, now=None, lock_completed_months=False
     return {"status": "available",
             "reason": None if finalized else "no_finalized_months",
             "monthly_returns": finalized, "provisional_monthly_returns": provisional,
+            "performance_start": finalized_profile.get("performance_start") if finalized_profile.get("funding_restart_count") else None,
             "provisional_reason": provisional_reason}
 
 
@@ -174,7 +175,10 @@ def _finalized_profile_monthly(account_number):
     return _profile_return_report(account_number)["monthly_returns"]
 
 
-def _yearly_returns(monthly):
+def _yearly_returns(monthly, performance_start=None):
+    restart_month = str(performance_start or "")[:7]
+    if not any(row["month"] >= restart_month for row in monthly):
+        restart_month = ""
     grouped = defaultdict(list)
     for row in monthly:
         grouped[row["month"][:4]].append(row)
@@ -187,7 +191,7 @@ def _yearly_returns(monthly):
             month_number = int(row["month"][5:7])
             value = row["return_percent"]
             months[str(month_number)] = value
-            if value is not None:
+            if value is not None and not (restart_month and year == restart_month[:4] and row["month"] < restart_month):
                 compounded *= 1.0 + (float(value) / 100.0)
                 usable = True
         result.append({
@@ -352,16 +356,17 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
 
         return_report = _profile_return_report(
             terminal.account_number,
-            # Account 01's existing demo/public calculation is deliberately unchanged.
-            lock_completed_months=str(terminal.account_number) != "49617874",
+            # Use the existing public/account-01 policy for every account.
+            lock_completed_months=False,
         )
         monthly = return_report["monthly_returns"]
-        yearly = _yearly_returns(monthly)
+        yearly = _yearly_returns(monthly, return_report.get("performance_start"))
         pnl = lambda d: float(d.profit or 0) + float(d.commission or 0) + float(d.swap or 0) + float(d.fee or 0)
-        wins = sum(1 for deal in deals if pnl(deal) > 0)
-        losses = sum(1 for deal in deals if pnl(deal) < 0)
-        gross_profit = sum(max(0.0, pnl(d)) for d in deals)
-        gross_loss = abs(sum(min(0.0, pnl(d)) for d in deals))
+        trades = [deal for deal in deals if deal.deal_type != "COST"]
+        wins = sum(1 for deal in trades if pnl(deal) > 0)
+        losses = sum(1 for deal in trades if pnl(deal) < 0)
+        gross_profit = sum(max(0.0, pnl(d)) for d in trades)
+        gross_loss = abs(sum(min(0.0, pnl(d)) for d in trades))
         net_closed = sum(pnl(d) for d in deals)
         deposits = sum(float(c.amount or 0) for c in cash_flows if float(c.amount or 0) > 0)
         withdrawals = abs(sum(float(c.amount or 0) for c in cash_flows if float(c.amount or 0) < 0))
@@ -388,7 +393,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             },
             "history": {
                 "snapshot_count": len(snapshots),
-                "closed_deals": len(deals),
+                "closed_deals": len(trades),
                 "cash_flow_events": len(cash_flows),
                 "net_closed_trading_pl": _round(net_closed),
                 "deposits": _round(deposits),
@@ -406,9 +411,7 @@ def master_performance(registry_id: int, _admin=Depends(require_super_admin)):
             "provisional_monthly_returns": return_report["provisional_monthly_returns"],
             "provisional_reason": return_report.get("provisional_reason"),
             "return_method": (
-                "signed account full-history cash-flow-neutral returns; finalized calendar months only; YTD compounds finalized monthly returns"
-                if str(terminal.account_number) == "49617874" else
-                "signed account cash-flow-neutral returns; completed months anchored to the last month-end snapshot; YTD compounds finalized monthly returns"
+                "signed account cash-flow-neutral returns; completed calendar months; total trading loss restarts performance after fresh funding; YTD uses the active funded period"
             ),
         }
     finally:

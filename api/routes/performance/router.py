@@ -74,11 +74,16 @@ def _finalized_monthly_returns(rows) -> list[dict]:
     return finalized
 
 
-def _yearly_returns_from_monthly(monthly: list[dict]) -> list[dict]:
+def _yearly_returns_from_monthly(monthly: list[dict], performance_start=None) -> list[dict]:
     """Compound finalized monthly returns into completed-year/YTD figures."""
     factors: dict[str, float] = {}
+    restart_month = str(performance_start or "")[:7]
+    if not any(str(row["period"]) >= restart_month for row in monthly):
+        restart_month = ""
     for row in monthly:
         year = str(row["period"])[:4]
+        if restart_month and year == restart_month[:4] and str(row["period"]) < restart_month:
+            continue
         factors[year] = factors.get(year, 1.0) * (1.0 + float(row["return_percent"]) / 100.0)
     return [
         {"period": year, "return_percent": round((factor - 1.0) * 100.0, 2)}
@@ -246,7 +251,7 @@ def public_performance_summary():
         return {"available": False, "read_only": True, "monthly_returns": [], "yearly_returns": []}
 
     monthly = _finalized_monthly_returns(profile.get("monthly_returns", []))
-    yearly = _yearly_returns_from_monthly(monthly)
+    yearly = _yearly_returns_from_monthly(monthly, profile.get("performance_start") if profile.get("funding_restart_count") else None)
     return {
         "available": True,
         "read_only": True,
