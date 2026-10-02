@@ -8,12 +8,13 @@ from types import SimpleNamespace
 def connector_functions():
     tree = ast.parse(Path("connector/mt5_readonly_connector.py").read_text())
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                 and node.name in {"_history_rows", "sync_all_history", "snapshot_with_history"}]
+                 and node.name in {"_history_rows", "sync_all_history", "snapshot_with_history", "_history_window", "_deal_utc"}]
     namespace = {"datetime": datetime, "timedelta": timedelta, "timezone": timezone,
                  "HISTORY_DAYS": 3650, "HISTORY_BATCH_SIZE": 500,
                  "last_history_sync": 0.0, "history_backfilled_for": None,
                  "time": SimpleNamespace(time=lambda: 123.0),
-                 "logger": SimpleNamespace(info=lambda *args: None)}
+                 "logger": SimpleNamespace(info=lambda *args: None),
+                 "_broker_offset": lambda raw: 0}
     exec(compile(ast.Module(body=functions, type_ignores=[]), "<connector>", "exec"), namespace)
     return namespace
 
@@ -22,7 +23,7 @@ def test_first_sync_imports_all_deals_in_bounded_batches_then_uses_recent_window
     ns = connector_functions()
     deal = SimpleNamespace(entry=1, type=0, symbol="EURUSD", volume=0.1,
                            ticket=1, position_id=1, order=1, price=1.2,
-                           profit=1, commission=0, swap=0, fee=0, time=1760000000)
+                           profit=1, commission=0, swap=0, fee=0, time=int(datetime.now(timezone.utc).timestamp())-60)
     history = [SimpleNamespace(**{**vars(deal), "ticket": i}) for i in range(1, 5202)]
     windows, batches = [], []
     def fetch(start, end):
@@ -40,7 +41,7 @@ def test_first_sync_imports_all_deals_in_bounded_batches_then_uses_recent_window
     assert all(len(batch["closed_deals"]) <= 500 and batch["account_number"] == "12345" for batch, _ in batches)
     windows.clear()
     ns["sync_all_history"]("12345")
-    assert datetime.now(timezone.utc) - windows[0][0] < timedelta(days=8)
+    assert datetime.now(timezone.utc) - windows[0][0] < timedelta(days=9)
 
 
 def test_failed_batch_retries_full_history_instead_of_marking_it_complete():
@@ -111,7 +112,7 @@ def test_snapshot_includes_recent_history_and_retries_a_changing_balance():
     assert len(captures) == 2
     assert payload["closed_deals"] == [{"deal_ticket": "42"}]
     assert payload["cash_flows"] == [{"deal_ticket": "43"}]
-    assert windows[-1][1] == datetime(2026, 10, 2, 12, tzinfo=timezone.utc)
+    assert windows[-1][1] == datetime(2026, 10, 3, 12, tzinfo=timezone.utc)
 
 
 def test_missing_recent_history_prevents_publishing_an_unexplained_balance():
@@ -122,3 +123,28 @@ def test_missing_recent_history_prevents_publishing_an_unexplained_balance():
     import pytest
     with pytest.raises(RuntimeError, match="history unavailable"):
         ns["snapshot_with_history"]()
+
+
+def test_broker_future_wall_time_is_imported_at_actual_utc_and_month_boundary():
+    ns = connector_functions()
+    ns["_broker_offset"] = lambda raw: 10800
+    utc = datetime(2026, 9, 30, 23, 30, tzinfo=timezone.utc)
+    deal = SimpleNamespace(time=int(utc.timestamp())+10800,
+                           time_msc=int(utc.timestamp()*1000)+10800000+750)
+    ns["mt5"] = SimpleNamespace(history_deals_get=lambda start, end: [deal])
+    rows = ns["_history_window"](utc-timedelta(minutes=1), utc+timedelta(minutes=1))
+    assert rows == [deal]
+    assert ns["_deal_utc"](deal) == "2026-09-30T23:30:00.750000+00:00"
+    assert ns["_history_window"](utc+timedelta(minutes=1), utc+timedelta(minutes=2)) == []
+
+
+def test_roboforex_historical_offset_changes_with_european_dst_without_account_ids():
+    import os
+    tree = ast.parse(Path("connector/mt5_readonly_connector.py").read_text())
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_broker_offset")
+    ns = dict(datetime=datetime, timedelta=timedelta, timezone=timezone,
+              os=SimpleNamespace(getenv=lambda *args: ""),
+              mt5=SimpleNamespace(account_info=lambda: SimpleNamespace(server="RoboForex-Pro")))
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "<clock>", "exec"), ns)
+    for month, offset in [(1,7200),(9,10800),(11,7200)]:
+        assert ns["_broker_offset"](datetime(2026,month,15,tzinfo=timezone.utc).timestamp()) == offset
