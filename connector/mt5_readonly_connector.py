@@ -155,6 +155,30 @@ def sync_all_history(account_number):
     logger.info("history synced account=%s deals=%s cash_flows=%s", account_number, total_deals, total_flows)
 
 
+def snapshot_with_history():
+    """Send recent transactions with the balance they explain, every cycle."""
+    for _ in range(3):
+        payload = snapshot()
+        end = datetime.fromisoformat(payload["observed_at"])
+        history = mt5.history_deals_get(end - timedelta(days=7), end)
+        if history is None:
+            raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
+        payload["closed_deals"], payload["cash_flows"] = _history_rows(history)
+        if len(payload["closed_deals"]) > 5000 or len(payload["cash_flows"]) > 5000:
+            # High-volume accounts use the existing bounded history endpoint.
+            # Finish all batches before publishing the corresponding balance.
+            for offset in range(0, max(len(payload["closed_deals"]), len(payload["cash_flows"])), HISTORY_BATCH_SIZE):
+                send({"account_number": payload["account_number"],
+                      "closed_deals": payload["closed_deals"][offset:offset + HISTORY_BATCH_SIZE],
+                      "cash_flows": payload["cash_flows"][offset:offset + HISTORY_BATCH_SIZE]}, route="history")
+            payload["closed_deals"], payload["cash_flows"] = [], []
+        account = mt5.account_info()
+        if (account is not None and str(account.login) == payload["account_number"]
+                and float(account.balance) == float(payload["balance"])):
+            return payload
+    raise RuntimeError("MT5 balance changed during history capture; retrying next cycle")
+
+
 def send(payload, route="snapshot"):
     body = json.dumps(payload, separators=(",", ":")).encode()
     timestamp, nonce = str(int(time.time())), secrets.token_urlsafe(24)
@@ -173,9 +197,10 @@ if __name__ == "__main__":
     while True:
         try:
             payload = snapshot()
-            send(payload)
             if time.time() - last_history_sync >= HISTORY_INTERVAL:
                 sync_all_history(payload["account_number"])
+            payload = snapshot_with_history()
+            send(payload)
             failures = 0
             details = []
             if payload["closed_deals"]:

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 def connector_functions():
     tree = ast.parse(Path("connector/mt5_readonly_connector.py").read_text())
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                 and node.name in {"_history_rows", "sync_all_history"}]
+                 and node.name in {"_history_rows", "sync_all_history", "snapshot_with_history"}]
     namespace = {"datetime": datetime, "timedelta": timedelta, "timezone": timezone,
                  "HISTORY_DAYS": 3650, "HISTORY_BATCH_SIZE": 500,
                  "last_history_sync": 0.0, "history_backfilled_for": None,
@@ -91,3 +91,34 @@ def test_entry_commission_and_standalone_charge_are_not_funding_or_duplicate_exi
     assert len({row["deal_ticket"] for row in rows}) == 3
     assert sum(row["profit"] + row["commission"] + row["swap"] + row["fee"] for row in rows) == 4
     assert sum(row["deal_type"] != "COST" for row in rows) == 1
+
+
+def test_snapshot_includes_recent_history_and_retries_a_changing_balance():
+    ns = connector_functions()
+    captures = []
+    def capture():
+        captures.append(True)
+        return {"account_number": "12345", "balance": 100,
+                "observed_at": "2026-10-02T12:00:00+00:00"}
+    accounts = iter([SimpleNamespace(login=12345, balance=101),
+                     SimpleNamespace(login=12345, balance=100)])
+    windows = []
+    ns["snapshot"] = capture
+    ns["_history_rows"] = lambda history: ([{"deal_ticket": "42"}], [{"deal_ticket": "43"}])
+    ns["mt5"] = SimpleNamespace(history_deals_get=lambda start, end: windows.append((start, end)) or [],
+                                 account_info=lambda: next(accounts))
+    payload = ns["snapshot_with_history"]()
+    assert len(captures) == 2
+    assert payload["closed_deals"] == [{"deal_ticket": "42"}]
+    assert payload["cash_flows"] == [{"deal_ticket": "43"}]
+    assert windows[-1][1] == datetime(2026, 10, 2, 12, tzinfo=timezone.utc)
+
+
+def test_missing_recent_history_prevents_publishing_an_unexplained_balance():
+    ns = connector_functions()
+    ns["snapshot"] = lambda: {"account_number": "12345", "balance": 100,
+                               "observed_at": "2026-10-02T12:00:00+00:00"}
+    ns["mt5"] = SimpleNamespace(history_deals_get=lambda *args: None, last_error=lambda: "offline")
+    import pytest
+    with pytest.raises(RuntimeError, match="history unavailable"):
+        ns["snapshot_with_history"]()

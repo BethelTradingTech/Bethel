@@ -16,7 +16,8 @@ def report(profile=None, error=False, finalized_profile=None):
             return finalized_profile
         return profile
     namespace = {"datetime": datetime, "timezone": timezone,
-                 "get_account_risk_profile": get_profile}
+                 "get_account_risk_profile": get_profile,
+                 "get_finalized_account_profile": lambda account, now=None: get_profile(account, as_of=datetime(2026, 10, 1))}
     exec(compile(ast.Module(body=[function], type_ignores=[]), "<returns>", "exec"), namespace)
     return namespace["_profile_return_report"]
 

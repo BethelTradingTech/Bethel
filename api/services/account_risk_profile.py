@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 from typing import Iterable
 
@@ -207,6 +207,18 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
         latest = snapshot_query.order_by(
             EquitySnapshot.timestamp.desc(), EquitySnapshot.id.desc()
         ).first()
+        historical_anchor = None
+        if as_of is not None and (latest is None or latest.timestamp.date() !=
+                                  (as_of - timedelta(microseconds=1)).date()):
+            # Accounts connected later still have broker history for earlier
+            # months. Derive those closing balances from the earliest subsequent
+            # snapshot and the intervening ledger, rather than dropping history.
+            historical_anchor = db.query(EquitySnapshot).filter(
+                EquitySnapshot.account_number == account_number,
+                EquitySnapshot.timestamp >= as_of,
+            ).order_by(EquitySnapshot.timestamp.asc(), EquitySnapshot.id.asc()).first()
+            if historical_anchor is not None:
+                latest = historical_anchor
         deal_query = db.query(ConnectorDeal).filter(
             ConnectorDeal.account_number == account_number,
             ConnectorDeal.closed_at.isnot(None),
@@ -218,8 +230,10 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
         if latest is not None:
             # Balance and transactions must describe the same instant, including
             # live profiles where history can arrive before the next snapshot.
-            deal_query = deal_query.filter(ConnectorDeal.closed_at <= latest.timestamp)
-            flow_query = flow_query.filter(ConnectorCashFlow.occurred_at <= latest.timestamp)
+            event_cutoff = (as_of - timedelta(microseconds=1)
+                            if as_of is not None and historical_anchor is None else latest.timestamp)
+            deal_query = deal_query.filter(ConnectorDeal.closed_at <= event_cutoff)
+            flow_query = flow_query.filter(ConnectorCashFlow.occurred_at <= event_cutoff)
         deals = deal_query.order_by(ConnectorDeal.closed_at.asc(), ConnectorDeal.id.asc()).all()
         flows = flow_query.order_by(ConnectorCashFlow.occurred_at.asc(), ConnectorCashFlow.id.asc()).all()
         if latest is None or not deals:
@@ -228,6 +242,24 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
                 "reason": "signed_master_history_not_available",
                 "master_account": account_number,
             }
+
+        effective_timestamp = latest.timestamp
+        current_balance = float(latest.balance or 0.0)
+        if historical_anchor is not None:
+            current_balance -= sum(_deal_net(deal) for deal in deals if deal.closed_at >= as_of)
+            current_balance -= sum(float(flow.amount or 0) for flow in flows if flow.occurred_at >= as_of)
+            deals = [deal for deal in deals if deal.closed_at < as_of]
+            flows = [flow for flow in flows if flow.occurred_at < as_of]
+            effective_timestamp = as_of - timedelta(microseconds=1)
+            if not deals:
+                return {"status": "not_available", "reason": "signed_master_history_not_available",
+                        "master_account": account_number}
+        elif as_of is not None and latest.timestamp.date() == (as_of - timedelta(microseconds=1)).date():
+            # Include signed closing activity after the last telemetry tick on
+            # the final day. October events remain excluded by the cutoff.
+            current_balance += sum(_deal_net(deal) for deal in deals if deal.closed_at > latest.timestamp)
+            current_balance += sum(float(flow.amount or 0) for flow in flows if flow.occurred_at > latest.timestamp)
+            effective_timestamp = as_of - timedelta(microseconds=1)
 
         events = []
         total_change = 0.0
@@ -242,8 +274,19 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
             total_change += amount
         events.sort(key=lambda row: (row[0], row[1], row[4]))
 
-        current_balance = float(latest.balance or 0.0)
-        opening = resolve_opening_balance(current_balance, total_change)
+        # An unsynced current trade must never be invented as opening capital.
+        # Anchor live reconstruction to the previous month, when available.
+        anchor = None
+        if as_of is None:
+            month_start = latest.timestamp.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            anchor = snapshot_query.filter(EquitySnapshot.timestamp < month_start).order_by(
+                EquitySnapshot.timestamp.desc(), EquitySnapshot.id.desc()
+            ).first()
+        anchor_change = sum(event[2] for event in events if anchor is not None and event[0] <= anchor.timestamp)
+        opening = resolve_opening_balance(
+            float(anchor.balance) if anchor is not None else current_balance,
+            anchor_change if anchor is not None else total_change,
+        )
         if opening["status"] != "available":
             return {
                 "status": "not_available",
@@ -252,6 +295,17 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
                 "raw_opening_balance": opening.get("raw_opening_balance"),
                 "reconciliation_tolerance": round(float(opening["tolerance"]), 6),
             }
+
+        if anchor is not None:
+            expected_balance = float(opening["opening_balance"]) + total_change
+            reconciled, tolerance = reconciliation_is_acceptable(
+                current_balance - expected_balance, current_balance, total_change, expected_balance,
+            )
+            if not reconciled:
+                return {"status": "not_available", "reason": "current_month_ledger_unreconciled",
+                        "master_account": account_number,
+                        "reconciliation_gap": round(current_balance - expected_balance, 6),
+                        "reconciliation_tolerance": round(tolerance, 6)}
 
         balance = float(opening["opening_balance"])
         flows_by_id = {int(flow.id or 0): flow for flow in flows}
@@ -317,11 +371,11 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
                 "reconciliation_tolerance": round(tolerance, 6),
             }
 
-        if awaiting_funding:
+        if awaiting_funding and as_of is None:
             return {"status": "not_available", "reason": "trading_capital_exhausted_awaiting_funding",
                     "master_account": account_number}
         history_start = min(event[0].date() for event in events)
-        history_end = latest.timestamp.date()
+        history_end = effective_timestamp.date()
         daily = [
             DailyReturn(day=day, value=float(daily_factor[day] - 1.0))
             for day in _return_days(history_start, history_end, daily_trade_count)
@@ -425,3 +479,32 @@ def get_account_risk_profile(account_number: str, as_of: datetime | None = None)
         }
     finally:
         db.close()
+
+
+def get_finalized_account_profile(account_number: str, now: datetime | None = None) -> dict:
+    """Use each completed month's own cutoff, never a later live balance."""
+    instant = now or datetime.now(timezone.utc)
+    if instant.tzinfo is not None:
+        instant = instant.astimezone(timezone.utc)
+    boundary = datetime(instant.year, instant.month, 1)
+    profile = get_account_risk_profile(account_number, as_of=boundary)
+    if profile.get("status") != "available":
+        return profile
+    monthly = []
+    for row in profile.get("monthly_returns", []):
+        period = row["period"]
+        start = datetime.strptime(period, "%Y-%m")
+        cutoff = datetime(start.year + (start.month == 12), start.month % 12 + 1, 1)
+        if cutoff > boundary:
+            continue
+        historical = profile if cutoff == boundary else get_account_risk_profile(account_number, as_of=cutoff)
+        if historical.get("status") != "available":
+            return historical
+        if historical.get("history_end") != (cutoff - timedelta(days=1)).date().isoformat():
+            return {"status": "not_available", "reason": "month_end_snapshot_missing",
+                    "master_account": account_number, "period": period}
+        matching = next((item for item in historical.get("monthly_returns", [])
+                         if item["period"] == period), None)
+        if matching is not None:
+            monthly.append(matching)
+    return {**profile, "monthly_returns": monthly}
