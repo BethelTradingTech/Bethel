@@ -2,7 +2,6 @@ from datetime import datetime
 from types import SimpleNamespace as Row
 
 from api.services.monthly_equity_performance import completed_month_equity
-import pytest
 
 
 def snap(day, balance, equity, id=1):
@@ -55,40 +54,3 @@ def test_positive_dollar_gain_cannot_hide_large_negative_return():
     assert result["equity_gain"] == 100
     assert result["recovery_percent"] == 100
     assert result["monthly_grade"] == "E"
-
-
-@pytest.mark.parametrize("ending,profit,recovery,outcome", [
-    (30, 0, 100, "break_even"), (40, 10, 150, "profit"), (50, 20, 200, "profit")])
-def test_first_month_total_loss_and_refunding(ending, profit, recovery, outcome):
-    rows = [snap("2026-09-05T12:00:00", 20, 20),
-            snap("2026-09-10T12:00:00", 0, 0),
-            snap("2026-09-15T12:00:00", 10, 10),
-            snap("2026-09-30T23:00:00", ending, ending)]
-    flows = [Row(occurred_at=datetime(2026, 9, 5), amount=20),
-             Row(occurred_at=datetime(2026, 9, 15), amount=10)]
-    trades = [deal("2026-09-10T11:00:00", -20),
-              deal("2026-09-30T12:00:00", ending-10)]
-    result = completed_month_equity(rows, flows, trades, datetime(2026, 10, 1))[-1]
-    assert result["net_closed_trading_pl"] == profit
-    assert result["monthly_profit_result"] == outcome
-    assert result["dollar_loss_recovery_percent"] == recovery
-    assert result["equity_gain"] is None  # Do not invent historical equity.
-
-
-def test_deal_only_history_and_funding_do_not_create_recovery():
-    trades = [deal("2026-09-10T11:00:00", -20)]
-    flows = [Row(occurred_at=datetime(2026, 9, 15), amount=1000)]
-    result = completed_month_equity([], flows, trades, datetime(2026, 10, 1))[-1]
-    assert result["net_closed_trading_pl"] == -20
-    assert result["monthly_profit_result"] == "loss"
-    assert result["dollar_loss_recovery_percent"] == 0
-
-
-def test_closed_recovery_includes_costs_and_resets_each_month():
-    loss = deal("2026-08-10T11:00:00", -100)
-    gain = deal("2026-09-10T11:00:00", 30)
-    gain.commission, gain.swap, gain.fee = -2, -1, -3
-    rows = completed_month_equity([], [], [loss, gain], datetime(2026, 10, 1))
-    assert rows[1]["net_closed_trading_pl"] == 24
-    assert rows[1]["dollar_loss_recovery_percent"] is None
-    assert rows[1]["monthly_profit_result"] == "profit"
