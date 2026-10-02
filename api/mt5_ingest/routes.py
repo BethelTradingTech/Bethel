@@ -8,7 +8,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.exc import IntegrityError
 
 from api.database import SessionLocal
@@ -61,14 +61,23 @@ class ClosedDeal(BaseModel):
     position_id: str = Field(min_length=1, max_length=40)
     order_id: str = Field(min_length=1, max_length=40)
     symbol: str = Field(min_length=1, max_length=32)
-    deal_type: str = Field(pattern="^(BUY|SELL)$")
-    volume: float = Field(gt=0, allow_inf_nan=False)
-    price: float = Field(gt=0, allow_inf_nan=False)
+    deal_type: str = Field(pattern="^(BUY|SELL|COST)$")
+    volume: float = Field(ge=0, allow_inf_nan=False)
+    price: float = Field(ge=0, allow_inf_nan=False)
     profit: float = Field(allow_inf_nan=False, default=0)
     commission: float = Field(allow_inf_nan=False, default=0)
     swap: float = Field(allow_inf_nan=False, default=0)
     fee: float = Field(allow_inf_nan=False, default=0)
     closed_at: datetime
+
+    @model_validator(mode="after")
+    def validate_trade_or_cost(self):
+        if self.deal_type == "COST":
+            if self.volume != 0 or self.price != 0:
+                raise ValueError("Cost records cannot contain trade volume or price")
+        elif self.volume <= 0 or self.price <= 0:
+            raise ValueError("Trades require positive volume and price")
+        return self
 
 
 class CashFlow(BaseModel):

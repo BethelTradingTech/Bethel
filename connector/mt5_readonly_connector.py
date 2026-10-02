@@ -60,7 +60,8 @@ def snapshot():
 
 def _history_rows(history):
     exit_entries = {mt5.DEAL_ENTRY_OUT, mt5.DEAL_ENTRY_OUT_BY, mt5.DEAL_ENTRY_INOUT}
-    eligible = [deal for deal in history if deal.entry in exit_entries and deal.symbol and deal.volume > 0]
+    eligible = [deal for deal in history if deal.entry in exit_entries and deal.symbol and deal.volume > 0
+                and deal.type in {mt5.DEAL_TYPE_BUY, getattr(mt5, "DEAL_TYPE_SELL", 1)}]
     closed_deals = [{
             "deal_ticket": str(deal.ticket),
             "position_id": str(deal.position_id),
@@ -73,8 +74,42 @@ def _history_rows(history):
             "commission": deal.commission,
             "swap": deal.swap,
             "fee": getattr(deal, "fee", 0.0),
-            "closed_at": datetime.fromtimestamp(deal.time, timezone.utc).isoformat(),
+            "closed_at": datetime.fromtimestamp(
+                (getattr(deal, "time_msc", 0) or deal.time * 1000) / 1000,
+                timezone.utc,
+            ).isoformat(),
     } for deal in eligible]
+
+    # Keep separate charges under their original MT5 tickets. They affect
+    # performance, not funding, and are never counted as completed trades.
+    cost_types = {getattr(mt5, name) for name in (
+        "DEAL_TYPE_CHARGE", "DEAL_TYPE_COMMISSION", "DEAL_TYPE_COMMISSION_DAILY",
+        "DEAL_TYPE_COMMISSION_MONTHLY", "DEAL_TYPE_COMMISSION_AGENT_DAILY",
+        "DEAL_TYPE_COMMISSION_AGENT_MONTHLY", "DEAL_TYPE_INTEREST",
+        "DEAL_DIVIDEND", "DEAL_DIVIDEND_FRANKED", "DEAL_TAX",
+    ) if hasattr(mt5, name)}
+    exit_tickets = {deal.ticket for deal in eligible}
+    for deal in history:
+        entry_cost = (deal.type in {mt5.DEAL_TYPE_BUY, getattr(mt5, "DEAL_TYPE_SELL", 1)}
+                      and deal.ticket not in exit_tickets)
+        if not entry_cost and deal.type not in cost_types:
+            continue
+        profit = float(deal.profit) if not entry_cost else 0.0
+        commission = float(deal.commission)
+        swap = float(deal.swap)
+        fee = float(getattr(deal, "fee", 0.0))
+        if profit + commission + swap + fee == 0:
+            continue
+        closed_deals.append({
+            "deal_ticket": str(deal.ticket), "position_id": str(deal.position_id),
+            "order_id": str(deal.order), "symbol": deal.symbol or "LEDGER",
+            "deal_type": "COST", "volume": 0.0, "price": 0.0,
+            "profit": profit, "commission": commission, "swap": swap, "fee": fee,
+            "closed_at": datetime.fromtimestamp(
+                (getattr(deal, "time_msc", 0) or deal.time * 1000) / 1000,
+                timezone.utc,
+            ).isoformat(),
+        })
 
     cash_type_names = {
             mt5.DEAL_TYPE_BALANCE: "BALANCE",
@@ -86,7 +121,10 @@ def _history_rows(history):
             "deal_ticket": str(deal.ticket),
             "event_type": cash_type_names[deal.type],
             "amount": float(deal.profit),
-            "occurred_at": datetime.fromtimestamp(deal.time, timezone.utc).isoformat(),
+            "occurred_at": datetime.fromtimestamp(
+                (getattr(deal, "time_msc", 0) or deal.time * 1000) / 1000,
+                timezone.utc,
+            ).isoformat(),
     } for deal in history if deal.type in cash_type_names]
     return closed_deals, cash_flows
 

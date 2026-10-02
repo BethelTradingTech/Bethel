@@ -165,8 +165,12 @@ class TradePerformanceEngine:
             .all()
         )
         grouped: Dict[str, Dict] = defaultdict(lambda: {"profit": 0.0, "closed_at": None})
+        closed_positions = {str(deal.position_id or deal.deal_ticket) for deal in deals
+                            if deal.deal_type != "COST"}
         for deal in deals:
             key = str(deal.position_id or deal.deal_ticket)
+            if key not in closed_positions:
+                continue
             grouped[key]["profit"] += self._deal_net(deal)
             if grouped[key]["closed_at"] is None or deal.closed_at > grouped[key]["closed_at"]:
                 grouped[key]["closed_at"] = deal.closed_at

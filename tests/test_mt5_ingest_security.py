@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from api.database import Base
 from api.models import EquitySnapshot
-from api.mt5_ingest.models import ConnectorDeal, ConnectorNonce, ConnectorPosition, ConnectorStatus
+from api.mt5_ingest.models import ConnectorCashFlow, ConnectorDeal, ConnectorNonce, ConnectorPosition, ConnectorStatus, MasterTerminalRegistry
 from api.mt5_ingest import routes
 
 
@@ -30,7 +30,7 @@ def setup_module():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__, ConnectorStatus.__table__, ConnectorPosition.__table__, ConnectorDeal.__table__])
+    Base.metadata.create_all(engine, tables=[EquitySnapshot.__table__, ConnectorNonce.__table__, ConnectorStatus.__table__, ConnectorPosition.__table__, ConnectorDeal.__table__, ConnectorCashFlow.__table__, MasterTerminalRegistry.__table__])
     routes.SessionLocal = sessionmaker(bind=engine)
 
 
@@ -40,7 +40,7 @@ app.dependency_overrides[routes.require_admin] = lambda: {"role": "super_admin"}
 client = TestClient(app)
 
 
-def signed_request(monkeypatch, payload=None, nonce="abcdefghijklmnopqrstuvwxyz123456"):
+def signed_request(monkeypatch, payload=None, nonce="abcdefghijklmnopqrstuvwxyz123456", connector_id="owner-laptop-1"):
     monkeypatch.setenv("MT5_CONNECTOR_SECRET", SECRET)
     monkeypatch.setenv("MASTER_MT5_ACCOUNTS", ACCOUNT)
     monkeypatch.setenv("MASTER_ACCOUNT_MODE", "DEMO")
@@ -73,7 +73,7 @@ def signed_request(monkeypatch, payload=None, nonce="abcdefghijklmnopqrstuvwxyz1
     ).hexdigest()
     return client.post("/connector/v1/snapshot", content=body, headers={
         "Content-Type": "application/json",
-        "X-Bethel-Connector-Id": "owner-laptop-1",
+        "X-Bethel-Connector-Id": connector_id,
         "X-Bethel-Timestamp": timestamp,
         "X-Bethel-Nonce": nonce,
         "X-Bethel-Signature": signature,
@@ -110,10 +110,25 @@ def test_wrong_account_and_mode_are_rejected(monkeypatch):
         "balance": 100, "equity": 100, "floating_profit": 0,
         "observed_at": datetime.now(timezone.utc).isoformat(), "mode": "DEMO",
     }
-    assert signed_request(monkeypatch, bad_account, "wrong-account-nonce-abcdefghij").status_code == 403
+    assert signed_request(monkeypatch, bad_account, "wrong-account-nonce-abcdefghij").status_code == 409
     bad_account["account_number"] = ACCOUNT
     bad_account["mode"] = "LIVE"
-    assert signed_request(monkeypatch, bad_account, "wrong-mode-nonce-abcdefghijkl").status_code == 403
+    assert signed_request(monkeypatch, bad_account, "wrong-mode-nonce-abcdefghijkl", connector_id="unregistered-owner").status_code == 403
+
+
+def test_cost_ticket_is_idempotent_and_invalid_trade_dimensions_are_rejected(monkeypatch):
+    payload = dict(account_number=ACCOUNT, server="TestBroker-Demo", currency="USD",
+                   balance=100, equity=100, floating_profit=0,
+                   observed_at=datetime.now(timezone.utc).isoformat(), mode="DEMO",
+                   closed_deals=[dict(deal_ticket="cost-ticket", position_id="0", order_id="0",
+                                     symbol="LEDGER", deal_type="COST", volume=0, price=0,
+                                     profit=-2, closed_at=datetime.now(timezone.utc).isoformat())])
+    assert signed_request(monkeypatch, payload, "cost-import-first-abcdefghijklmnop").status_code == 202
+    assert signed_request(monkeypatch, payload, "cost-import-second-abcdefghijklmnop").status_code == 202
+    with routes.SessionLocal() as db:
+        assert db.query(ConnectorDeal).filter(ConnectorDeal.deal_ticket == "cost-ticket").count() == 1
+    payload["closed_deals"][0]["deal_type"] = "BUY"
+    assert signed_request(monkeypatch, payload, "invalid-zero-trade-abcdefghijklmnop").status_code == 422
 
 
 def test_unsigned_request_is_rejected(monkeypatch):
