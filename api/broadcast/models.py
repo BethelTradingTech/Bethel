@@ -15,6 +15,7 @@ class BroadcastControl(Base):
     youtube_enabled = Column(Boolean, nullable=False, default=False)
     facebook_enabled = Column(Boolean, nullable=False, default=False)
     instagram_enabled = Column(Boolean, nullable=False, default=False)
+    x_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     tiktok_enabled = Column(Boolean, nullable=False, default=False)
     worker_state = Column(String(32), nullable=False, default="OFF")
     worker_message = Column(String(255), nullable=True)
