@@ -11,6 +11,7 @@ ROOT=Path("/tmp/bethel-broadcast"); ROOT.mkdir(parents=True,exist_ok=True)
 MEDIA_ROOT=Path(os.getenv("MEDIA_ROOT","/var/data/bethel-media")); MEDIA_ROOT.mkdir(parents=True,exist_ok=True)
 MEDIA_SHARE_TTL_SECONDS=max(3600,min(30*24*3600,int(os.getenv("MEDIA_SHARE_TTL_HOURS","168"))*3600))
 SOCIAL_URLS={
+ "x":os.getenv("X_RTMPS_URL","").strip(),
  "youtube":os.getenv("YOUTUBE_RTMPS_URL","").strip(),
  "facebook":os.getenv("FACEBOOK_RTMPS_URL","").strip(),
  "instagram":os.getenv("INSTAGRAM_RTMPS_URL","").strip(),
@@ -96,7 +97,7 @@ def frame(data,size):
 class Encoder:
  def __init__(self,n,w,h):self.n=n;self.w=w;self.h=h;self.p=None;self.o=ROOT/n;self.sig=()
  def wanted(self,cfg):
-  names=("youtube","facebook") if self.n=="landscape" else ("instagram","tiktok")
+  names=("youtube","facebook","x") if self.n=="landscape" else ("instagram","tiktok")
   return tuple((n,SOCIAL_URLS.get(n,"")) for n in names if cfg.get("destinations",{}).get(n) and SOCIAL_URLS.get(n))
 
  def start(self,cfg):
@@ -138,6 +139,11 @@ def loop():
   except Exception as e:beat("ERROR",str(e)[:240]);time.sleep(5)
 @app.on_event("startup")
 def start():threading.Thread(target=loop,daemon=True).start()
+@app.get('/destinations/status')
+def destination_status(x_bethel_broadcast_secret:str=Header(default="")):
+ media_auth(x_bethel_broadcast_secret)
+ return {"destinations":{name:{"configured":bool(url),"layout":"landscape" if name in {"youtube","facebook","x"} else "vertical","environment_variable":name.upper()+"_RTMPS_URL"} for name,url in SOCIAL_URLS.items()},"notice":"Configured credentials do not confirm platform eligibility or successful delivery."}
+
 @app.get('/health')
 def health():return {"status":"healthy",**runtime}
 @app.get('/live/{layout}/live.m3u8')
