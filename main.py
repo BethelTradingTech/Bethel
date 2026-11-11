@@ -425,6 +425,10 @@ try:
     from api.production_security import ProductionSecurityMiddleware
     app.add_middleware(ProductionSecurityMiddleware)
 
+    from api.integrations.trust_remit import models as trust_remit_models
+    from api.integrations.trust_remit.routes import router as trust_remit_router
+    app.include_router(trust_remit_router)
+
     ApiBase.metadata.create_all(bind=api_engine)
     ensure_multiplatform_columns(api_engine)
 
