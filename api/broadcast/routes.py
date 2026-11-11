@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from api.auth.dependency import require_super_admin
 from api.database import SessionLocal
 from api.broadcast.models import BroadcastControl
+from api.broadcast.migrations import ensure_x_column
 from api.mt5_ingest.models import ConnectorDeal, ConnectorPosition, ConnectorStatus, MasterTerminalRegistry
 
 router=APIRouter(prefix="/broadcast/v1",tags=["Read-only broadcast engine"])
@@ -24,6 +25,7 @@ def worker_media_request(method,path,payload=None):
 def now(): return datetime.now(timezone.utc).replace(tzinfo=None)
 def ctl(db):
     BroadcastControl.__table__.create(bind=db.get_bind(),checkfirst=True)
+    ensure_x_column(db.get_bind())
     x=db.query(BroadcastControl).filter(BroadcastControl.id==1).first()
     if x is None:
         x=BroadcastControl(id=1,enabled=False); db.add(x); db.commit(); db.refresh(x)
@@ -42,6 +44,7 @@ class BroadcastUpdate(BaseModel):
     youtube_enabled: bool=False
     facebook_enabled: bool=False
     instagram_enabled: bool=False
+    x_enabled: bool=False
     tiktok_enabled: bool=False
     confirm_start: bool=False
 class MediaGenerate(BaseModel):
@@ -51,7 +54,7 @@ class Heartbeat(BaseModel):
     state:str=Field(min_length=2,max_length=32)
     message:str|None=Field(default=None,max_length=255)
 def dump(x):
-    return {"enabled":bool(x.enabled),"terminal_registry_id":x.terminal_registry_id,"landscape_enabled":bool(x.landscape_enabled),"vertical_enabled":bool(x.vertical_enabled),"website_enabled":bool(x.website_enabled),"destinations":{"youtube":bool(x.youtube_enabled),"facebook":bool(x.facebook_enabled),"instagram":bool(x.instagram_enabled),"tiktok":bool(x.tiktok_enabled)},"worker_state":x.worker_state,"worker_message":x.worker_message,"worker_last_seen":x.worker_last_seen.isoformat()+"Z" if x.worker_last_seen else None,"read_only":True,"execution_owner":"METATRADER_EA"}
+    return {"enabled":bool(x.enabled),"terminal_registry_id":x.terminal_registry_id,"landscape_enabled":bool(x.landscape_enabled),"vertical_enabled":bool(x.vertical_enabled),"website_enabled":bool(x.website_enabled),"destinations":{"youtube":bool(x.youtube_enabled),"facebook":bool(x.facebook_enabled),"instagram":bool(x.instagram_enabled),"tiktok":bool(x.tiktok_enabled),"x":bool(x.x_enabled)},"worker_state":x.worker_state,"worker_message":x.worker_message,"worker_last_seen":x.worker_last_seen.isoformat()+"Z" if x.worker_last_seen else None,"read_only":True,"execution_owner":"METATRADER_EA"}
 @router.get('/admin/control')
 def get_control(_=Depends(require_super_admin)):
     db=SessionLocal()
@@ -74,9 +77,14 @@ def set_control(data:BroadcastUpdate,_=Depends(require_super_admin)):
         x.facebook_enabled=data.facebook_enabled
         x.instagram_enabled=data.instagram_enabled
         x.tiktok_enabled=data.tiktok_enabled
+        x.x_enabled=data.x_enabled
         if not data.enabled: x.worker_state='STOPPING'; x.worker_message='Broadcast disabled by Super Admin'
         db.commit(); db.refresh(x); return dump(x)
     finally:db.close()
+@router.get('/admin/destinations')
+def destination_readiness(_=Depends(require_super_admin)):
+    return worker_media_request("GET","/destinations/status")
+
 @router.get('/admin/media')
 def admin_media_list(_=Depends(require_super_admin)):
     data=worker_media_request("GET","/media/list")
